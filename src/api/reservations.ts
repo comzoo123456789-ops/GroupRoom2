@@ -73,9 +73,11 @@ async function checkRoomLimit(
 
 /** 예약 목록 - 날짜 범위 조회 (모든 사용자가 통합 타임라인 공유) */
 reservations.get('/', async (c) => {
+  const user = c.get('user');
   const date = c.req.query('date');
   const start = c.req.query('start');
   const end = c.req.query('end');
+  const mine = c.req.query('mine') === '1'; // V4: 내 일정 필터
 
   let query = `
     SELECT r.*, u.name as user_name, u.avatar_color as user_avatar_color, u.tenant_id as user_tenant_id,
@@ -94,6 +96,12 @@ reservations.get('/', async (c) => {
   } else if (start && end) {
     query += ' AND r.date >= ? AND r.date <= ?';
     binds.push(start, end);
+  }
+
+  if (mine) {
+    // 본인이 개설자이거나 참석자로 등록된 예약 (attendees는 JSON 배열 / 이메일 포함 가능)
+    query += ' AND (r.user_id = ? OR r.attendees LIKE ? OR r.attendees LIKE ?)';
+    binds.push(user.id, `%"${user.email}"%`, `%"${user.id}"%`);
   }
 
   query += ' ORDER BY r.date ASC, r.start_time ASC';

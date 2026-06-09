@@ -21,6 +21,20 @@ export type User = {
   avatar_color: string;
 };
 
+export type Department = {
+  id: number;
+  tenant_id: string;
+  name: string;
+  display_order: number;
+};
+
+export type Position = {
+  id: number;
+  tenant_id: string;
+  name: string;
+  display_order: number;
+};
+
 export type Space = {
   id: number;
   name: string;

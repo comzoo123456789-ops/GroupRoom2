@@ -6,6 +6,7 @@ import spacesApi from './api/spaces';
 import reservationsApi from './api/reservations';
 import membersApi from './api/members';
 import insightsApi from './api/insights';
+import orgApi from './api/org';
 import type { Bindings, User } from './types';
 
 import { LoginPage } from './pages/login';
@@ -36,6 +37,8 @@ app.use('/api/members/*', authMiddleware);
 app.route('/api/members', membersApi);
 app.use('/api/insights/*', authMiddleware);
 app.route('/api/insights', insightsApi);
+app.use('/api/org/*', authMiddleware);
+app.route('/api/org', orgApi);
 
 // ============================================
 // PAGES
@@ -56,5 +59,6 @@ app.get('/insights', (c) => c.render(<ShellPage page="insights" />, { title: '�
 app.get('/admin/members', (c) => c.render(<ShellPage page="admin-members" />, { title: '관리 · 멤버' }));
 app.get('/admin/general', (c) => c.render(<ShellPage page="admin-general" />, { title: '관리 · 일반' }));
 app.get('/admin/spaces', (c) => c.render(<ShellPage page="admin-spaces" />, { title: '관리 · 공간' }));
+app.get('/admin/org', (c) => c.render(<ShellPage page="admin-org" />, { title: '관리 · 부서/직책' }));
 
 export default app;

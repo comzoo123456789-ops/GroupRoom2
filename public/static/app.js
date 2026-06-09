@@ -143,16 +143,30 @@ async function renderHome() {
     grouped[r.date].push(r);
   }
 
+  const goToSpace = (date, time) => {
+    // V4: 대시보드 일자 클릭 시 해당 날짜의 타임라인으로 라우팅 + 시간 포커스
+    sessionStorage.setItem('spaceFocusTime', time || '');
+    State.date = date;
+    window.location.href = '/spaces';
+  };
+
   const upcomingItems = Object.entries(grouped).slice(0, 8).map(([date, list]) => {
     const d = dayjs(date);
     return el('div', { class: 'upcoming-day' },
-      el('div', { class: 'upcoming-day-label' },
+      el('div', {
+        class: 'upcoming-day-label is-clickable',
+        title: '클릭하면 해당 날짜의 공간 타임라인으로 이동합니다',
+        onclick: () => goToSpace(date, list[0]?.start_time)
+      },
         el('div', { class: 'day-num' }, d.format('D')),
         el('div', { class: 'day-text' }, d.locale('ko').format('M월, dddd'))
       ),
       el('div', { class: 'upcoming-items' },
         ...list.map(r =>
-          el('div', { class: 'upcoming-row' },
+          el('div', {
+            class: 'upcoming-row is-clickable',
+            onclick: () => goToSpace(r.date, r.start_time)
+          },
             el('div', { class: 'time' },
               el('i', { class: 'fa-regular fa-clock', style: 'margin-right:6px;font-size:11px;color:#7a7a7a;' }),
               `${r.start_time} - ${r.end_time}`
@@ -190,53 +204,167 @@ async function renderHome() {
 
 // ============== SPACES (TIMELINE) PAGE ==============
 let dragState = null;
+let resizeState = null;
 let pollingInterval = null;
+// State.view: 'day' | 'month', State.mineOnly: boolean
+if (!State.view) State.view = 'day';
+if (typeof State.mineOnly !== 'boolean') State.mineOnly = false;
 
 async function loadTimeline() {
-  const [spacesRes, resvRes] = await Promise.all([
-    api('/api/spaces'),
-    api(`/api/reservations?date=${State.date}`)
-  ]);
-  State.spaces = spacesRes?.data?.spaces || [];
-  State.reservations = resvRes?.data?.reservations || [];
+  const qsBase = State.mineOnly ? '&mine=1' : '';
+  if (State.view === 'month') {
+    const m = dayjs(State.date);
+    const start = m.startOf('month').format('YYYY-MM-DD');
+    const end = m.endOf('month').format('YYYY-MM-DD');
+    const [spacesRes, resvRes] = await Promise.all([
+      api('/api/spaces'),
+      api(`/api/reservations?start=${start}&end=${end}${qsBase}`)
+    ]);
+    State.spaces = spacesRes?.data?.spaces || [];
+    State.reservations = resvRes?.data?.reservations || [];
+  } else {
+    const [spacesRes, resvRes] = await Promise.all([
+      api('/api/spaces'),
+      api(`/api/reservations?date=${State.date}${qsBase}`)
+    ]);
+    State.spaces = spacesRes?.data?.spaces || [];
+    State.reservations = resvRes?.data?.reservations || [];
+  }
 }
 
 async function renderSpaces() {
   await loadTimeline();
   startPolling();
 
-  const dateLabel = dayjs(State.date).locale('ko').format('YYYY년 M월 D일 (ddd)');
+  const dateLabel = State.view === 'month'
+    ? dayjs(State.date).locale('ko').format('YYYY년 M월')
+    : dayjs(State.date).locale('ko').format('YYYY년 M월 D일 (ddd)');
 
-  const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'timeline-toolbar' },
-      el('div', { class: 'timeline-date-nav' },
-        el('button', { class: 'btn-icon', onclick: () => changeDate(-1) }, el('i', { class: 'fa-solid fa-chevron-left' })),
-        el('div', { class: 'date-display' }, dateLabel),
-        el('button', { class: 'btn-icon', onclick: () => changeDate(1) }, el('i', { class: 'fa-solid fa-chevron-right' })),
-        el('button', { class: 'btn-ghost', onclick: () => { State.date = dayjs().format('YYYY-MM-DD'); renderSpaces(); } }, '오늘')
-      ),
-      el('div', { class: 'timeline-legend' },
-        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#0066cc;' }), '와일리'),
-        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#1d1d1f;' }), '러쉬코리아'),
-        el('span', { style: 'color:#cccccc;' }, '|'),
-        el('span', { class: 'legend-chip', style: 'color:#7a7a7a;' }, '드래그하여 예약 만들기'),
-      )
+  const toolbar = el('div', { class: 'timeline-toolbar' },
+    el('div', { class: 'timeline-date-nav' },
+      el('button', { class: 'btn-icon', onclick: () => changeDate(-1) }, el('i', { class: 'fa-solid fa-chevron-left' })),
+      el('div', { class: 'date-display' }, dateLabel),
+      el('button', { class: 'btn-icon', onclick: () => changeDate(1) }, el('i', { class: 'fa-solid fa-chevron-right' })),
+      el('button', { class: 'btn-ghost', onclick: () => { State.date = dayjs().format('YYYY-MM-DD'); renderSpaces(); } }, '오늘'),
+      el('input', {
+        type: 'date',
+        value: State.date,
+        class: 'date-jump-input',
+        onchange: (e) => { if (e.target.value) { State.date = e.target.value; renderSpaces(); } }
+      })
     ),
-    el('div', { class: 'timeline-container' },
-      el('div', { class: 'timeline-scroll' },
-        buildTimelineGrid()
-      )
+    el('div', { class: 'timeline-view-switch' },
+      el('button', {
+        class: 'view-tab ' + (State.view === 'day' ? 'is-active' : ''),
+        onclick: () => { State.view = 'day'; renderSpaces(); }
+      }, el('i', { class: 'fa-regular fa-calendar' }), '일간'),
+      el('button', {
+        class: 'view-tab ' + (State.view === 'month' ? 'is-active' : ''),
+        onclick: () => { State.view = 'month'; renderSpaces(); }
+      }, el('i', { class: 'fa-regular fa-calendar-days' }), '월간'),
+      el('button', {
+        class: 'view-tab mine-tab ' + (State.mineOnly ? 'is-active' : ''),
+        onclick: () => { State.mineOnly = !State.mineOnly; renderSpaces(); },
+        title: '본인이 개설자 또는 참석자인 일정만 보기'
+      }, el('i', { class: 'fa-solid fa-user' }), '내 일정')
+    ),
+    el('div', { class: 'timeline-legend' },
+      el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#0066cc;' }), '와일리'),
+      el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#1d1d1f;' }), '러쉬코리아'),
     )
   );
 
+  const main = el('main', { class: 'page-wrap' },
+    toolbar,
+    State.view === 'month'
+      ? el('div', { class: 'month-view-container' }, buildMonthView())
+      : el('div', { class: 'timeline-container' },
+          el('div', { class: 'timeline-scroll' },
+            buildTimelineGrid()
+          )
+        )
+  );
+
   renderShell(main);
-  attachDragHandlers();
-  drawNowLine();
+  if (State.view === 'day') {
+    attachDragHandlers();
+    attachResizeHandlers();
+    drawNowLine();
+    focusOnRequestedTime();
+  }
+}
+
+function focusOnRequestedTime() {
+  // 홈 대시보드에서 일자 클릭 시 sessionStorage에 시간 저장 → 해당 위치로 스크롤
+  const t = sessionStorage.getItem('spaceFocusTime');
+  if (!t) return;
+  sessionStorage.removeItem('spaceFocusTime');
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h)) return;
+  const scroller = $('.timeline-scroll');
+  if (!scroller) return;
+  const topPx = (h * 60 + (m || 0)) * (40 / 60);
+  // 헤더 높이를 빼고 살짝 여유
+  scroller.scrollTo({ top: Math.max(0, topPx - 80), behavior: 'smooth' });
 }
 
 function changeDate(delta) {
-  State.date = dayjs(State.date).add(delta, 'day').format('YYYY-MM-DD');
+  if (State.view === 'month') {
+    State.date = dayjs(State.date).add(delta, 'month').format('YYYY-MM-DD');
+  } else {
+    State.date = dayjs(State.date).add(delta, 'day').format('YYYY-MM-DD');
+  }
   renderSpaces();
+}
+
+function buildMonthView() {
+  const m = dayjs(State.date);
+  const monthStart = m.startOf('month');
+  const startWeekday = monthStart.day(); // 0=일
+  const daysInMonth = m.daysInMonth();
+  const todayStr = dayjs().format('YYYY-MM-DD');
+  const monthStr = m.format('YYYY-MM');
+
+  // 헤더(요일)
+  const dowLabels = ['일', '월', '화', '수', '목', '금', '토'];
+  const header = el('div', { class: 'month-grid-header' },
+    ...dowLabels.map((d, i) =>
+      el('div', { class: 'month-dow ' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '') }, d)
+    )
+  );
+
+  const body = el('div', { class: 'month-grid-body' });
+  // 앞쪽 빈 칸
+  for (let i = 0; i < startWeekday; i++) {
+    body.append(el('div', { class: 'month-cell is-blank' }));
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+    const dayEvents = State.reservations.filter(r => r.date === dStr);
+    const isToday = dStr === todayStr;
+    const cell = el('div', {
+      class: 'month-cell ' + (isToday ? 'is-today' : ''),
+      onclick: () => { State.view = 'day'; State.date = dStr; renderSpaces(); }
+    },
+      el('div', { class: 'month-cell-day' }, String(day)),
+      el('div', { class: 'month-cell-events' },
+        ...dayEvents.slice(0, 4).map(r =>
+          el('div', {
+            class: 'month-event',
+            style: `background:${r.tenant_id === 'WYLIE' ? '#0066cc' : '#1d1d1f'};`,
+            title: `${r.start_time}-${r.end_time} · ${r.title} · ${r.space_name}`
+          },
+            el('span', { class: 'me-time' }, r.start_time),
+            ' ',
+            r.title || '새로운 일정'
+          )
+        ),
+        dayEvents.length > 4 && el('div', { class: 'month-more' }, `+${dayEvents.length - 4}건 더 보기`)
+      )
+    );
+    body.append(cell);
+  }
+  return el('div', { class: 'month-grid' }, header, body);
 }
 
 function buildTimelineGrid() {
@@ -287,11 +415,17 @@ function buildEventEl(r) {
   const top = (sh * 60 + sm) * (40 / 60); // 40px per hour
   const height = Math.max(20, ((eh * 60 + em) - (sh * 60 + sm)) * (40 / 60));
   const bg = r.tenant_id === 'WYLIE' ? '#0066cc' : '#1d1d1f';
+  const isOwner = r.user_id === State.user.id || State.user.role === 'admin';
 
-  return el('div', {
-    class: 'timeline-event',
+  // 내 일정 필터에서 강조
+  const highlight = State.mineOnly && r.user_id === State.user.id ? ' is-mine' : '';
+
+  const node = el('div', {
+    class: 'timeline-event' + highlight,
     style: `top:${top}px;height:${height}px;background:${bg};`,
-    onclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
+    'data-id': r.id,
+    onclick: (e) => { e.stopPropagation(); /* 단일 클릭은 무시(드래그/리사이즈와 충돌) */ },
+    ondblclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
   },
     el('div', { class: 'ev-title' }, r.title || '새로운 일정'),
     height > 32 && el('div', { class: 'ev-time' }, `${r.start_time} - ${r.end_time}`),
@@ -299,8 +433,15 @@ function buildEventEl(r) {
       class: 'ev-owner-avatar',
       style: `background:${r.user_avatar_color || '#7a7a7a'};`,
       title: r.user_name
-    }, initials(r.user_name))
+    }, initials(r.user_name)),
+    // V4: 끝부분 리사이즈 핸들 (개설자 또는 관리자만)
+    isOwner && el('div', {
+      class: 'ev-resize-handle',
+      'data-id': r.id,
+      title: '드래그하여 종료 시간 조정'
+    })
   );
+  return node;
 }
 
 function attachDragHandlers() {
@@ -308,6 +449,9 @@ function attachDragHandlers() {
   if (!grid) return;
 
   grid.addEventListener('mousedown', (e) => {
+    // 리사이즈 핸들/예약 블록 자체를 클릭한 경우는 새 예약 드래그 비활성화
+    if (e.target.closest('.ev-resize-handle')) return;
+    if (e.target.closest('.timeline-event')) return;
     const cell = e.target.closest('.timeline-cell');
     if (!cell) return;
     e.preventDefault();
@@ -326,32 +470,115 @@ function attachDragHandlers() {
     updateDragPreview();
   });
 
-  document.addEventListener('mousemove', (e) => {
-    if (!dragState) return;
-    const rect = dragState.col.getBoundingClientRect();
-    dragState.currentY = Math.max(0, Math.min(24 * 40, e.clientY - rect.top));
-    updateDragPreview();
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragUp);
+}
+
+function onDragMove(e) {
+  if (!dragState) return;
+  const rect = dragState.col.getBoundingClientRect();
+  dragState.currentY = Math.max(0, Math.min(24 * 40, e.clientY - rect.top));
+  updateDragPreview();
+}
+
+function onDragUp(e) {
+  if (!dragState) return;
+  const { spaceId, startY, currentY, preview } = dragState;
+  preview.remove();
+  const top = Math.min(startY, currentY);
+  const bottom = Math.max(startY, currentY);
+  // snap to 30-min slots
+  const startMin = Math.round((top / 40) * 60 / 30) * 30;
+  let endMin = Math.round((bottom / 40) * 60 / 30) * 30;
+  if (endMin <= startMin) endMin = startMin + 30;
+  if (endMin > 24 * 60) endMin = 24 * 60;
+  dragState = null;
+  if (endMin - startMin < 30) return;
+  openReservationModal({
+    space_id: spaceId,
+    start_time: minutesToTime(startMin),
+    end_time: minutesToTime(endMin),
+  });
+}
+
+/** V4: 예약 블록 종료 시간 리사이즈 (끝부분 핸들 드래그) */
+function attachResizeHandlers() {
+  const grid = $('#timeline-grid');
+  if (!grid) return;
+
+  grid.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.ev-resize-handle');
+    if (!handle) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = Number(handle.dataset.id);
+    const r = State.reservations.find(x => x.id === id);
+    if (!r) return;
+    const eventEl = handle.parentElement;
+    resizeState = {
+      reservation: r,
+      eventEl,
+      startClientY: e.clientY,
+      originalHeight: eventEl.offsetHeight,
+      originalTop: eventEl.offsetTop,
+    };
   });
 
-  document.addEventListener('mouseup', (e) => {
-    if (!dragState) return;
-    const { spaceId, startY, currentY, preview } = dragState;
-    preview.remove();
-    const top = Math.min(startY, currentY);
-    const bottom = Math.max(startY, currentY);
-    // snap to 30-min slots
-    const startMin = Math.round((top / 40) * 60 / 30) * 30;
-    let endMin = Math.round((bottom / 40) * 60 / 30) * 30;
-    if (endMin <= startMin) endMin = startMin + 30;
-    if (endMin > 24 * 60) endMin = 24 * 60;
-    dragState = null;
-    if (endMin - startMin < 30) return;
-    openReservationModal({
-      space_id: spaceId,
-      start_time: minutesToTime(startMin),
-      end_time: minutesToTime(endMin),
-    });
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeUp);
+}
+
+function onResizeMove(e) {
+  if (!resizeState) return;
+  const dy = e.clientY - resizeState.startClientY;
+  let newHeight = Math.max(20, resizeState.originalHeight + dy);
+  // 24시 경계 제한
+  const maxHeight = 24 * 40 - resizeState.originalTop;
+  newHeight = Math.min(newHeight, maxHeight);
+  resizeState.eventEl.style.height = newHeight + 'px';
+  // 시간 표시 갱신
+  const startMin = resizeState.originalTop / 40 * 60;
+  const endMin = Math.round((resizeState.originalTop + newHeight) / 40 * 60 / 30) * 30;
+  const timeLabel = resizeState.eventEl.querySelector('.ev-time');
+  const endStr = minutesToTime(endMin);
+  if (timeLabel) timeLabel.textContent = `${resizeState.reservation.start_time} - ${endStr}`;
+}
+
+async function onResizeUp(e) {
+  if (!resizeState) return;
+  const rs = resizeState;
+  resizeState = null;
+  const newHeight = parseFloat(rs.eventEl.style.height);
+  const startMin = rs.originalTop / 40 * 60;
+  let endMin = Math.round((rs.originalTop + newHeight) / 40 * 60 / 30) * 30;
+  if (endMin <= startMin) endMin = startMin + 30;
+  if (endMin > 24 * 60) endMin = 24 * 60;
+  const newEnd = minutesToTime(endMin);
+  if (newEnd === rs.reservation.end_time) return; // 변경 없음
+
+  const res = await api(`/api/reservations/${rs.reservation.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ end_time: newEnd })
   });
+  if (!res.ok) {
+    toast(res.data?.error || '시간 조정에 실패했습니다.', 'error');
+  } else {
+    toast(`종료 시간을 ${newEnd}로 변경했습니다.`, 'success');
+  }
+  await loadTimeline();
+  // 빠른 리렌더 — 이벤트만 갱신
+  refreshTimelineEvents();
+}
+
+function refreshTimelineEvents() {
+  const grid = $('#timeline-grid');
+  if (!grid) return;
+  $$('.timeline-event', grid).forEach(e => e.remove());
+  for (const s of State.spaces) {
+    const col = $(`.timeline-space-col[data-space-id="${s.id}"]`, grid);
+    if (!col) continue;
+    State.reservations.filter(r => r.space_id === s.id).forEach(r => col.append(buildEventEl(r)));
+  }
 }
 
 function updateDragPreview() {
@@ -612,16 +839,57 @@ async function submitReservation(force = false) {
 
 function openReservationDetail(r) {
   const canEdit = State.user.role === 'admin' || State.user.id === r.user_id;
+  // 편집용 임시 state
+  const edit = {
+    title: r.title || '',
+    start_time: r.start_time,
+    end_time: r.end_time,
+    date: r.date,
+  };
+
+  const buildTimeSelectInline = (key, value) => {
+    const options = [];
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const v = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        options.push(el('option', { value: v, selected: v === value ? 'selected' : null }, v));
+      }
+    }
+    return el('select', {
+      class: 'field-input',
+      style: 'padding:10px 12px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;background:#fff;',
+      onchange: (e) => { edit[key] = e.target.value; },
+      disabled: !canEdit ? 'disabled' : null,
+    }, ...options);
+  };
+
   const backdrop = el('div', { class: 'modal-backdrop', id: 'reservation-modal', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
   const modal = el('div', { class: 'modal' },
     el('div', { class: 'modal-header' },
-      el('div', { class: 'modal-header-title' }, r.title || '예약 상세'),
+      el('div', { class: 'modal-header-title' }, '예약 상세'),
       el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
     ),
     el('div', { class: 'modal-body' },
+      el('input', {
+        class: 'title-input-large',
+        value: edit.title,
+        placeholder: '일정명',
+        oninput: (e) => edit.title = e.target.value,
+        disabled: !canEdit ? 'disabled' : null,
+      }),
       el('div', { class: 'modal-section' },
-        el('div', { class: 'modal-section-title' }, '일시'),
-        el('div', null, `${r.date} · ${r.start_time} - ${r.end_time}`)
+        el('div', { class: 'modal-section-title' }, '날짜 / 시간'),
+        el('div', { class: 'input-row' },
+          el('input', {
+            type: 'date', value: edit.date,
+            class: 'field-input',
+            style: 'padding:10px 12px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;',
+            onchange: (e) => edit.date = e.target.value,
+            disabled: !canEdit ? 'disabled' : null,
+          }),
+          buildTimeSelectInline('start_time', edit.start_time),
+          buildTimeSelectInline('end_time', edit.end_time),
+        ),
       ),
       el('div', { class: 'modal-section' },
         el('div', { class: 'modal-section-title' }, '장소'),
@@ -641,11 +909,30 @@ function openReservationDetail(r) {
     ),
     el('div', { class: 'modal-footer' },
       canEdit ? el('button', { class: 'btn-secondary', style: 'color:#d33;', onclick: () => deleteReservation(r.id) }, '예약 취소') : null,
-      el('button', { class: 'btn-primary', onclick: closeModal }, '닫기')
+      canEdit ? el('button', { class: 'btn-primary', onclick: () => saveReservationEdit(r.id, edit) }, '저장') : el('button', { class: 'btn-primary', onclick: closeModal }, '닫기')
     )
   );
   backdrop.append(modal);
   document.body.append(backdrop);
+}
+
+async function saveReservationEdit(id, edit) {
+  if (edit.start_time >= edit.end_time) {
+    toast('시작 시간은 종료 시간보다 빨라야 합니다.', 'error');
+    return;
+  }
+  const res = await api(`/api/reservations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(edit)
+  });
+  if (!res.ok) {
+    toast(res.data?.error || '수정에 실패했습니다.', 'error');
+    return;
+  }
+  toast('예약이 수정되었습니다.', 'success');
+  closeModal();
+  await loadTimeline();
+  renderSpaces();
 }
 
 async function deleteReservation(id) {
@@ -659,57 +946,421 @@ async function deleteReservation(id) {
 }
 
 // ============== INSIGHTS ==============
-async function renderInsights() {
-  const res = await api('/api/insights/overview?days=30');
-  const data = res?.data || {};
-  const avgH = Math.floor((data.avg_minutes || 0) / 60);
-  const avgM = (data.avg_minutes || 0) % 60;
+// ============== INSIGHTS (V4: 3-tab) ==============
+const InsightState = {
+  tab: 'overview',     // 'overview' | 'history' | 'stats'
+  range: '30',         // '7' | '30' | '90' | '180' | '365' | 'custom'
+  start: '',
+  end: '',
+  metric: 'count',     // 'count' | 'time' (통계 탭)
+  charts: {},          // Chart 인스턴스 보관
+};
 
-  const heatmapMax = Math.max(1, ...((data.heatmap || []).flat()));
+function rangeQuery() {
+  const p = new URLSearchParams();
+  p.set('range', InsightState.range);
+  if (InsightState.range === 'custom') {
+    if (InsightState.start) p.set('start', InsightState.start);
+    if (InsightState.end) p.set('end', InsightState.end);
+  }
+  return p.toString();
+}
+
+function destroyCharts() {
+  for (const k of Object.keys(InsightState.charts)) {
+    try { InsightState.charts[k]?.destroy(); } catch (e) {}
+  }
+  InsightState.charts = {};
+}
+
+async function renderInsights() {
+  destroyCharts();
+
+  const tabs = [
+    { key: 'overview', label: '개요', icon: 'fa-chart-pie' },
+    { key: 'history',  label: '내역', icon: 'fa-list' },
+    { key: 'stats',    label: '통계', icon: 'fa-chart-column' },
+  ];
+
+  const presets = [
+    { v: '7',   label: '7일' },
+    { v: '30',  label: '30일' },
+    { v: '90',  label: '90일' },
+    { v: '180', label: '180일' },
+    { v: '365', label: '1년' },
+    { v: 'custom', label: '사용자 지정' },
+  ];
+
+  // 사용자 지정 입력 영역
+  const customWrap = el('div', { class: 'insight-custom-range', style: InsightState.range === 'custom' ? '' : 'display:none;' },
+    el('input', {
+      type: 'date',
+      class: 'date-jump-input',
+      value: InsightState.start || dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+      onchange: (e) => { InsightState.start = e.target.value; renderInsights(); },
+    }),
+    el('span', { class: 'me-time' }, '~'),
+    el('input', {
+      type: 'date',
+      class: 'date-jump-input',
+      value: InsightState.end || dayjs().format('YYYY-MM-DD'),
+      onchange: (e) => { InsightState.end = e.target.value; renderInsights(); },
+    }),
+  );
 
   const main = el('main', { class: 'page-wrap' },
     el('div', { class: 'page-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '인사이트'),
-        el('p', null, '지난 30일 · 공간 운영 데이터를 한눈에')
+        el('p', null, '공간 운영 데이터를 한눈에')
       )
     ),
+
+    // 탭 네비
+    el('div', { class: 'insight-tabs' },
+      ...tabs.map(t =>
+        el('button', {
+          class: 'insight-tab' + (InsightState.tab === t.key ? ' is-active' : ''),
+          onclick: () => { InsightState.tab = t.key; renderInsights(); },
+        },
+          el('i', { class: `fa-solid ${t.icon}` }),
+          el('span', null, t.label)
+        )
+      )
+    ),
+
+    // 기간 필터
+    el('div', { class: 'insight-filterbar' },
+      el('div', { class: 'insight-range-group' },
+        ...presets.map(p =>
+          el('button', {
+            class: 'range-chip' + (InsightState.range === p.v ? ' is-active' : ''),
+            onclick: () => {
+              InsightState.range = p.v;
+              if (p.v === 'custom') {
+                InsightState.start = InsightState.start || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                InsightState.end = InsightState.end || dayjs().format('YYYY-MM-DD');
+              }
+              renderInsights();
+            },
+          }, p.label)
+        )
+      ),
+      customWrap
+    ),
+
+    // 탭 컨텐츠 컨테이너 (탭별 비동기 렌더)
+    el('div', { id: 'insightTabBody', class: 'insight-tab-body' },
+      el('div', { class: 'insight-loading' },
+        el('i', { class: 'fa-solid fa-spinner fa-spin' }),
+        el('span', null, '불러오는 중...')
+      )
+    )
+  );
+
+  renderShell(main);
+
+  // 탭별 비동기 데이터 로드 & 그리기
+  const body = document.getElementById('insightTabBody');
+  if (!body) return;
+
+  if (InsightState.tab === 'overview') {
+    await renderInsightOverview(body);
+  } else if (InsightState.tab === 'history') {
+    await renderInsightHistory(body);
+  } else if (InsightState.tab === 'stats') {
+    await renderInsightStats(body);
+  }
+}
+
+// ───── 개요 탭 ─────
+async function renderInsightOverview(body) {
+  const res = await api(`/api/insights/overview?${rangeQuery()}`);
+  const data = res?.data || {};
+  const avgH = Math.floor((data.avg_minutes || 0) / 60);
+  const avgM = (data.avg_minutes || 0) % 60;
+  const heatmapMax = Math.max(1, ...((data.heatmap || []).flat()));
+
+  body.innerHTML = '';
+  body.append(
     el('div', { class: 'insight-stats-grid' },
       el('div', { class: 'stat-card' },
         el('div', { class: 'stat-label' }, '평균 회의 진행 시간'),
         el('div', { class: 'stat-value' }, `${avgH}시간 ${avgM}분`),
-        el('div', { class: 'stat-trend' }, '회의가 종료된 모든 예약 평균')
+        el('div', { class: 'stat-trend' }, '확정 예약 평균')
       ),
       el('div', { class: 'stat-card' },
         el('div', { class: 'stat-label' }, '총 예약 건수'),
         el('div', { class: 'stat-value' }, `${data.total || 0}건`),
-        el('div', { class: 'stat-trend' }, '지난 30일 누적')
+        el('div', { class: 'stat-trend' }, `${data.start} ~ ${data.end}`)
       ),
       el('div', { class: 'stat-card' },
         el('div', { class: 'stat-label' }, '가동 공간 수'),
         el('div', { class: 'stat-value' }, `${(data.popular_spaces || []).filter(p => p.count > 0).length}/${(data.popular_spaces || []).length}`),
-        el('div', { class: 'stat-trend' }, '활성 공간 비율')
+        el('div', { class: 'stat-trend' }, '예약이 있던 공간 / 전체 공간')
       ),
     ),
     el('div', { class: 'insight-popular' },
       el('h3', null, '인기 공간'),
-      el('div', { class: 'popular-grid' },
-        ...(data.popular_spaces || []).map((p, i) =>
-          el('div', { class: 'popular-item' },
-            el('div', { class: `popular-rank r-${i + 1}` }, String(i + 1).padStart(2, '0')),
-            el('div', { class: 'popular-name' }, p.name),
-            el('div', { class: 'popular-count' }, `${p.count}회`)
+      (data.popular_spaces || []).length === 0
+        ? el('div', { class: 'org-empty' }, '데이터가 없습니다')
+        : el('div', { class: 'popular-grid' },
+            ...(data.popular_spaces || []).map((p, i) =>
+              el('div', { class: 'popular-item' },
+                el('div', { class: `popular-rank r-${i + 1}` }, String(i + 1).padStart(2, '0')),
+                el('div', { class: 'popular-name' }, p.name),
+                el('div', { class: 'popular-count' }, `${p.count}회`)
+              )
+            )
           )
-        )
-      )
     ),
     el('div', { class: 'insight-heatmap' },
       el('h3', null, '요일·시간대별 예약 밀집도'),
       buildHeatmap(data.heatmap || [], heatmapMax)
     )
   );
+}
 
-  renderShell(main);
+// ───── 내역 탭 ─────
+async function renderInsightHistory(body) {
+  const res = await api(`/api/insights/history?${rangeQuery()}`);
+  const rows = res?.data?.history || [];
+
+  body.innerHTML = '';
+
+  const table = el('table', { class: 'admin-table history-table' },
+    el('thead', null,
+      el('tr', null,
+        el('th', null, '날짜'),
+        el('th', null, '시간'),
+        el('th', null, '공간'),
+        el('th', null, '제목'),
+        el('th', null, '예약자'),
+        el('th', null, '소속'),
+        el('th', null, '상태'),
+      )
+    ),
+    el('tbody', null,
+      ...(rows.length === 0
+        ? [el('tr', null, el('td', { colspan: '7', class: 'org-empty' }, '해당 기간에 예약 내역이 없습니다'))]
+        : rows.map(r =>
+            el('tr', null,
+              el('td', null, r.date),
+              el('td', null, `${(r.start_time || '').slice(0, 5)} ~ ${(r.end_time || '').slice(0, 5)}`),
+              el('td', null,
+                el('span', { class: 'space-chip', style: `background:${r.space_color || '#999'}` }),
+                el('span', null, ' ' + (r.space_name || '-'))
+              ),
+              el('td', null, r.title || '(제목 없음)'),
+              el('td', null,
+                el('span', {
+                  class: 'avatar-mini',
+                  style: `background:${r.avatar_color || '#999'}`
+                }, (r.user_name || '?').slice(0, 1)),
+                el('span', null, ' ' + (r.user_name || '-'))
+              ),
+              el('td', null, r.tenant_name || '-'),
+              el('td', null,
+                el('span', {
+                  class: 'status-pill ' + (r.status === 'confirmed' ? 'is-confirmed' : 'is-cancelled')
+                }, r.status === 'confirmed' ? '확정' : '취소')
+              )
+            )
+          )
+      )
+    )
+  );
+
+  body.append(
+    el('div', { class: 'insight-history-head' },
+      el('h3', null, `예약 내역 (${rows.length}건)`)
+    ),
+    el('div', { class: 'admin-card' }, table)
+  );
+}
+
+// ───── 통계 탭 ─────
+async function renderInsightStats(body) {
+  body.innerHTML = '';
+
+  // 메트릭 스위치
+  const metricSwitch = el('div', { class: 'metric-switch' },
+    el('button', {
+      class: 'metric-btn' + (InsightState.metric === 'count' ? ' is-active' : ''),
+      onclick: () => { InsightState.metric = 'count'; renderInsights(); },
+    }, '일정 개수'),
+    el('button', {
+      class: 'metric-btn' + (InsightState.metric === 'time' ? ' is-active' : ''),
+      onclick: () => { InsightState.metric = 'time'; renderInsights(); },
+    }, '예약 시간 누적'),
+  );
+
+  body.append(
+    el('div', { class: 'insight-stats-head' },
+      el('h3', null, '항목별 통계'),
+      metricSwitch
+    )
+  );
+
+  const res = await api(`/api/insights/stats?${rangeQuery()}&metric=${InsightState.metric}`);
+  const stats = res?.data || {};
+  const unitLabel = InsightState.metric === 'time' ? '분' : '건';
+
+  const fmt = (v) => {
+    if (InsightState.metric !== 'time') return `${v}${unitLabel}`;
+    const h = Math.floor(v / 60); const m = v % 60;
+    if (h === 0) return `${m}분`;
+    return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
+  };
+
+  // 4개 카드 그리드
+  const grid = el('div', { class: 'chart-grid' },
+    el('div', { class: 'chart-card' },
+      el('h4', null, '노쇼 / 취소 현황'),
+      el('div', { class: 'chart-canvas-wrap' },
+        el('canvas', { id: 'chartNoshow' })
+      )
+    ),
+    el('div', { class: 'chart-card' },
+      el('h4', null, '요일별 예약'),
+      el('div', { class: 'chart-canvas-wrap' },
+        el('canvas', { id: 'chartWeekday' })
+      )
+    ),
+    el('div', { class: 'chart-card' },
+      el('h4', null, '예약 방식'),
+      el('div', { class: 'chart-canvas-wrap' },
+        el('canvas', { id: 'chartMethod' })
+      )
+    ),
+    el('div', { class: 'chart-card' },
+      el('h4', null, '수용인원별 이용'),
+      el('div', { class: 'chart-canvas-wrap' },
+        el('canvas', { id: 'chartCapacity' })
+      )
+    ),
+  );
+  body.append(grid);
+
+  // 공간별 사용 비율 표
+  body.append(
+    el('div', { class: 'insight-by-space' },
+      el('h3', null, '공간별 사용량'),
+      (stats.by_space || []).length === 0
+        ? el('div', { class: 'org-empty' }, '데이터가 없습니다')
+        : el('div', { class: 'space-bar-list' },
+            ...(() => {
+              const max = Math.max(1, ...(stats.by_space || []).map(s => s.v || 0));
+              return (stats.by_space || []).map(s =>
+                el('div', { class: 'space-bar-row' },
+                  el('div', { class: 'space-bar-label' },
+                    el('span', { class: 'space-chip', style: `background:${s.color || '#999'}` }),
+                    el('span', null, s.name)
+                  ),
+                  el('div', { class: 'space-bar-track' },
+                    el('div', {
+                      class: 'space-bar-fill',
+                      style: `width:${(s.v || 0) / max * 100}%; background:${s.color || '#0066cc'}`
+                    })
+                  ),
+                  el('div', { class: 'space-bar-value' }, fmt(s.v || 0))
+                )
+              );
+            })()
+          )
+    )
+  );
+
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded');
+    return;
+  }
+
+  // 차트 그리기
+  const blue = '#0066cc';
+  const ink = '#1d1d1f';
+  const ghost = '#f5f5f7';
+
+  // 1) 노쇼 도넛
+  InsightState.charts.noshow = new Chart(document.getElementById('chartNoshow'), {
+    type: 'doughnut',
+    data: {
+      labels: ['확정', '취소'],
+      datasets: [{
+        data: [stats.noshow?.confirmed || 0, stats.noshow?.cancelled || 0],
+        backgroundColor: [blue, '#ff3b30'],
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmt(ctx.parsed)}` } },
+      },
+    },
+  });
+
+  // 2) 요일별 막대
+  const dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+  InsightState.charts.weekday = new Chart(document.getElementById('chartWeekday'), {
+    type: 'bar',
+    data: {
+      labels: dayLabels,
+      datasets: [{
+        label: InsightState.metric === 'time' ? '분' : '건수',
+        data: stats.weekday || [0,0,0,0,0,0,0],
+        backgroundColor: blue,
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmt(ctx.parsed.y) } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+
+  // 3) 예약 방식 도넛
+  const methodEntries = Object.entries(stats.method || {});
+  InsightState.charts.method = new Chart(document.getElementById('chartMethod'), {
+    type: 'doughnut',
+    data: {
+      labels: methodEntries.map(([k]) => k),
+      datasets: [{
+        data: methodEntries.map(([, v]) => v),
+        backgroundColor: [blue, '#34c759', '#ff9500'],
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmt(ctx.parsed)}` } },
+      },
+    },
+  });
+
+  // 4) 수용인원별 막대
+  const caps = stats.capacity || [];
+  InsightState.charts.capacity = new Chart(document.getElementById('chartCapacity'), {
+    type: 'bar',
+    data: {
+      labels: caps.map(c => `${c.capacity}인`),
+      datasets: [{
+        label: InsightState.metric === 'time' ? '분' : '건수',
+        data: caps.map(c => c.v || 0),
+        backgroundColor: '#34c759',
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmt(ctx.parsed.y) } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
 }
 
 function buildHeatmap(heatmap, max) {
@@ -760,9 +1411,12 @@ async function renderAdminMembers() {
         el('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;' },
           el('div', null,
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '멤버'),
-            el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '멤버 초대부터 정보 수정까지, 다양한 속성으로 검색하고 손쉽게 관리할 수 있어요.')
+            el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '관리자가 직접 직원 계정을 생성하고 정보를 관리합니다.')
           ),
-          el('button', { class: 'btn-primary', onclick: openMemberInviteModal }, '초대하기')
+          el('button', { class: 'btn-primary', onclick: openMemberCreateModal },
+            el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }),
+            '생성하기'
+          )
         ),
         el('div', { class: 'tabs' },
           el('button', { class: 'tab-link is-active' }, `전체 (${members.length})`),
@@ -783,6 +1437,7 @@ function buildAdminSidebar(active) {
   const links = [
     { key: 'general', label: '일반', icon: 'fa-sliders', href: '/admin/general' },
     { key: 'members', label: '멤버', icon: 'fa-user', href: '/admin/members' },
+    { key: 'org', label: '부서/직책', icon: 'fa-sitemap', href: '/admin/org' },
     { key: 'spaces', label: '공간', icon: 'fa-cube', href: '/admin/spaces' },
   ];
   return el('aside', { class: 'admin-side-nav' },
@@ -814,13 +1469,19 @@ function buildMemberTable(members) {
       ),
       el('td', null, m.department || '-'),
       el('td', null, m.position || '-'),
-      el('td', null, m.phone || '-'),
       el('td', null, el('span', { class: 'status-badge s-active' }, '활성')),
       el('td', null, el('span', { class: m.role === 'admin' ? 'status-badge s-admin' : 'status-badge s-member' }, m.role === 'admin' ? 'Admin' : '일반 멤버')),
       el('td', null,
-        m.id !== State.user.id
-          ? el('button', { class: 'btn-icon', onclick: () => deleteMember(m.id) }, el('i', { class: 'fa-solid fa-trash', style: 'font-size:12px;color:#d33;' }))
-          : ''
+        el('div', { style: 'display:flex;gap:6px;justify-content:flex-end;' },
+          el('button', { class: 'btn-icon', title: '수정', onclick: () => openMemberEditModal(m) },
+            el('i', { class: 'fa-solid fa-pen', style: 'font-size:12px;color:#0066cc;' })
+          ),
+          m.id !== State.user.id
+            ? el('button', { class: 'btn-icon', title: '삭제', onclick: () => deleteMember(m.id) },
+                el('i', { class: 'fa-solid fa-trash', style: 'font-size:12px;color:#d33;' })
+              )
+            : null
+        )
       )
     );
     tbody.append(tr);
@@ -831,10 +1492,9 @@ function buildMemberTable(members) {
         el('th', null, '이름'),
         el('th', null, '부서'),
         el('th', null, '직책'),
-        el('th', null, '휴대전화번호'),
         el('th', null, '상태'),
         el('th', null, '역할'),
-        el('th', null, '')
+        el('th', { style: 'text-align:right;' }, '액션')
       )
     ),
     tbody
@@ -857,11 +1517,24 @@ async function deleteMember(id) {
   renderAdminMembers();
 }
 
-function openMemberInviteModal() {
-  let mode = 'single'; // 'single' | 'bulk'
+/** V4: 부서/직책 마스터 데이터 캐시 */
+const OrgCache = { departments: [], positions: [], loaded: false };
+async function loadOrgLists() {
+  const [d, p] = await Promise.all([api('/api/org/departments'), api('/api/org/positions')]);
+  OrgCache.departments = d?.data?.departments || [];
+  OrgCache.positions = p?.data?.positions || [];
+  OrgCache.loaded = true;
+}
+
+const inputStyle = () => 'width:100%;padding:12px 16px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;background:#fff;';
+
+/** V4: 멤버 생성 모달 (휴대폰 필드 제거, 부서/직책 드롭다운 연동) */
+async function openMemberCreateModal() {
+  await loadOrgLists();
+  let mode = 'single';
   const state = {
-    name: '', email: '', phone: '', department: '', position: '',
-    bulkRows: Array.from({ length: 5 }, () => ({ name: '', email: '', phone: '', department: '', position: '' })),
+    name: '', email: '', password: '', department: '', position: '', role: 'member',
+    bulkRows: Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })),
   };
 
   const render = () => {
@@ -873,11 +1546,11 @@ function openMemberInviteModal() {
           el('button', {
             style: `flex:1;padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:${mode === 'single' ? '#fff' : 'transparent'};color:${mode === 'single' ? '#0066cc' : '#7a7a7a'};cursor:pointer;`,
             onclick: () => { mode = 'single'; render(); }
-          }, '개별 등록'),
+          }, '개별 생성'),
           el('button', {
             style: `flex:1;padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:${mode === 'bulk' ? '#fff' : 'transparent'};color:${mode === 'bulk' ? '#0066cc' : '#7a7a7a'};cursor:pointer;`,
             onclick: () => { mode = 'bulk'; render(); }
-          }, '일괄 등록')
+          }, '일괄 생성')
         ),
         el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
       ),
@@ -886,75 +1559,164 @@ function openMemberInviteModal() {
       ),
       el('div', { class: 'modal-footer' },
         el('button', { class: 'btn-secondary', onclick: closeModal }, '취소'),
-        el('button', { class: 'btn-primary', onclick: submit }, '초대하기')
+        el('button', { class: 'btn-primary', onclick: submit }, '생성하기')
       )
     );
     backdrop.append(modal);
     document.body.append(backdrop);
   };
 
+  const deptSelect = (value, onChange) => el('select',
+    { style: inputStyle(), onchange: (e) => onChange(e.target.value) },
+    el('option', { value: '' }, OrgCache.departments.length ? '부서 선택 (선택)' : '부서 미등록 — [부서/직책 관리]에서 추가하세요'),
+    ...OrgCache.departments.map(d =>
+      el('option', { value: d.name, selected: d.name === value ? 'selected' : null }, d.name)
+    )
+  );
+  const posSelect = (value, onChange) => el('select',
+    { style: inputStyle(), onchange: (e) => onChange(e.target.value) },
+    el('option', { value: '' }, OrgCache.positions.length ? '직책 선택 (선택)' : '직책 미등록 — [부서/직책 관리]에서 추가하세요'),
+    ...OrgCache.positions.map(p =>
+      el('option', { value: p.name, selected: p.name === value ? 'selected' : null }, p.name)
+    )
+  );
+
   const renderSingle = () => el('div', null,
     el('div', { class: 'modal-section' },
       el('div', { class: 'modal-section-title' }, '기본 정보'),
       el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
-        el('input', { placeholder: '이름', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
-        el('input', { placeholder: '부서 (선택)', value: state.department, oninput: e => state.department = e.target.value, style: inputStyle() }),
-        el('input', { placeholder: '직책 (선택)', value: state.position, oninput: e => state.position = e.target.value, style: inputStyle() }),
+        el('input', { placeholder: '이름 *', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
+        deptSelect(state.department, v => state.department = v),
+        posSelect(state.position, v => state.position = v),
       )
     ),
     el('div', { class: 'modal-section' },
       el('div', { class: 'modal-section-title' }, '로그인 정보'),
       el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
-        el('input', { placeholder: '이메일 주소', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
-        el('input', { placeholder: '휴대전화번호 (예: +82 10-1234-5678)', value: state.phone, oninput: e => state.phone = e.target.value, style: inputStyle() }),
+        el('input', { placeholder: '이메일 주소 *', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
+        el('input', { type: 'password', placeholder: '패스워드 (미입력 시 user1234)', value: state.password, oninput: e => state.password = e.target.value, style: inputStyle() }),
+        el('select', { style: inputStyle(), onchange: e => state.role = e.target.value },
+          el('option', { value: 'member', selected: state.role === 'member' ? 'selected' : null }, '일반 멤버'),
+          el('option', { value: 'admin', selected: state.role === 'admin' ? 'selected' : null }, '관리자(Admin)')
+        )
       ),
-      el('div', { style: 'margin-top:8px;font-size:12px;color:#7a7a7a;' }, '* 초기 비밀번호: user1234 (가입 후 변경 가능)')
     )
   );
 
-  const inputStyle = () => 'width:100%;padding:12px 16px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;background:#fff;';
-
-  const renderBulk = () => {
-    const body = el('div', null,
-      el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;' },
-        el('div', { style: 'font-size:14px;color:#7a7a7a;' }, `${state.bulkRows.length}명까지 등록 가능`),
-        el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows.push(...Array.from({ length: 5 }, () => ({ name: '', email: '', phone: '', department: '', position: '' }))); render(); } }, '+ 5명 더 추가')
-      ),
-      el('div', { style: 'overflow:auto;max-height:340px;border:1px solid #e0e0e0;border-radius:11px;' },
-        el('table', { class: 'data-table', style: 'font-size:13px;' },
-          el('thead', null, el('tr', null,
-            el('th', null, '이름'), el('th', null, '이메일'), el('th', null, '전화번호'), el('th', null, '부서'), el('th', null, '직책')
-          )),
-          el('tbody', null,
-            ...state.bulkRows.map((row, i) =>
-              el('tr', null,
-                el('td', null, el('input', { value: row.name, oninput: e => state.bulkRows[i].name = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-                el('td', null, el('input', { value: row.email, oninput: e => state.bulkRows[i].email = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-                el('td', null, el('input', { value: row.phone, oninput: e => state.bulkRows[i].phone = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-                el('td', null, el('input', { value: row.department, oninput: e => state.bulkRows[i].department = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-                el('td', null, el('input', { value: row.position, oninput: e => state.bulkRows[i].position = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' }))
-              )
+  const renderBulk = () => el('div', null,
+    el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;' },
+      el('div', { style: 'font-size:14px;color:#7a7a7a;' }, `${state.bulkRows.length}명까지 등록 가능 (초기 패스워드: user1234)`),
+      el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows.push(...Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' }))); render(); } }, '+ 5명 더 추가')
+    ),
+    el('div', { style: 'overflow:auto;max-height:340px;border:1px solid #e0e0e0;border-radius:11px;' },
+      el('table', { class: 'data-table', style: 'font-size:13px;' },
+        el('thead', null, el('tr', null,
+          el('th', null, '이름 *'), el('th', null, '이메일 *'), el('th', null, '부서'), el('th', null, '직책')
+        )),
+        el('tbody', null,
+          ...state.bulkRows.map((row, i) =>
+            el('tr', null,
+              el('td', null, el('input', { value: row.name, oninput: e => state.bulkRows[i].name = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
+              el('td', null, el('input', { value: row.email, oninput: e => state.bulkRows[i].email = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
+              el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].department = e.target.value },
+                el('option', { value: '' }, '—'),
+                ...OrgCache.departments.map(d => el('option', { value: d.name, selected: row.department === d.name ? 'selected' : null }, d.name))
+              )),
+              el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].position = e.target.value },
+                el('option', { value: '' }, '—'),
+                ...OrgCache.positions.map(p => el('option', { value: p.name, selected: row.position === p.name ? 'selected' : null }, p.name))
+              ))
             )
           )
         )
       )
-    );
-    return body;
-  };
+    )
+  );
 
   const submit = async () => {
     if (mode === 'single') {
       if (!state.name || !state.email) { toast('이름과 이메일은 필수입니다.', 'error'); return; }
-      const res = await api('/api/members', { method: 'POST', body: JSON.stringify(state) });
-      if (!res.ok) { toast(res.data?.error || '등록 실패', 'error'); return; }
-      toast('멤버가 등록되었습니다.', 'success');
+      const payload = {
+        name: state.name, email: state.email,
+        department: state.department || null, position: state.position || null,
+        role: state.role,
+      };
+      if (state.password) payload.password = state.password;
+      const res = await api('/api/members', { method: 'POST', body: JSON.stringify(payload) });
+      if (!res.ok) { toast(res.data?.error || '생성 실패', 'error'); return; }
+      toast('멤버 계정이 생성되었습니다.', 'success');
     } else {
       const members = state.bulkRows.filter(r => r.name && r.email);
-      if (members.length === 0) { toast('등록할 멤버를 입력해 주세요.', 'error'); return; }
+      if (members.length === 0) { toast('생성할 멤버를 입력해 주세요.', 'error'); return; }
       const res = await api('/api/members/bulk', { method: 'POST', body: JSON.stringify({ members }) });
-      if (!res.ok) { toast('등록 실패', 'error'); return; }
-      toast(`${res.data.success}명 등록 완료 (${res.data.failed.length}건 실패)`, 'success');
+      if (!res.ok) { toast('생성 실패', 'error'); return; }
+      toast(`${res.data.success}명 생성 완료${res.data.failed.length ? ' · ' + res.data.failed.length + '건 실패' : ''}`, 'success');
     }
+    closeModal();
+    renderAdminMembers();
+  };
+
+  render();
+}
+
+/** V4: 멤버 정보 수정 모달 */
+async function openMemberEditModal(member) {
+  await loadOrgLists();
+  const state = {
+    name: member.name || '', email: member.email || '',
+    department: member.department || '', position: member.position || '',
+    role: member.role, password: ''
+  };
+
+  const render = () => {
+    closeModal();
+    const backdrop = el('div', { class: 'modal-backdrop', id: 'reservation-modal', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
+    const modal = el('div', { class: 'modal', style: 'max-width:560px;' },
+      el('div', { class: 'modal-header' },
+        el('div', { class: 'modal-header-title' }, '멤버 정보 수정'),
+        el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
+      ),
+      el('div', { class: 'modal-body' },
+        el('div', { class: 'modal-section' },
+          el('div', { class: 'modal-section-title' }, '기본 정보'),
+          el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
+            el('input', { placeholder: '이름', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
+            el('input', { placeholder: '이메일', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
+            el('select', { style: inputStyle(), onchange: e => state.department = e.target.value },
+              el('option', { value: '' }, '부서 미지정'),
+              ...OrgCache.departments.map(d => el('option', { value: d.name, selected: d.name === state.department ? 'selected' : null }, d.name))
+            ),
+            el('select', { style: inputStyle(), onchange: e => state.position = e.target.value },
+              el('option', { value: '' }, '직책 미지정'),
+              ...OrgCache.positions.map(p => el('option', { value: p.name, selected: p.name === state.position ? 'selected' : null }, p.name))
+            ),
+            el('select', { style: inputStyle(), onchange: e => state.role = e.target.value },
+              el('option', { value: 'member', selected: state.role === 'member' ? 'selected' : null }, '일반 멤버'),
+              el('option', { value: 'admin', selected: state.role === 'admin' ? 'selected' : null }, '관리자(Admin)')
+            ),
+            el('input', { type: 'password', placeholder: '새 패스워드 (변경 시에만 입력)', value: state.password, oninput: e => state.password = e.target.value, style: inputStyle() }),
+          )
+        )
+      ),
+      el('div', { class: 'modal-footer' },
+        el('button', { class: 'btn-secondary', onclick: closeModal }, '취소'),
+        el('button', { class: 'btn-primary', onclick: submit }, '저장')
+      )
+    );
+    backdrop.append(modal);
+    document.body.append(backdrop);
+  };
+
+  const submit = async () => {
+    const payload = {
+      name: state.name, email: state.email,
+      department: state.department || null, position: state.position || null,
+      role: state.role,
+    };
+    if (state.password) payload.password = state.password;
+    const res = await api(`/api/members/${member.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+    if (!res.ok) { toast(res.data?.error || '수정 실패', 'error'); return; }
+    toast('멤버 정보가 수정되었습니다.', 'success');
     closeModal();
     renderAdminMembers();
   };
@@ -1043,17 +1805,24 @@ async function renderAdminSpaces() {
     el('div', { class: 'page-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
-        el('p', null, '공간 자원을 확인합니다.')
+        el('p', null, '공간 자원을 추가·수정·삭제합니다. 변경 사항은 타임라인에 즉시 반영됩니다.')
       )
     ),
     el('div', { class: 'admin-layout' },
       buildAdminSidebar('spaces'),
       el('div', { class: 'admin-content' },
-        el('h2', { style: 'margin:0 0 8px;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '공간'),
-        el('p', { style: 'margin:0 0 24px;color:#7a7a7a;font-size:14px;' }, '운영 중인 공간 자원 목록입니다.'),
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;' },
+          el('div', null,
+            el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '공간'),
+            el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '운영 중인 공간 자원 목록입니다.')
+          ),
+          el('button', { class: 'btn-primary', onclick: () => openSpaceModal(null) },
+            el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }), '공간 추가')
+        ),
         el('table', { class: 'data-table' },
           el('thead', null, el('tr', null,
-            el('th', null, '공간명'), el('th', null, '유형'), el('th', null, '수용 인원'), el('th', null, '3개 제한 카운트'), el('th', null, '색상')
+            el('th', null, '공간명'), el('th', null, '유형'), el('th', null, '수용 인원'),
+            el('th', null, '3개 제한 카운트'), el('th', null, '색상'), el('th', { style: 'text-align:right;' }, '액션')
           )),
           el('tbody', null,
             ...spaces.map(s =>
@@ -1065,7 +1834,20 @@ async function renderAdminSpaces() {
                 el('td', null, s.type === 'meeting_room' ? '미팅룸' : '공용공간'),
                 el('td', null, `${s.capacity}명`),
                 el('td', null, s.count_in_limit === 1 ? el('span', { class: 'status-badge s-active' }, '포함') : el('span', { class: 'status-badge s-member' }, '제외')),
-                el('td', null, el('span', { style: `display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.color};vertical-align:middle;margin-right:6px;` }), s.color)
+                el('td', null,
+                  el('span', { style: `display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.color};vertical-align:middle;margin-right:6px;` }),
+                  s.color
+                ),
+                el('td', null,
+                  el('div', { style: 'display:flex;gap:6px;justify-content:flex-end;' },
+                    el('button', { class: 'btn-icon', title: '수정', onclick: () => openSpaceModal(s) },
+                      el('i', { class: 'fa-solid fa-pen', style: 'font-size:12px;color:#0066cc;' })
+                    ),
+                    el('button', { class: 'btn-icon', title: '삭제', onclick: () => deleteSpace(s) },
+                      el('i', { class: 'fa-solid fa-trash', style: 'font-size:12px;color:#d33;' })
+                    )
+                  )
+                )
               )
             )
           )
@@ -1075,6 +1857,184 @@ async function renderAdminSpaces() {
   );
 
   renderShell(main);
+}
+
+/** V4: 공간 추가/수정 모달 */
+function openSpaceModal(space) {
+  const isEdit = !!space;
+  const state = {
+    name: space?.name || '',
+    type: space?.type || 'meeting_room',
+    capacity: space?.capacity ?? 4,
+    color: space?.color || '#0066cc',
+    count_in_limit: space?.count_in_limit ?? 1,
+  };
+
+  const PALETTE = ['#ef4444', '#f59e0b', '#facc15', '#10b981', '#06b6d4', '#0066cc', '#8b5cf6', '#ec4899', '#1d1d1f', '#7a7a7a'];
+
+  const render = () => {
+    closeModal();
+    const backdrop = el('div', { class: 'modal-backdrop', id: 'reservation-modal', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
+    const modal = el('div', { class: 'modal', style: 'max-width:520px;' },
+      el('div', { class: 'modal-header' },
+        el('div', { class: 'modal-header-title' }, isEdit ? '공간 수정' : '공간 추가'),
+        el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
+      ),
+      el('div', { class: 'modal-body' },
+        el('div', { class: 'modal-section' },
+          el('div', { class: 'modal-section-title' }, '기본 정보'),
+          el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
+            el('input', { placeholder: '공간명 (예: Meeting Room A)', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
+            el('select', { style: inputStyle(), onchange: e => { state.type = e.target.value; state.count_in_limit = state.type === 'meeting_room' ? 1 : 0; render(); } },
+              el('option', { value: 'meeting_room', selected: state.type === 'meeting_room' ? 'selected' : null }, '미팅룸'),
+              el('option', { value: 'common_space', selected: state.type === 'common_space' ? 'selected' : null }, '공용공간')
+            ),
+            el('input', { type: 'number', min: 0, placeholder: '수용 인원', value: state.capacity, oninput: e => state.capacity = Number(e.target.value), style: inputStyle() })
+          )
+        ),
+        el('div', { class: 'modal-section' },
+          el('div', { class: 'modal-section-title' }, '색상'),
+          el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;' },
+            ...PALETTE.map(c =>
+              el('button', {
+                onclick: () => { state.color = c; render(); },
+                style: `width:32px;height:32px;border-radius:8px;background:${c};border:${state.color === c ? '3px solid #0066cc' : '2px solid transparent'};cursor:pointer;`,
+                title: c
+              })
+            )
+          )
+        ),
+        el('div', { class: 'modal-section' },
+          el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;' },
+            el('input', { type: 'checkbox', checked: state.count_in_limit === 1 ? 'checked' : null, onchange: e => state.count_in_limit = e.target.checked ? 1 : 0 }),
+            '회사당 동시 3개 제한 규칙에 포함 (미팅룸 권장)'
+          )
+        )
+      ),
+      el('div', { class: 'modal-footer' },
+        el('button', { class: 'btn-secondary', onclick: closeModal }, '취소'),
+        el('button', { class: 'btn-primary', onclick: submit }, isEdit ? '저장' : '추가')
+      )
+    );
+    backdrop.append(modal);
+    document.body.append(backdrop);
+  };
+
+  const submit = async () => {
+    if (!state.name.trim()) { toast('공간명을 입력해 주세요.', 'error'); return; }
+    const payload = { ...state, name: state.name.trim() };
+    const res = isEdit
+      ? await api(`/api/spaces/${space.id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+      : await api('/api/spaces', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) { toast(res.data?.error || '저장 실패', 'error'); return; }
+    toast(isEdit ? '공간이 수정되었습니다.' : '공간이 추가되었습니다.', 'success');
+    closeModal();
+    renderAdminSpaces();
+  };
+
+  render();
+}
+
+async function deleteSpace(space) {
+  if (!confirm(`'${space.name}' 공간을 삭제하시겠습니까?\n해당 공간의 모든 예약이 함께 취소됩니다.`)) return;
+  const res = await api(`/api/spaces/${space.id}`, { method: 'DELETE' });
+  if (!res.ok) { toast(res.data?.error || '삭제 실패', 'error'); return; }
+  toast('공간이 삭제되었습니다.', 'success');
+  renderAdminSpaces();
+}
+
+// ============== ADMIN - ORG (V4: 부서/직책 통합 관리 탭) ==============
+async function renderAdminOrg() {
+  if (State.user.role !== 'admin') {
+    renderShell(el('main', { class: 'page-wrap' }, el('h1', null, '권한이 없습니다.')));
+    return;
+  }
+  await loadOrgLists();
+
+  const main = el('main', { class: 'page-wrap' },
+    el('div', { class: 'page-header' },
+      el('div', { class: 'page-title-block' },
+        el('h1', null, '관리'),
+        el('p', null, '부서와 직책을 한 화면에서 통합 관리합니다. 멤버 생성 폼의 드롭다운에 즉시 반영됩니다.')
+      )
+    ),
+    el('div', { class: 'admin-layout' },
+      buildAdminSidebar('org'),
+      el('div', { class: 'admin-content' },
+        el('h2', { style: 'margin:0 0 8px;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '부서 / 직책 관리'),
+        el('p', { style: 'margin:0 0 24px;color:#7a7a7a;font-size:14px;' }, '좌: 부서 / 우: 직책 — 각 항목 옆 아이콘으로 추가·수정·삭제할 수 있습니다.'),
+        el('div', { class: 'split-view' },
+          buildOrgPanel('부서', OrgCache.departments, 'departments'),
+          buildOrgPanel('직책', OrgCache.positions, 'positions'),
+        )
+      )
+    )
+  );
+
+  renderShell(main);
+}
+
+function buildOrgPanel(label, items, kind) {
+  let inputValue = '';
+  const panel = el('div', { class: 'org-panel' },
+    el('div', { class: 'org-panel-head' },
+      el('div', { class: 'org-panel-title' }, label),
+      el('div', { class: 'org-panel-count' }, `${items.length}개`),
+    ),
+    el('div', { class: 'org-input-row' },
+      el('input', {
+        class: 'org-input',
+        placeholder: `${label}명을 입력하세요`,
+        oninput: e => inputValue = e.target.value,
+        onkeydown: e => { if (e.key === 'Enter') doAdd(); }
+      }),
+      el('button', { class: 'btn-primary org-add-btn', onclick: () => doAdd() },
+        el('i', { class: 'fa-solid fa-plus' }), '추가')
+    ),
+    el('div', { class: 'org-list' },
+      items.length === 0
+        ? el('div', { class: 'org-empty' }, `등록된 ${label}이 없습니다.`)
+        : el('div', null, ...items.map(item =>
+            el('div', { class: 'org-item' },
+              el('div', { class: 'org-item-name' }, item.name),
+              el('div', { class: 'org-item-actions' },
+                el('button', { class: 'btn-icon', title: '수정', onclick: () => doEdit(item) },
+                  el('i', { class: 'fa-solid fa-pen', style: 'font-size:12px;color:#0066cc;' })
+                ),
+                el('button', { class: 'btn-icon', title: '삭제', onclick: () => doDelete(item) },
+                  el('i', { class: 'fa-solid fa-trash', style: 'font-size:12px;color:#d33;' })
+                )
+              )
+            )
+          ))
+    )
+  );
+
+  async function doAdd() {
+    const name = (inputValue || '').trim();
+    if (!name) return;
+    const res = await api(`/api/org/${kind}`, { method: 'POST', body: JSON.stringify({ name }) });
+    if (!res.ok) { toast(res.data?.error || '추가 실패', 'error'); return; }
+    toast(`${label} '${name}' 추가됨`, 'success');
+    renderAdminOrg();
+  }
+  async function doEdit(item) {
+    const newName = prompt(`${label} 이름 수정`, item.name);
+    if (!newName || newName.trim() === item.name) return;
+    const res = await api(`/api/org/${kind}/${item.id}`, { method: 'PATCH', body: JSON.stringify({ name: newName.trim() }) });
+    if (!res.ok) { toast(res.data?.error || '수정 실패', 'error'); return; }
+    toast('수정되었습니다.', 'success');
+    renderAdminOrg();
+  }
+  async function doDelete(item) {
+    if (!confirm(`'${item.name}' ${label}을(를) 삭제하시겠습니까?\n해당 ${label}을 사용하던 멤버는 미지정 상태가 됩니다.`)) return;
+    const res = await api(`/api/org/${kind}/${item.id}`, { method: 'DELETE' });
+    if (!res.ok) { toast(res.data?.error || '삭제 실패', 'error'); return; }
+    toast('삭제되었습니다.', 'success');
+    renderAdminOrg();
+  }
+
+  return panel;
 }
 
 // ============== ERROR HANDLER ==============
@@ -1122,6 +2082,7 @@ async function boot() {
       case 'admin-members': await renderAdminMembers(); break;
       case 'admin-general': await renderAdminGeneral(); break;
       case 'admin-spaces': await renderAdminSpaces(); break;
+      case 'admin-org': await renderAdminOrg(); break;
       default: await renderHome();
     }
   } catch (err) {
