@@ -1822,7 +1822,7 @@ async function renderAdminSpaces() {
         el('table', { class: 'data-table' },
           el('thead', null, el('tr', null,
             el('th', null, '공간명'), el('th', null, '유형'), el('th', null, '수용 인원'),
-            el('th', null, '3개 제한 카운트'), el('th', null, '색상'), el('th', { style: 'text-align:right;' }, '액션')
+            el('th', null, '3개 제한 카운트'), el('th', null, '접근 권한'), el('th', null, '색상'), el('th', { style: 'text-align:right;' }, '액션')
           )),
           el('tbody', null,
             ...spaces.map(s =>
@@ -1834,6 +1834,11 @@ async function renderAdminSpaces() {
                 el('td', null, s.type === 'meeting_room' ? '미팅룸' : '공용공간'),
                 el('td', null, `${s.capacity}명`),
                 el('td', null, s.count_in_limit === 1 ? el('span', { class: 'status-badge s-active' }, '포함') : el('span', { class: 'status-badge s-member' }, '제외')),
+                el('td', null,
+                  s.tenant_scope
+                    ? el('span', { class: 'status-badge s-active', style: 'background:rgba(0,102,204,0.12);color:#0066cc;' }, s.tenant_scope + ' 전용')
+                    : el('span', { class: 'status-badge s-member' }, '모두 공개')
+                ),
                 el('td', null,
                   el('span', { style: `display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.color};vertical-align:middle;margin-right:6px;` }),
                   s.color
@@ -1868,6 +1873,7 @@ function openSpaceModal(space) {
     capacity: space?.capacity ?? 4,
     color: space?.color || '#0066cc',
     count_in_limit: space?.count_in_limit ?? 1,
+    tenant_scope: space?.tenant_scope || '', // V5 REQ-AUTH-01: '' = 모두 공개, 'WYLIE'/'LUSH' = 전용
   };
 
   const PALETTE = ['#ef4444', '#f59e0b', '#facc15', '#10b981', '#06b6d4', '#0066cc', '#8b5cf6', '#ec4899', '#1d1d1f', '#7a7a7a'];
@@ -1908,6 +1914,18 @@ function openSpaceModal(space) {
           el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;' },
             el('input', { type: 'checkbox', checked: state.count_in_limit === 1 ? 'checked' : null, onchange: e => state.count_in_limit = e.target.checked ? 1 : 0 }),
             '회사당 동시 3개 제한 규칙에 포함 (미팅룸 권장)'
+          )
+        ),
+        // V5 REQ-AUTH-01: 테넌트 접근 제한
+        el('div', { class: 'modal-section' },
+          el('div', { class: 'modal-section-title' }, '접근 권한 (테넌트 격리)'),
+          el('select', { style: inputStyle(), onchange: e => state.tenant_scope = e.target.value },
+            el('option', { value: '', selected: state.tenant_scope === '' ? 'selected' : null }, '모든 회사 공개 (기본)'),
+            el('option', { value: 'WYLIE', selected: state.tenant_scope === 'WYLIE' ? 'selected' : null }, 'WYLIE 전용 (예: 5층 회의실)'),
+            el('option', { value: 'LUSH', selected: state.tenant_scope === 'LUSH' ? 'selected' : null }, 'LUSH 전용')
+          ),
+          el('div', { style: 'font-size:12px;color:#7a7a7a;margin-top:6px;' },
+            '특정 회사 전용으로 설정하면 다른 회사 사용자에게는 보이지 않습니다.'
           )
         )
       ),
@@ -2065,6 +2083,81 @@ function showFatal(message) {
   document.body.append(wrap);
 }
 
+// ============== V5 REQ-SEC-01: 최초 로그인 비밀번호 강제 변경 ==============
+function openForcePasswordChangeModal() {
+  // 다른 모든 페이지 접근 차단: 빈 셸 + 모달 오버레이만 표시
+  document.body.innerHTML = '';
+  const overlay = el('div', { class: 'modal-overlay is-force', id: 'forcePwOverlay' });
+  document.body.append(overlay);
+
+  const state = { pw1: '', pw2: '', loading: false, err: '' };
+
+  function render() {
+    overlay.innerHTML = '';
+    const modal = el('div', { class: 'modal-card force-pw-modal' },
+      el('div', { class: 'modal-head' },
+        el('div', { class: 'force-pw-icon' }, el('i', { class: 'fa-solid fa-shield-halved' })),
+        el('h2', { class: 'modal-title' }, '비밀번호 변경 필요'),
+        el('p', { class: 'modal-sub' },
+          `안녕하세요, ${State.user.name}님. 보안을 위해 최초 로그인 시 비밀번호를 변경해야 합니다.`
+        )
+      ),
+      el('div', { class: 'modal-body' },
+        el('div', { class: 'field-row' },
+          el('label', null, '새 비밀번호 (8자 이상)'),
+          el('input', {
+            type: 'password',
+            class: 'modal-input',
+            value: state.pw1,
+            placeholder: '새 비밀번호',
+            oninput: e => { state.pw1 = e.target.value; },
+          })
+        ),
+        el('div', { class: 'field-row' },
+          el('label', null, '새 비밀번호 확인'),
+          el('input', {
+            type: 'password',
+            class: 'modal-input',
+            value: state.pw2,
+            placeholder: '동일하게 한번 더 입력',
+            oninput: e => { state.pw2 = e.target.value; },
+            onkeydown: e => { if (e.key === 'Enter') submit(); },
+          })
+        ),
+        state.err && el('div', { class: 'field-err' }, state.err)
+      ),
+      el('div', { class: 'modal-foot' },
+        el('button', {
+          class: 'btn-primary',
+          disabled: state.loading,
+          onclick: submit,
+        }, state.loading ? '변경 중...' : '비밀번호 변경하고 시작하기')
+      )
+    );
+    overlay.append(modal);
+  }
+
+  async function submit() {
+    state.err = '';
+    if (!state.pw1 || state.pw1.length < 8) { state.err = '비밀번호는 8자 이상이어야 합니다.'; render(); return; }
+    if (state.pw1 !== state.pw2) { state.err = '비밀번호가 일치하지 않습니다.'; render(); return; }
+    state.loading = true; render();
+    const res = await api('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ new_password: state.pw1 }),
+    });
+    if (!res?.ok) {
+      state.err = res?.data?.error || '비밀번호 변경에 실패했습니다.';
+      state.loading = false; render(); return;
+    }
+    toast('비밀번호가 변경되었습니다. 환영합니다!', 'success');
+    State.user.is_first_login = 0;
+    setTimeout(() => location.reload(), 700);
+  }
+
+  render();
+}
+
 // ============== BOOT ==============
 async function boot() {
   try {
@@ -2074,6 +2167,12 @@ async function boot() {
       return;
     }
     State.user = meRes.data.user;
+
+    // V5 REQ-SEC-01: 최초 로그인 시 비밀번호 강제 변경 가드 (다른 페이지 진입 차단)
+    if (State.user.is_first_login) {
+      openForcePasswordChangeModal();
+      return;
+    }
 
     switch (State.page) {
       case 'home': await renderHome(); break;

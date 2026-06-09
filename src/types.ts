@@ -19,6 +19,8 @@ export type User = {
   role: 'admin' | 'member';
   status: 'active' | 'pending' | 'inactive';
   avatar_color: string;
+  /** V5 REQ-SEC-01: 최초 로그인 시 비밀번호 강제 변경 플래그 (1=필요) */
+  is_first_login?: number;
 };
 
 export type Department = {
@@ -43,7 +45,11 @@ export type Space = {
   color: string;
   count_in_limit: number;
   display_order: number;
+  /** V5: 테넌트 전용 공간 격리. NULL이면 모두 공개. */
+  tenant_scope: string | null;
 };
+
+
 
 export type Reservation = {
   id: number;

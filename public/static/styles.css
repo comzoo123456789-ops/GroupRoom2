@@ -1849,3 +1849,152 @@ a:hover { text-decoration: underline; }
 @media (max-width: 700px) {
   .space-bar-row { grid-template-columns: 110px 1fr 70px; }
 }
+
+/* =====================================================
+   V5 — REQ-STYL-01: 모바일 반응형 보강
+   ===================================================== */
+
+/* 타임라인 가로 스크롤 (8개 공간 시 모바일 화면 짤림 방지) */
+.timeline-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+.timeline-scroll .timeline-grid {
+  min-width: 800px; /* 7~8개 공간이 최소 보여질 크기 */
+}
+
+@media (max-width: 768px) {
+  .timeline-grid {
+    grid-template-columns: 50px repeat(auto-fill, minmax(110px, 1fr));
+  }
+  .timeline-scroll .timeline-grid {
+    min-width: 900px;
+  }
+}
+
+/* 모달 모바일 폭 */
+@media (max-width: 768px) {
+  .modal-backdrop .modal,
+  .modal-overlay .modal-card {
+    width: 92% !important;
+    max-width: 92% !important;
+    margin: 0 auto !important;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .modal-overlay .force-pw-modal {
+    width: 92% !important;
+    max-width: 480px !important;
+  }
+  .insight-filterbar { padding: 12px; gap: 8px; }
+  .insight-range-group { flex-wrap: wrap; }
+  .range-chip { padding: 5px 10px; font-size: 12px; }
+  .insight-tabs { width: 100%; overflow-x: auto; }
+  .insight-tab { padding: 8px 14px; font-size: 12px; }
+}
+
+/* =====================================================
+   V5 — REQ-SEC-01: 강제 비밀번호 변경 모달
+   ===================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 16px;
+}
+.modal-overlay.is-force {
+  backdrop-filter: blur(6px);
+}
+.modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.force-pw-modal .modal-head {
+  padding: 32px 28px 20px;
+  text-align: center;
+  border-bottom: 1px solid var(--hairline);
+}
+.force-pw-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0, 102, 204, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.force-pw-icon i {
+  font-size: 28px;
+  color: var(--primary);
+}
+.modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px 0;
+}
+.modal-sub {
+  font-size: 13px;
+  color: var(--ink-48);
+  margin: 0;
+  line-height: 1.5;
+}
+.modal-card .modal-body {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-card .field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.modal-card .field-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-80);
+}
+.modal-input {
+  padding: 11px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modal-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+.field-err {
+  background: rgba(255, 59, 48, 0.1);
+  color: #c41e1e;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.modal-foot {
+  padding: 16px 28px 24px;
+  border-top: 1px solid var(--hairline);
+}
+.modal-foot .btn-primary {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}

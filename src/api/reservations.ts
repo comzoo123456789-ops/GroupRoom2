@@ -154,6 +154,15 @@ reservations.post('/', async (c) => {
     return c.json({ error: '시작 시간은 종료 시간보다 빨라야 합니다.' }, 400);
   }
 
+  // V5 REQ-AUTH-01: tenant_scope 가드 — 다른 테넌트 전용 공간은 예약 차단
+  const targetSpace = await c.env.DB.prepare('SELECT * FROM spaces WHERE id = ?').bind(space_id).first<Space & { tenant_scope: string | null }>();
+  if (!targetSpace) {
+    return c.json({ error: '공간을 찾을 수 없습니다.' }, 404);
+  }
+  if (targetSpace.tenant_scope && targetSpace.tenant_scope !== user.tenant_id) {
+    return c.json({ error: '해당 공간을 이용할 권한이 없습니다.' }, 403);
+  }
+
   const isAdmin = user.role === 'admin';
 
   // 반복 예약인 경우 날짜 목록 생성
@@ -270,6 +279,14 @@ reservations.patch('/:id', async (c) => {
   const newStart = body.start_time || existing.start_time;
   const newEnd = body.end_time || existing.end_time;
   const newSpaceId = body.space_id || existing.space_id;
+
+  // V5 REQ-AUTH-01: 변경되는 공간의 tenant_scope 검증
+  if (newSpaceId !== existing.space_id) {
+    const targetSpace = await c.env.DB.prepare('SELECT tenant_scope FROM spaces WHERE id = ?').bind(newSpaceId).first<{ tenant_scope: string | null }>();
+    if (targetSpace?.tenant_scope && targetSpace.tenant_scope !== user.tenant_id) {
+      return c.json({ error: '해당 공간을 이용할 권한이 없습니다.' }, 403);
+    }
+  }
 
   // 시간/공간 변경 시 충돌 재검증
   if (newDate !== existing.date || newStart !== existing.start_time || newEnd !== existing.end_time || newSpaceId !== existing.space_id) {

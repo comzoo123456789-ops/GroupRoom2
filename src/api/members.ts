@@ -42,15 +42,16 @@ members.post('/', async (c) => {
   const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
   try {
+    // V5 REQ-SEC-01: 관리자 생성 계정은 최초 로그인 시 비번 강제 변경 필요
     const result = await c.env.DB.prepare(`
-      INSERT INTO users (tenant_id, email, password, name, department, position, phone, role, status, avatar_color)
-      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'active', ?)
+      INSERT INTO users (tenant_id, email, password, name, department, position, phone, role, status, avatar_color, is_first_login)
+      VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'active', ?, 1)
     `).bind(
       user.tenant_id, body.email, hashed, body.name,
       body.department || null, body.position || null,
       body.role || 'member', avatarColor
     ).run();
-    return c.json({ ok: true, id: result.meta.last_row_id });
+    return c.json({ ok: true, id: result.meta.last_row_id, initial_password: body.password ? null : password });
   } catch (e: any) {
     if (String(e).includes('UNIQUE')) {
       return c.json({ error: '이미 등록된 이메일입니다.' }, 409);
@@ -84,8 +85,8 @@ members.post('/bulk', async (c) => {
     const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
     try {
       await c.env.DB.prepare(`
-        INSERT INTO users (tenant_id, email, password, name, department, position, phone, role, status, avatar_color)
-        VALUES (?, ?, ?, ?, ?, ?, NULL, 'member', 'active', ?)
+        INSERT INTO users (tenant_id, email, password, name, department, position, phone, role, status, avatar_color, is_first_login)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, 'member', 'active', ?, 1)
       `).bind(user.tenant_id, m.email, password, m.name, m.department || null, m.position || null, avatarColor).run();
       success++;
     } catch (e) {
