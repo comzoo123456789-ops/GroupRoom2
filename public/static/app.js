@@ -4,29 +4,43 @@
    ===================================================== */
 
 // ============== STATE ==============
+const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 const State = {
   user: null,
   spaces: [],
   reservations: [],
-  date: dayjs().format('YYYY-MM-DD'),
-  page: document.getElementById('app-root').dataset.page || 'home',
+  date: todayISO(),
+  page: (document.getElementById('app-root')?.dataset.page) || 'home',
 };
 
 // ============== UTILITIES ==============
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
-const el = (tag, attrs = {}, ...children) => {
+const el = (tag, attrs, ...children) => {
   const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else if (k === 'style') node.style.cssText = v;
-    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === 'html') node.innerHTML = v;
-    else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v);
+  if (attrs && typeof attrs === 'object') {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') node.className = v;
+      else if (k === 'style') node.style.cssText = v;
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'html') node.innerHTML = v;
+      else if (k in node && typeof v !== 'string' && typeof v !== 'number') {
+        try { node[k] = v; } catch (e) { node.setAttribute(k, String(v)); }
+      } else {
+        node.setAttribute(k, v === true ? '' : v);
+      }
+    }
   }
-  for (const c of children.flat()) {
-    if (c == null || c === false) continue;
-    node.append(typeof c === 'string' ? document.createTextNode(c) : c);
+  for (const c of children.flat(Infinity)) {
+    if (c == null || c === false || c === true) continue;
+    node.append(typeof c === 'object' && c.nodeType ? c : document.createTextNode(String(c)));
   }
   return node;
 };
@@ -1063,24 +1077,65 @@ async function renderAdminSpaces() {
   renderShell(main);
 }
 
+// ============== ERROR HANDLER ==============
+window.addEventListener('error', (e) => {
+  console.error('[app] global error:', e.message, e.filename, e.lineno);
+  showFatal(e.message + '\n' + (e.error?.stack || ''));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[app] unhandled rejection:', e.reason);
+  showFatal(String(e.reason?.stack || e.reason || 'Unknown error'));
+});
+
+function showFatal(message) {
+  const loader = document.getElementById('app-loading');
+  if (loader) loader.remove();
+  document.body.innerHTML = '';
+  const wrap = el('div', { style: 'padding:48px;max-width:720px;margin:0 auto;font-family:Inter,sans-serif;' },
+    el('h2', { style: 'color:#d33;margin:0 0 12px;' }, '⚠️ 페이지 렌더링 오류'),
+    el('p', { style: 'color:#7a7a7a;margin:0 0 24px;' }, '아래 오류 메시지를 확인해 주세요.'),
+    el('pre', {
+      style: 'background:#f5f5f7;padding:16px;border-radius:11px;font-size:12px;overflow:auto;color:#1d1d1f;white-space:pre-wrap;'
+    }, message),
+    el('div', { style: 'margin-top:24px;display:flex;gap:8px;' },
+      el('button', { class: 'btn-primary', onclick: () => location.reload() }, '새로고침'),
+      el('a', { href: '/login', class: 'btn-secondary' }, '로그인 페이지로')
+    )
+  );
+  document.body.append(wrap);
+}
+
 // ============== BOOT ==============
 async function boot() {
-  const meRes = await api('/api/auth/me');
-  if (!meRes?.data?.user) {
-    window.location.href = '/login';
-    return;
-  }
-  State.user = meRes.data.user;
+  try {
+    const meRes = await api('/api/auth/me');
+    if (!meRes?.data?.user) {
+      window.location.href = '/login';
+      return;
+    }
+    State.user = meRes.data.user;
 
-  switch (State.page) {
-    case 'home': await renderHome(); break;
-    case 'spaces': await renderSpaces(); break;
-    case 'insights': await renderInsights(); break;
-    case 'admin-members': await renderAdminMembers(); break;
-    case 'admin-general': await renderAdminGeneral(); break;
-    case 'admin-spaces': await renderAdminSpaces(); break;
-    default: await renderHome();
+    switch (State.page) {
+      case 'home': await renderHome(); break;
+      case 'spaces': await renderSpaces(); break;
+      case 'insights': await renderInsights(); break;
+      case 'admin-members': await renderAdminMembers(); break;
+      case 'admin-general': await renderAdminGeneral(); break;
+      case 'admin-spaces': await renderAdminSpaces(); break;
+      default: await renderHome();
+    }
+  } catch (err) {
+    console.error('[app] boot error:', err);
+    showFatal(err.message + '\n' + (err.stack || ''));
   }
 }
 
-boot();
+// dayjs 로드 확인 후 부팅
+function waitAndBoot() {
+  if (typeof dayjs === 'undefined') {
+    setTimeout(waitAndBoot, 50);
+    return;
+  }
+  boot();
+}
+waitAndBoot();

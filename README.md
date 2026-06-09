@@ -19,6 +19,10 @@
 
 - **로컬 개발 (Sandbox)**: https://3000-iylt8ni2z01kxtgymrr7e-02b9cc79.sandbox.novita.ai
 - **로그인 페이지**: `/login`
+- **테스트 계정**:
+  - 와일리 관리자: `admin@wylie.co.kr` / `admin1234`
+  - 러쉬 관리자: `admin@lush.co.kr` / `admin1234`
+  - 일반 멤버: `user1@wylie.co.kr` ~ `user3@lush.co.kr` / `user1234`
 - **Production**: (미배포)
 - **GitHub**: (미연동)
 
