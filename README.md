@@ -1,12 +1,65 @@
-# 메이트리그라운드 (Mateground) — V13 완결본
+# 메이트리그라운드 (Mateground) — V14 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
 ## 프로젝트 개요
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
-- **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록 + V13 본인 외 일괄 삭제), 인사이트 대시보드(회의 목적 포함), 테넌트별 공간 격리, **V13: 크로스 테넌트 일정 상세 접근 차단**, **V13: 회의 목적 자유 텍스트 필드**, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI
+- **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, **V14: 리사이즈(시작/종료 시간 늘이기·줄이기) 완전 재작성**, **V14: 테넌트 컬러 실시간 동기화 시스템 재설계**, 부서·직책 마스터, 멤버 관리, 인사이트 대시보드(회의 목적 포함), 테넌트별 공간 격리, 크로스 테넌트 일정 상세 접근 차단, 회의 목적 자유 텍스트 필드, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI
 
-## 🆕 V13 (최신 — 5대 이슈 근본 해결 + 신규 2개 기능)
+## 🆕 V14 (최신 — 누적 패치 청산 / 두 핵심 시스템 처음부터 재작성)
+
+> 사용자 요구: *"기존에 있는 일정 시간 조절 늘리고 줄이는 소스를 지우고 새로 만들어"*, *"공간 와일리 러쉬코리아 해당 팔레트 색상 변경했는데 전혀 연동도 안되니까 이것도 기존 소스 지우고 새로 소스짜줘"*, *"실시간으로 팔레트 색상 적용하면 공간 페이지에서도 실시간으로 색이 바뀌어야 하는 거야"*, *"두 가지 해결할 때까지 절대 개발 멈추지 마"*
+>
+> V11~V13에 걸쳐 누적된 패치가 서로 충돌해 "기존 소스 수정 자체가 불가" 상태에 도달. **리사이즈 / 테넌트 컬러 두 시스템을 완전히 폐기하고 처음부터 재작성**.
+
+### §1 — 리사이즈(일정 시간 늘이기·줄이기) 완전 재작성
+- **문제 (V13까지)**: `resizeState`(하단 핸들) / `resizeTopState`(상단 핸들) 이중 상태 + 시작/종료 픽셀 좌표를 따로 추적하는 누적 패치 구조 — 한쪽을 고치면 다른 쪽이 깨지는 "수정 불가능" 상태
+- **해결 (`public/static/app.js` lines 921~1117 — 218줄 → 197줄로 재구성)**: **단일 상태 객체 `R`** 패턴으로 통일
+  ```javascript
+  const PX_PER_MIN  = 40 / 60;            // 60분 = 40px
+  const SNAP_MIN    = 30;                  // 30분 스냅
+  const MIN_DURATION = 30;                 // 최소 30분
+  const MAX_END_MIN = 23 * 60 + 30;        // 상한 23:30
+  let R = null;                            // 통일된 단일 상태
+  // R = { edge, origStartMin, origEndMin, curStartMin, curEndMin, minStartMin, maxEndMin }
+  ```
+  - **분(min) 정수가 단일 진실의 원천(source of truth)** — 픽셀은 항상 `MIN_TO_PX(min)`로 파생
+  - `edge: 'top' | 'bottom'` 하나의 분기로 시작/종료 핸들을 동일 함수(`onResizeMove`/`onResizeUp`)가 처리
+  - 30분 단위 스냅 + `MIN_DURATION` / `MAX_END_MIN` 동시 가드 + 이웃 예약 충돌 가드
+  - `resizeState` / `resizeTopState` 등 잔존 변수 전부 제거
+- **검증 (E2E)**:
+  - id=110 예약 09:00–10:00 생성 → PATCH `end_time` 단독 변경 → 11:30 ✅
+  - 같은 예약 PATCH `start_time` 단독 변경 → 08:30 ✅
+  - 최종 DB 08:30–11:30 — **두 핸들이 완전히 독립적으로 동작**
+
+### §2 — 테넌트 컬러 실시간 동기화 시스템 재설계 (3중 방어선)
+- **문제 (V13까지)**: 관리자가 팔레트로 WYLIE=보라, LUSH=진한 핑크로 바꿔도 공간 페이지 범례 점에 그대로 `#0066cc`(파랑) / `#1d1d1f`(검정)이 노출. 원인은 (a) CSS 변수 / (b) JS 인라인 hex / (c) 범례 점 하드코딩 3곳에서 따로 색을 결정해 서로 무력화
+- **해결**: 색 결정 경로를 **단 하나(`applyTenantColors`)** 로 통합하고 **3중 방어선** 구축
+  - **Layer 1 — CSS 변수 정의 (`public/static/styles.css`)**:
+    ```css
+    :root {
+      --tenant-wylie: #703b96;    /* 와일리 = 보라 */
+      --tenant-lush:  #d81b60;    /* 러쉬코리아 = 진한 핑크 */
+      --wylie-schedule-color: var(--tenant-wylie);   /* 레거시 이름 호환 */
+      --lush-korea-schedule-color: var(--tenant-lush);
+    }
+    ```
+  - **Layer 2 — 동적 `<style id="__tenant_colors__">` 주입 (`app.js`)**: `applyTenantColors(tenants)`가 DB의 `schedule_color`를 읽어 `:root`의 변수를 덮어씀. 레거시 인라인 스타일이 남아 있어도 후순위 `<style>`로 이김
+  - **Layer 3 — 클래스 기반 적용**: 범례 점은 더 이상 hex를 모름. `.tenant-wylie` / `.tenant-lush` 클래스만 받고 색은 CSS 변수에서 가져옴 (lines 593~594 하드코딩 제거)
+  ```javascript
+  const TENANT_DEFAULTS = {
+    WYLIE: { id: 'WYLIE', name: '와일리',     schedule_color: '#703b96' },
+    LUSH:  { id: 'LUSH',  name: '러쉬코리아', schedule_color: '#d81b60' },
+  };
+  ```
+  - **실시간 동기화**: 팔레트 카드의 color input에서
+    - `oninput` → 즉시 `applyTenantColors()` (드래그 중 미리보기)
+    - `onchange` → DB PATCH + `refreshTimelineEvents()` (확정 + 이미 그려진 블록까지 강제 새로고침)
+- **검증 (E2E)**:
+  - `GET /api/tenants` → `{WYLIE: #703b96, LUSH: #d81b60}` ✅
+  - 공간 페이지 범례 점 / 일정 블록 / 월별 뷰 — 세 곳 모두 DB 값과 일치
+
+## V13 (5대 이슈 근본 해결 + 신규 2개 기능)
 
 ### §1 — 일괄 삭제 완전 정상화 (FK 제약 + SQLite 변수 한도 동시 해결)
 - **문제 (V12)**: 회원 일괄 삭제 시 "일괄 삭제 실패" 에러. 근본 원인 2가지:

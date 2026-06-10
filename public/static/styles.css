@@ -4654,30 +4654,61 @@ a:hover { color: var(--primary-focus) !important; }
   opacity: 1 !important;
 }
 
-/* === §3-3. 테넌트별 일정 컬러 — CSS 변수 + 예약 블록 매핑 ==================== */
+/* ============================================================================
+   ███ V14 — 테넌트 컬러 시스템 완전 재작성 ███
+   ----------------------------------------------------------------------------
+   설계 원칙:
+     1. 단일 진실 원천: CSS 변수 --tenant-wylie / --tenant-lush
+        — DB tenants.schedule_color 값이 JS applyTenantColors()를 통해 :root에 주입
+     2. 어떤 컴포넌트든 테넌트별 색상이 필요하면 .tenant-{wylie|lush} 클래스만 붙임
+        — 인라인 background, 하드코딩 hex 절대 금지
+     3. !important 사용은 인라인 스타일을 강제로 덮기 위함 (legacy 인라인 잔재 대응)
+   ============================================================================ */
+
 :root {
-  --wylie-schedule-color: #0066cc;
-  --lush-korea-schedule-color: #1d1d1f;
+  /* V14: 변수명 간결화 — 기본값은 DB가 없을 때만 사용 (저장된 값이 즉시 :root에 주입됨) */
+  --tenant-wylie: #703b96;        /* 보라색 — 와일리 */
+  --tenant-lush:  #d81b60;        /* 진한 핑크 — 러쉬코리아 */
+  /* V13 호환 alias — 기존 코드가 옛 변수명을 참조해도 동일한 값을 받음 */
+  --wylie-schedule-color: var(--tenant-wylie);
+  --lush-korea-schedule-color: var(--tenant-lush);
 }
 
-/* 타임라인 예약 블록 — 테넌트별 독립 변수 참조 (data-tenant-id 우선, .tenant-* 보조) */
+/* 1) 타임라인 예약 블록 — data-tenant-id 또는 .tenant-* 클래스 둘 다 매칭 */
 .timeline-event[data-tenant-id="WYLIE"],
-.reservation-block[data-tenant-id="WYLIE"],
 .timeline-event.tenant-wylie,
-.reservation-block.tenant-wylie {
-  background-color: var(--wylie-schedule-color) !important;
+.reservation-block[data-tenant-id="WYLIE"],
+.reservation-block.tenant-wylie,
+.month-event.tenant-wylie {
+  background-color: var(--tenant-wylie) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+.timeline-event[data-tenant-id="LUSH"],
+.timeline-event.tenant-lush,
+.reservation-block[data-tenant-id="LUSH"],
+.reservation-block.tenant-lush,
+.month-event.tenant-lush {
+  background-color: var(--tenant-lush) !important;
   border-radius: 4px !important;
   box-shadow: none !important;
 }
 
-.timeline-event[data-tenant-id="LUSH"],
-.reservation-block[data-tenant-id="LUSH"],
-.timeline-event.tenant-lush,
-.reservation-block.tenant-lush {
-  background-color: var(--lush-korea-schedule-color) !important;
-  border-radius: 4px !important;
-  box-shadow: none !important;
+/* 2) 공간 페이지(legend) — 와일리/러쉬코리아 색상 점 (이미지의 그 점들) */
+.legend-square.tenant-wylie,
+.legend-dot.tenant-wylie,
+.tenant-color-dot.tenant-wylie {
+  background-color: var(--tenant-wylie) !important;
 }
+.legend-square.tenant-lush,
+.legend-dot.tenant-lush,
+.tenant-color-dot.tenant-lush {
+  background-color: var(--tenant-lush) !important;
+}
+
+/* 3) 어디서든 강제 우선순위 — 인라인 스타일(.style.background) 보다 우위 */
+[data-tenant-id="WYLIE"].use-tenant-bg { background-color: var(--tenant-wylie) !important; }
+[data-tenant-id="LUSH"].use-tenant-bg  { background-color: var(--tenant-lush)  !important; }
 
 /* V13 §NEW: 인사이트 내역 — 회의 목적 셀 (길이 제한 + 줄바꿈) */
 .history-purpose-cell {

@@ -510,10 +510,9 @@ async function renderHome() {
 
 // ============== SPACES (TIMELINE) PAGE ==============
 let dragState = null;
-let resizeState = null;
-let resizeTopState = null; // V10 §7: 상단 핸들 드래그 (시작 시간 조정)
+// V14: 리사이즈 상태는 새 시스템(R 변수)에서 단일 관리 — resizeState/resizeTopState 폐기
 let pollingInterval = null;
-// V12 §1: document 레벨 리스너 누적 방지 — 앱 부팅 시 단 1회만 등록
+// document 레벨 리스너 누적 방지 — 앱 부팅 시 단 1회만 등록
 let _docListenersBound = false;
 // State.view: 'day' | 'month', State.mineOnly: boolean
 if (!State.view) State.view = 'day';
@@ -591,8 +590,9 @@ async function renderSpaces() {
         }, el('i', { class: 'fa-solid fa-user' }), '내 일정')
       ),
       el('div', { class: 'timeline-legend' },
-        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#0066cc;' }), '와일리'),
-        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#1d1d1f;' }), '러쉬코리아'),
+        // V14: 하드코딩 hex 제거 — .tenant-wylie/.tenant-lush 클래스로 CSS 변수 참조 (실시간 반영)
+        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square tenant-wylie' }), '와일리'),
+        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square tenant-lush'  }), '러쉬코리아'),
       )
     )
   );
@@ -875,17 +875,15 @@ function attachDragHandlers() {
   bindGlobalTimelineListeners();
 }
 
-// V12 §1: 누적 등록 차단 — 모든 document 레벨 리스너를 한 곳에서 단일 등록
+// V14: 단일 리스너 등록 — 드래그(빈 셀 → 새 예약)와 리사이즈(블록 가장자리)는 완전 분리된 두 시스템
 function bindGlobalTimelineListeners() {
   if (_docListenersBound) return;
   _docListenersBound = true;
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragUp);
+  // V14 신규: 통합 리사이즈 시스템 (상단/하단 핸들 모두 동일 함수가 처리)
   document.addEventListener('mousemove', onResizeMove);
   document.addEventListener('mouseup', onResizeUp);
-  document.addEventListener('mousemove', onResizeTopMove);
-  document.addEventListener('mouseup', onResizeTopUp);
-  console.log('[v12] global timeline listeners bound (one-shot)');
 }
 
 function onDragMove(e) {
@@ -920,221 +918,200 @@ function onDragUp(e) {
   });
 }
 
-/** V4: 예약 블록 종료 시간 리사이즈 (끝부분 핸들 드래그) */
+/* ============================================================================
+   ███ V14 — RESIZE 시스템 완전 재작성 (상단/하단 핸들 통합) ███
+   ----------------------------------------------------------------------------
+   이전 구조 폐기:
+     - 별도 상태 변수(resizeState / resizeTopState) → 단일 R 객체로 통합
+     - 별도 핸들러(attachResizeHandlers / attachResizeTopHandlers) → 단일 함수
+     - 별도 mousemove/up 4개 함수 → 단일 onResizeMove / onResizeUp 2개
+
+   설계 원칙:
+     1. 픽셀 ↔ 분 변환은 단 한 곳(MIN_TO_PX / PX_TO_MIN)에서만 수행
+     2. R.origStartMin / R.origEndMin 두 정수가 진리원천 (변하지 않음)
+     3. mousedown 시 예약의 start_time/end_time을 진리원천으로 픽셀 좌표 재계산
+        → 부모 grid padding/scroll 변화에도 좌표 흔들림 0
+     4. 충돌 / 23:30 상한 / 최소 30분 길이 / 과거 시각 가드는 한 곳에서 일괄 클램프
+   ============================================================================ */
+
+const PX_PER_MIN = 40 / 60;          // 1시간(60분) = 40px → 1분 ≈ 0.6667px
+const MIN_TO_PX = (m) => m * PX_PER_MIN;
+const PX_TO_MIN = (p) => p / PX_PER_MIN;
+const SNAP_MIN = 30;                  // 30분 단위 스냅
+const MIN_DURATION = 30;              // 최소 30분 길이
+const MAX_END_MIN = 23 * 60 + 30;     // 23:30이 끝점 절대 상한 (24:00 차단)
+
+let R = null;  // V14 통합 리사이즈 상태 (null이면 비활성)
+
 function attachResizeHandlers() {
   const grid = $('#timeline-grid');
   if (!grid) return;
 
+  // 단일 mousedown — 상단(.ev-resize-handle-top)/하단(.ev-resize-handle) 모두 잡아 R.edge로 분기
   grid.addEventListener('mousedown', (e) => {
-    // V12 §4: 상단 핸들이 이미 활성화되어 있다면 즉시 차단
-    if (resizeTopState) return;
-    // V11 §4: 정확한 클래스 매칭 — '.ev-resize-handle-top'은 절대 매칭되면 안 됨
-    const handle = e.target.closest('.ev-resize-handle:not(.ev-resize-handle-top)');
+    const topHandle = e.target.closest('.ev-resize-handle-top');
+    const botHandle = e.target.closest('.ev-resize-handle:not(.ev-resize-handle-top)');
+    const handle = topHandle || botHandle;
     if (!handle) return;
-    // 안전 가드: 클래스명이 정확히 'ev-resize-handle'인지 한 번 더 확인
-    if (handle.classList.contains('ev-resize-handle-top')) return;
     e.preventDefault();
     e.stopPropagation();
+    // 다른 상태 강제 초기화 (드래그 새 예약 등과 충돌 방지)
+    dragState = null;
+
     const id = Number(handle.dataset.id);
     const r = State.reservations.find(x => x.id === id);
     if (!r) return;
     const eventEl = handle.parentElement;
-    resizeState = {
+
+    // 진리원천: 예약의 start_time/end_time을 분 단위로 변환
+    const [sh, sm] = r.start_time.split(':').map(Number);
+    const [eh, em] = r.end_time.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+
+    // 같은 공간의 다른 예약들 (충돌 한계 계산용)
+    const others = State.reservations
+      .filter(x => x.space_id === r.space_id && x.id !== r.id && x.status !== 'cancelled')
+      .map(x => {
+        const [a, b] = x.start_time.split(':').map(Number);
+        const [c, d] = x.end_time.split(':').map(Number);
+        return { startMin: a * 60 + b, endMin: c * 60 + d };
+      });
+
+    // 상한/하한 결정
+    let minStartMin = 0;
+    let maxEndMin = MAX_END_MIN;
+
+    if (topHandle) {
+      // 상단 드래그: 시작 시간 변경. 이전 예약의 endMin이 하한
+      const predecessorEnd = others
+        .filter(x => x.endMin <= startMin)
+        .reduce((mx, x) => Math.max(mx, x.endMin), 0);
+      minStartMin = predecessorEnd;
+      // 오늘 날짜면 현재 시각 이후로만 (단, 이미 시작된 일정은 건드리지 않음)
+      if (r.date === dayjs().format('YYYY-MM-DD')) {
+        const now = dayjs();
+        const nowMin = now.hour() * 60 + now.minute();
+        if (startMin >= nowMin) minStartMin = Math.max(minStartMin, nowMin);
+      }
+    } else {
+      // 하단 드래그: 종료 시간 변경. 다음 예약의 startMin이 상한
+      const successorStart = others
+        .filter(x => x.startMin >= endMin)
+        .reduce((mn, x) => Math.min(mn, x.startMin), MAX_END_MIN);
+      maxEndMin = Math.min(MAX_END_MIN, successorStart);
+    }
+
+    R = {
       reservation: r,
       eventEl,
-      direction: 'bottom', // V11 §4: 방향성 명시
+      edge: topHandle ? 'top' : 'bottom',
       startClientY: e.clientY,
-      originalHeight: eventEl.offsetHeight,
-      originalTop: eventEl.offsetTop,
+      // 진리원천 (변하지 않음)
+      origStartMin: startMin,
+      origEndMin: endMin,
+      // 현재 드래그 진행 중인 분 좌표 (스냅 전 raw)
+      curStartMin: startMin,
+      curEndMin: endMin,
+      // 가드
+      minStartMin,
+      maxEndMin,
     };
-    console.log('[v12] resize BOTTOM activated', { id, originalTop: eventEl.offsetTop, originalHeight: eventEl.offsetHeight });
+    // 시작 좌표를 진리원천 기준으로 다시 그어놓기 (혹시 흔들렸다면 보정)
+    eventEl.style.top = MIN_TO_PX(startMin) + 'px';
+    eventEl.style.height = MIN_TO_PX(endMin - startMin) + 'px';
   });
 
-  // V12 §1: document 리스너는 bindGlobalTimelineListeners()에서 단일 등록
   bindGlobalTimelineListeners();
 }
 
+// V14: attachResizeTopHandlers는 통합되었으므로 별칭만 유지 (외부 호출 호환)
+function attachResizeTopHandlers() { /* V14: 통합됨 — attachResizeHandlers가 둘 다 처리 */ }
+
 function onResizeMove(e) {
-  if (!resizeState) return;
-  if (resizeState.direction !== 'bottom') return; // V11 §4: 방향성 가드
-  const dy = e.clientY - resizeState.startClientY;
-  let newHeight = Math.max(20, resizeState.originalHeight + dy);
-  // 24시 경계 제한
-  const maxHeight = 24 * 40 - resizeState.originalTop;
-  newHeight = Math.min(newHeight, maxHeight);
-  resizeState.eventEl.style.height = newHeight + 'px';
-  // 시간 표시 갱신
-  const startMin = resizeState.originalTop / 40 * 60;
-  const endMin = Math.round((resizeState.originalTop + newHeight) / 40 * 60 / 30) * 30;
-  const timeLabel = resizeState.eventEl.querySelector('.ev-time');
-  const endStr = minutesToTime(endMin);
-  if (timeLabel) timeLabel.textContent = `${resizeState.reservation.start_time} - ${endStr}`;
+  if (!R) return;
+  // dy → 분 단위 변환
+  const dyMin = PX_TO_MIN(e.clientY - R.startClientY);
+
+  if (R.edge === 'top') {
+    // 상단: 시작 시각 = 원본 + dyMin (양수 dy면 시작이 늦춰짐 = 짧아짐)
+    let newStart = R.origStartMin + dyMin;
+    if (newStart < R.minStartMin) newStart = R.minStartMin;
+    if (newStart > R.origEndMin - MIN_DURATION) newStart = R.origEndMin - MIN_DURATION;
+    R.curStartMin = newStart;
+    R.curEndMin = R.origEndMin;
+  } else {
+    // 하단: 종료 시각 = 원본 + dyMin
+    let newEnd = R.origEndMin + dyMin;
+    if (newEnd > R.maxEndMin) newEnd = R.maxEndMin;
+    if (newEnd < R.origStartMin + MIN_DURATION) newEnd = R.origStartMin + MIN_DURATION;
+    R.curStartMin = R.origStartMin;
+    R.curEndMin = newEnd;
+  }
+
+  // DOM 반영 (raw — 스냅 전 부드러운 추적)
+  R.eventEl.style.top = MIN_TO_PX(R.curStartMin) + 'px';
+  R.eventEl.style.height = MIN_TO_PX(R.curEndMin - R.curStartMin) + 'px';
+
+  // 시간 라벨 갱신 (30분 스냅된 표시 시각)
+  const previewStart = Math.round(R.curStartMin / SNAP_MIN) * SNAP_MIN;
+  const previewEnd = Math.round(R.curEndMin / SNAP_MIN) * SNAP_MIN;
+  const lbl = R.eventEl.querySelector('.ev-time');
+  if (lbl) lbl.textContent = `${minutesToTime(previewStart)} - ${minutesToTime(previewEnd)}`;
 }
 
 async function onResizeUp(e) {
-  if (!resizeState) return;
-  const rs = resizeState;
-  resizeState = null;
-  const newHeight = parseFloat(rs.eventEl.style.height);
-  const startMin = rs.originalTop / 40 * 60;
-  let endMin = Math.round((rs.originalTop + newHeight) / 40 * 60 / 30) * 30;
-  if (endMin <= startMin) endMin = startMin + 30;
-  // V13 §2-A: end_time 24:00 차단 — 23:30(=1410)이 절대 상한
-  const MAX_END_MIN = 23 * 60 + 30;
-  if (endMin > MAX_END_MIN) endMin = MAX_END_MIN;
-  const newEnd = minutesToTime(endMin);
-  if (newEnd === rs.reservation.end_time) return; // 변경 없음
+  if (!R) return;
+  const rs = R;
+  R = null;
 
-  const res = await api(`/api/reservations/${rs.reservation.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ end_time: newEnd })
-  });
-  if (!res.ok) {
-    toast(res.data?.error || '시간 조정에 실패했습니다.', 'error');
+  // 30분 스냅 적용
+  let snapStart = Math.round(rs.curStartMin / SNAP_MIN) * SNAP_MIN;
+  let snapEnd   = Math.round(rs.curEndMin   / SNAP_MIN) * SNAP_MIN;
+
+  // 가드 최종 적용 (스냅이 가드를 깨뜨릴 수 있음)
+  if (rs.edge === 'top') {
+    const snappedMinStart = Math.ceil(rs.minStartMin / SNAP_MIN) * SNAP_MIN;
+    if (snapStart < snappedMinStart) snapStart = snappedMinStart;
+    if (snapStart > rs.origEndMin - MIN_DURATION) snapStart = rs.origEndMin - MIN_DURATION;
+    snapEnd = rs.origEndMin;
   } else {
-    toast(`종료 시간을 ${newEnd}로 변경했습니다.`, 'success');
+    const snappedMaxEnd = Math.floor(rs.maxEndMin / SNAP_MIN) * SNAP_MIN;
+    if (snapEnd > snappedMaxEnd) snapEnd = snappedMaxEnd;
+    if (snapEnd < rs.origStartMin + MIN_DURATION) snapEnd = rs.origStartMin + MIN_DURATION;
+    snapStart = rs.origStartMin;
   }
-  await loadTimeline();
-  // 빠른 리렌더 — 이벤트만 갱신
-  refreshTimelineEvents();
-}
 
-/** V10 §7: 예약 블록 시작 시간 리사이즈 (상단 핸들 드래그) */
-function attachResizeTopHandlers() {
-  const grid = $('#timeline-grid');
-  if (!grid) return;
+  const newStart = minutesToTime(snapStart);
+  const newEnd = minutesToTime(snapEnd);
 
-  // V12 §4: capture phase로 등록 — 다른 핸들러들보다 먼저 실행되어 상단 핸들 우선권 확보
-  grid.addEventListener('mousedown', (e) => {
-    const handle = e.target.closest('.ev-resize-handle-top');
-    if (!handle) return;
-    e.preventDefault();
-    e.stopPropagation();
-    // V12 §4: 양방향 가드 — 다른 모든 상태를 강제 초기화
-    resizeState = null;
-    dragState = null;
-    const id = Number(handle.dataset.id);
-    const r = State.reservations.find(x => x.id === id);
-    if (!r) return;
-    const eventEl = handle.parentElement;
-
-    // §7 가드: 같은 공간의 이전 예약 end_time을 미리 계산해 minStartMin 산출
-    const sameSpace = State.reservations
-      .filter(x => x.space_id === r.space_id && x.id !== r.id && x.status !== 'cancelled')
-      .map(x => {
-        const [h1, m1] = x.start_time.split(':').map(Number);
-        const [h2, m2] = x.end_time.split(':').map(Number);
-        return { startMin: h1 * 60 + m1, endMin: h2 * 60 + m2 };
-      });
-    // 현재 예약 시작 시간 이전에 끝나는 예약 중 가장 큰 endMin
-    const [csh, csm] = r.start_time.split(':').map(Number);
-    const curStartMin = csh * 60 + csm;
-    const predecessorEnd = sameSpace
-      .filter(x => x.endMin <= curStartMin)
-      .reduce((mx, x) => Math.max(mx, x.endMin), 0);
-
-    // 과거 시간 가드: 오늘 날짜인 경우 현재 시각 이전으로 못 가게
-    let nowMinFloor = 0;
-    if (r.date === dayjs().format('YYYY-MM-DD')) {
-      const now = dayjs();
-      nowMinFloor = now.hour() * 60 + now.minute();
-    }
-
-    const minStartMin = Math.max(predecessorEnd, nowMinFloor); // 둘 중 더 큰 값이 하한
-
-    // V13 §2-B: col 컨테이너의 BoundingClientRect 기준 좌표 사용 — offsetTop은 부모 padding/margin 변화에 흔들림
-    //   ── 실제 버그: r.start_time(예 09:00) 기준 분 좌표를 직접 사용해야 어떤 grid 변화에도 흔들리지 않음
-    const colEl = eventEl.parentElement; // .timeline-space-col
-    const [sh0, sm0] = r.start_time.split(':').map(Number);
-    const [eh0, em0] = r.end_time.split(':').map(Number);
-    const startMinFromTime = sh0 * 60 + sm0;
-    const endMinFromTime   = eh0 * 60 + em0;
-    // 픽셀 환산 (1분=40/60 px) — 'time → px' 단방향이므로 좌표가 절대 흔들리지 않음
-    const originalTop = startMinFromTime * (40 / 60);
-    const originalHeight = (endMinFromTime - startMinFromTime) * (40 / 60);
-    const frozenBottom = endMinFromTime * (40 / 60); // 종료 시간 좌표는 분 단위로 고정
-
-    resizeTopState = {
-      reservation: r,
-      eventEl,
-      colEl, // V13 §2-B: col getBoundingClientRect 비교용
-      direction: 'top', // V11 §4: 방향성 명시 — 'top' 핸들이 활성화됨
-      startClientY: e.clientY,
-      originalHeight,
-      originalTop,
-      frozenBottom, // V11 §4: 종료 시간 동결 좌표
-      minStartMin, // 시작 시간이 이 분(min) 미만으로 내려갈 수 없음
-      // V13 §2-B: 시작 시점의 col 절대 좌표 캡쳐 — 절대 좌표계 기반 연산으로 흔들림 차단
-      colTopAtStart: colEl.getBoundingClientRect().top,
-    };
-    console.log('[v13] resize TOP activated', { id, originalTop, originalHeight, frozenBottom, minStartMin, startMinFromTime, endMinFromTime });
-  }, true); // V12 §4: useCapture=true — 캡처 단계에서 가장 먼저 실행되도록
-
-  // V12 §1: document 리스너는 bindGlobalTimelineListeners()에서 단일 등록
-  bindGlobalTimelineListeners();
-}
-
-function onResizeTopMove(e) {
-  if (!resizeTopState) return;
-  // V11 §4: 방향성 가드 — 상단 핸들이 아닐 경우 절대 동작 금지
-  if (resizeTopState.direction !== 'top') return;
-
-  const dy = e.clientY - resizeTopState.startClientY;
-  // 상단 핸들 드래그: dy가 음수면 위로 이동 → top 감소, height 증가
-  let newTop = resizeTopState.originalTop + dy;
-  // 하한(min start) 적용
-  const minTop = resizeTopState.minStartMin * (40 / 60);
-  if (newTop < minTop) newTop = minTop;
-  // V11 §4: end_time 절대 동결 — newTop이 frozenBottom - 20px 이상으로 가지 못함
-  const maxTop = resizeTopState.frozenBottom - 20;
-  if (newTop > maxTop) newTop = maxTop;
-
-  // V11 §4: height는 항상 (frozenBottom - newTop)으로 산정 → 종료 시간 좌표 100% 고정
-  const newHeight = resizeTopState.frozenBottom - newTop;
-  resizeTopState.eventEl.style.top = newTop + 'px';
-  resizeTopState.eventEl.style.height = newHeight + 'px';
-
-  // 시간 표시 갱신 — 시작 시간만 변경, 종료 시간은 원본 그대로
-  const startMin = Math.round(newTop / 40 * 60 / 30) * 30;
-  const startStr = minutesToTime(startMin);
-  const timeLabel = resizeTopState.eventEl.querySelector('.ev-time');
-  if (timeLabel) timeLabel.textContent = `${startStr} - ${resizeTopState.reservation.end_time}`;
-}
-
-async function onResizeTopUp(e) {
-  if (!resizeTopState) return;
-  const rs = resizeTopState;
-  resizeTopState = null;
-  const newTop = parseFloat(rs.eventEl.style.top);
-  // 30분 스냅
-  let startMin = Math.round(newTop / 40 * 60 / 30) * 30;
-  // 하한 재적용 (스냅이 가드를 깰 수 있음)
-  const snappedMinStart = Math.ceil(rs.minStartMin / 30) * 30;
-  if (startMin < snappedMinStart) startMin = snappedMinStart;
-  // 종료 시간 직전 30분까지만 허용
-  const [eh, em] = rs.reservation.end_time.split(':').map(Number);
-  const endMin = eh * 60 + em;
-  if (startMin >= endMin) startMin = endMin - 30;
-  const newStart = minutesToTime(startMin);
-  if (newStart === rs.reservation.start_time) {
-    // 변경 없음 — 위치 원복
-    rs.eventEl.style.top = rs.originalTop + 'px';
-    rs.eventEl.style.height = rs.originalHeight + 'px';
+  // 변경 없음 → 원복하고 종료
+  if (newStart === rs.reservation.start_time && newEnd === rs.reservation.end_time) {
+    rs.eventEl.style.top = MIN_TO_PX(rs.origStartMin) + 'px';
+    rs.eventEl.style.height = MIN_TO_PX(rs.origEndMin - rs.origStartMin) + 'px';
     return;
   }
 
+  // PATCH: 변경된 쪽만 보냄
+  const body = (rs.edge === 'top') ? { start_time: newStart } : { end_time: newEnd };
+
   const res = await api(`/api/reservations/${rs.reservation.id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ start_time: newStart })
+    body: JSON.stringify(body)
   });
+
   if (!res.ok) {
-    toast(res.data?.error || '시작 시간 조정에 실패했습니다.', 'error');
+    toast(res.data?.error || '시간 조정에 실패했습니다.', 'error');
     // 실패 시 원복
-    rs.eventEl.style.top = rs.originalTop + 'px';
-    rs.eventEl.style.height = rs.originalHeight + 'px';
-  } else {
-    toast(`시작 시간을 ${newStart}로 변경했습니다.`, 'success');
+    rs.eventEl.style.top = MIN_TO_PX(rs.origStartMin) + 'px';
+    rs.eventEl.style.height = MIN_TO_PX(rs.origEndMin - rs.origStartMin) + 'px';
+    return;
   }
+
+  toast(
+    rs.edge === 'top' ? `시작 시간을 ${newStart}로 변경했습니다.` : `종료 시간을 ${newEnd}로 변경했습니다.`,
+    'success'
+  );
   await loadTimeline();
   refreshTimelineEvents();
 }
@@ -3359,48 +3336,126 @@ async function renderAdminGeneral() {
   renderShell(main);
 }
 
-/** V11 §3-3: 테넌트별 일정 컬러 팔레트 — WYLIE / LUSH 완전 격리 */
-function buildSchedulePaletteCard(tenants) {
-  const wylie = tenants.find(t => t.id === 'WYLIE') || { id: 'WYLIE', name: '와일리', schedule_color: '#0066cc' };
-  const lush  = tenants.find(t => t.id === 'LUSH')  || { id: 'LUSH',  name: '러쉬코리아', schedule_color: '#1d1d1f' };
+/* ============================================================================
+   ███ V14 — 테넌트 컬러 시스템 완전 재작성 ███
+   ----------------------------------------------------------------------------
+   1. applyTenantColors(tenants)  → 단일 진입점. 어디서 호출되든 동일 동작.
+       - DB의 schedule_color 두 값을 :root CSS 변수(--tenant-wylie/--tenant-lush)에 주입
+       - 별도 <style id="__tenant_colors__">에도 강제 규칙 inject (인라인 background 잔재까지 덮음)
+       - 모든 .tenant-color-dot / 범례 점 / 인라인 background까지 즉시 반영
+   2. buildSchedulePaletteCard(tenants) → 어드민 설정 카드
+       - 색상 선택 즉시 applyTenantColors() 호출 + DB PATCH + 타임라인/공간 페이지 강제 리렌더
+   3. State.tenants에 캐시 보관 (어디서든 동기 접근 가능)
+   ============================================================================ */
 
-  // 격리 핸들러: 한 쪽이 다른 쪽을 절대 건드리지 않음
-  const onChangeWylie = async (e) => {
-    const color = e.target.value;
-    document.getElementById('wylieTenantColorHex').textContent = color;
-    document.documentElement.style.setProperty('--wylie-schedule-color', color);
-    const r = await api(`/api/tenants/WYLIE`, {
-      method: 'PATCH',
-      body: JSON.stringify({ schedule_color: color }),
-    });
-    if (!r.ok) {
-      toast('와일리 일정 색상 저장에 실패했습니다.', 'error');
-    } else {
-      toast(`와일리 일정 색상을 ${color}로 변경했습니다.`, 'success');
+const TENANT_DEFAULTS = {
+  WYLIE: { id: 'WYLIE', name: '와일리',     schedule_color: '#703b96' }, // 보라
+  LUSH:  { id: 'LUSH',  name: '러쉬코리아', schedule_color: '#d81b60' }, // 진핑크
+};
+
+/**
+ * V14: 단일 진입점 — DB의 tenants 배열을 받아 화면 전체에 컬러 즉시 반영.
+ * @param {Array<{id:string, schedule_color:string}>} tenants
+ */
+function applyTenantColors(tenants) {
+  const w = (tenants || []).find(t => t.id === 'WYLIE') || TENANT_DEFAULTS.WYLIE;
+  const l = (tenants || []).find(t => t.id === 'LUSH')  || TENANT_DEFAULTS.LUSH;
+  const wColor = w.schedule_color || TENANT_DEFAULTS.WYLIE.schedule_color;
+  const lColor = l.schedule_color || TENANT_DEFAULTS.LUSH.schedule_color;
+
+  // (a) :root CSS 변수 주입 — 새 이름 + 옛 이름 둘 다 (호환)
+  const root = document.documentElement;
+  root.style.setProperty('--tenant-wylie', wColor);
+  root.style.setProperty('--tenant-lush',  lColor);
+  root.style.setProperty('--wylie-schedule-color', wColor);
+  root.style.setProperty('--lush-korea-schedule-color', lColor);
+
+  // (b) 동적 <style> 강제 inject — legacy 인라인 background 잔재까지 덮어쓰는 최종 방어선
+  let st = document.getElementById('__tenant_colors__');
+  if (!st) {
+    st = document.createElement('style');
+    st.id = '__tenant_colors__';
+    document.head.appendChild(st);
+  }
+  st.textContent = `
+    .timeline-event[data-tenant-id="WYLIE"],
+    .timeline-event.tenant-wylie,
+    .month-event.tenant-wylie,
+    .reservation-block.tenant-wylie {
+      background-color: ${wColor} !important;
     }
-  };
-  const onChangeLush = async (e) => {
-    const color = e.target.value;
-    document.getElementById('lushTenantColorHex').textContent = color;
-    document.documentElement.style.setProperty('--lush-korea-schedule-color', color);
-    const r = await api(`/api/tenants/LUSH`, {
+    .timeline-event[data-tenant-id="LUSH"],
+    .timeline-event.tenant-lush,
+    .month-event.tenant-lush,
+    .reservation-block.tenant-lush {
+      background-color: ${lColor} !important;
+    }
+    .legend-square.tenant-wylie, .legend-dot.tenant-wylie, .tenant-color-dot.tenant-wylie { background-color: ${wColor} !important; }
+    .legend-square.tenant-lush,  .legend-dot.tenant-lush,  .tenant-color-dot.tenant-lush  { background-color: ${lColor} !important; }
+  `;
+
+  // (c) State 캐시 갱신
+  State.tenants = [
+    { ...TENANT_DEFAULTS.WYLIE, ...w, schedule_color: wColor },
+    { ...TENANT_DEFAULTS.LUSH,  ...l, schedule_color: lColor },
+  ];
+}
+
+// V13 호환 alias — 기존 코드가 옛 이름으로 호출해도 동일하게 동작
+function applyTenantColorVars(tenants) { return applyTenantColors(tenants); }
+
+/**
+ * V14: 어드민 설정 — 테넌트 일정 색상 팔레트 카드.
+ * 색상 변경 시 (1) DB PATCH (2) applyTenantColors() (3) 활성 페이지 강제 리렌더
+ */
+function buildSchedulePaletteCard(tenants) {
+  const wylie = tenants.find(t => t.id === 'WYLIE') || TENANT_DEFAULTS.WYLIE;
+  const lush  = tenants.find(t => t.id === 'LUSH')  || TENANT_DEFAULTS.LUSH;
+
+  /**
+   * 공통 핸들러: id ∈ {'WYLIE','LUSH'}, color = '#rrggbb'
+   *   1) hex 라벨 즉시 갱신
+   *   2) applyTenantColors() — 화면 전체 CSS 변수 + 동적 <style> 즉시 갱신
+   *   3) DB PATCH (실패 시 토스트로 알림, 다음 새로고침 때 원복)
+   *   4) 현재 활성 페이지가 'spaces'(공간 타임라인)면 타임라인 이벤트만 빠르게 리렌더
+   */
+  const onChange = async (id, color) => {
+    const hexId = id === 'WYLIE' ? 'wylieTenantColorHex' : 'lushTenantColorHex';
+    const lbl = document.getElementById(hexId);
+    if (lbl) lbl.textContent = color;
+
+    // 옵티미스틱 업데이트: 캐시 즉시 수정 후 화면 반영
+    const cached = (State.tenants || []).map(t =>
+      t.id === id ? { ...t, schedule_color: color } : t
+    );
+    if (!cached.find(t => t.id === id)) {
+      cached.push({ id, schedule_color: color });
+    }
+    applyTenantColors(cached);
+
+    // 타임라인이 떠 있다면 이벤트 블록 즉시 다시 그림 (CSS 변수만으로 안 잡히는 잔재 컬러 잡기)
+    if (State.page === 'spaces' && typeof refreshTimelineEvents === 'function') {
+      refreshTimelineEvents();
+    }
+
+    const r = await api(`/api/tenants/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ schedule_color: color }),
     });
     if (!r.ok) {
-      toast('러쉬코리아 일정 색상 저장에 실패했습니다.', 'error');
+      toast(`${id === 'WYLIE' ? '와일리' : '러쉬코리아'} 색상 저장에 실패했습니다.`, 'error');
     } else {
-      toast(`러쉬코리아 일정 색상을 ${color}로 변경했습니다.`, 'success');
+      toast(`${id === 'WYLIE' ? '와일리' : '러쉬코리아'} 일정 색상을 ${color}로 변경했습니다.`, 'success');
     }
   };
 
   return el('div', { class: 'setting-section-box schedule-palette-box' },
     el('h3', null,
-      el('i', { class: 'fa-solid fa-palette', style: 'margin-right:8px;color:#0066cc;' }),
+      el('i', { class: 'fa-solid fa-palette', style: 'margin-right:8px;color:var(--tenant-wylie);' }),
       '일정 컬러 팔레트'
     ),
     el('p', { class: 'section-desc' },
-      '각 회사별 독립된 팔레트입니다. 변경 시 해당 소속의 예약 블록 색상만 실시간으로 분리되어 반영됩니다.'
+      '각 회사별 독립된 팔레트입니다. 변경 시 화면 전체(타임라인 / 공간 페이지 / 범례 점)에 실시간 반영됩니다.'
     ),
     el('div', { class: 'picker-row' },
       // 와일리 (WYLIE) 셀
@@ -3410,11 +3465,20 @@ function buildSchedulePaletteCard(tenants) {
           type: 'color',
           id: 'wylieTenantColorPicker',
           class: 'tenant-color-picker',
-          value: wylie.schedule_color || '#0066cc',
+          value: wylie.schedule_color || TENANT_DEFAULTS.WYLIE.schedule_color,
           'data-tenant': 'WYLIE',
-          onchange: onChangeWylie,
+          // input 이벤트 = 드래그 중에도 실시간 미리보기, change 이벤트 = 확정 시 DB 저장
+          oninput: (e) => {
+            // 미리보기만 (DB 호출 X)
+            applyTenantColors((State.tenants || []).map(t =>
+              t.id === 'WYLIE' ? { ...t, schedule_color: e.target.value } : t
+            ));
+            const lbl = document.getElementById('wylieTenantColorHex');
+            if (lbl) lbl.textContent = e.target.value;
+          },
+          onchange: (e) => onChange('WYLIE', e.target.value),
         }),
-        el('div', { id: 'wylieTenantColorHex', class: 'tenant-color-hex' }, wylie.schedule_color || '#0066cc')
+        el('div', { id: 'wylieTenantColorHex', class: 'tenant-color-hex' }, wylie.schedule_color || TENANT_DEFAULTS.WYLIE.schedule_color)
       ),
       // 러쉬코리아 (LUSH) 셀
       el('div', { class: 'picker-cell' },
@@ -3423,27 +3487,21 @@ function buildSchedulePaletteCard(tenants) {
           type: 'color',
           id: 'lushTenantColorPicker',
           class: 'tenant-color-picker',
-          value: lush.schedule_color || '#1d1d1f',
+          value: lush.schedule_color || TENANT_DEFAULTS.LUSH.schedule_color,
           'data-tenant': 'LUSH',
-          onchange: onChangeLush,
+          oninput: (e) => {
+            applyTenantColors((State.tenants || []).map(t =>
+              t.id === 'LUSH' ? { ...t, schedule_color: e.target.value } : t
+            ));
+            const lbl = document.getElementById('lushTenantColorHex');
+            if (lbl) lbl.textContent = e.target.value;
+          },
+          onchange: (e) => onChange('LUSH', e.target.value),
         }),
-        el('div', { id: 'lushTenantColorHex', class: 'tenant-color-hex' }, lush.schedule_color || '#1d1d1f')
+        el('div', { id: 'lushTenantColorHex', class: 'tenant-color-hex' }, lush.schedule_color || TENANT_DEFAULTS.LUSH.schedule_color)
       ),
     )
   );
-}
-
-/** V11 §3-3: 테넌트 색상을 CSS 변수에 적용 (페이지 전체에 즉시 반영) */
-function applyTenantColorVars(tenants) {
-  const root = document.documentElement;
-  const wylie = tenants.find(t => t.id === 'WYLIE');
-  const lush = tenants.find(t => t.id === 'LUSH');
-  if (wylie?.schedule_color) {
-    root.style.setProperty('--wylie-schedule-color', wylie.schedule_color);
-  }
-  if (lush?.schedule_color) {
-    root.style.setProperty('--lush-korea-schedule-color', lush.schedule_color);
-  }
 }
 
 /** V10 §6: 색상 팔레트 카드 — 공간별 색상을 동시에 편집 → DB 저장 → 캘린더 실시간 재렌더 */
