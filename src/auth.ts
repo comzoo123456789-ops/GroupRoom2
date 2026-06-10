@@ -48,6 +48,21 @@ export async function authMiddleware(c: Context<{ Bindings: Bindings, Variables:
   await next();
 }
 
+/**
+ * V10 §4-1: 어드민 전용 미들웨어
+ * authMiddleware 이후에 체이닝하여 사용. role !== 'admin' 일 경우 403 차단.
+ */
+export async function requireAdmin(c: Context<{ Bindings: Bindings, Variables: { user: User } }>, next: Next) {
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    if (c.req.path.startsWith('/api/')) {
+      return c.json({ error: 'Forbidden — admin only' }, 403);
+    }
+    return c.redirect('/home');
+  }
+  await next();
+}
+
 export function setSessionCookie(c: Context, token: string) {
   setCookie(c, 'session', token, {
     httpOnly: true,

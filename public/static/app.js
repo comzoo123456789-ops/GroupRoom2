@@ -96,10 +96,11 @@ function renderShell(content) {
   document.body.innerHTML = '';
 
   // V6-2: 모바일 햄버거 드로어용 navLinks 노드 (데스크톱/모바일 공통)
+  // V10 §4-1: 인사이트 메뉴는 어드민에게만 노출
   const navLinksNode = el('nav', { class: 'nav-links' },
     navLink('home', '홈', 'fa-house', '/home'),
     navLink('spaces', '공간', 'fa-calendar-day', '/spaces'),
-    navLink('insights', '인사이트', 'fa-chart-column', '/insights'),
+    isAdmin && navLink('insights', '인사이트', 'fa-chart-column', '/insights'),
     isAdmin && navLink('admin-members', '관리', 'fa-gear', '/admin/members'),
   );
 
@@ -209,7 +210,8 @@ function openMobileNavDrawer() {
       el('div', { class: 'mobile-nav-list' },
         navItem('home', '홈', 'fa-house', '/home'),
         navItem('spaces', '공간', 'fa-calendar-day', '/spaces'),
-        navItem('insights', '인사이트', 'fa-chart-column', '/insights'),
+        // V10 §4-1: 인사이트는 어드민 전용
+        isAdmin && navItem('insights', '인사이트', 'fa-chart-column', '/insights'),
         isAdmin && navItem('admin-members', '관리', 'fa-gear', '/admin/members'),
       ),
       el('div', { class: 'mobile-nav-foot' },
@@ -508,6 +510,7 @@ async function renderHome() {
 // ============== SPACES (TIMELINE) PAGE ==============
 let dragState = null;
 let resizeState = null;
+let resizeTopState = null; // V10 §7: 상단 핸들 드래그 (시작 시간 조정)
 let pollingInterval = null;
 // State.view: 'day' | 'month', State.mineOnly: boolean
 if (!State.view) State.view = 'day';
@@ -606,6 +609,7 @@ async function renderSpaces() {
   if (State.view === 'day') {
     attachDragHandlers();
     attachResizeHandlers();
+    attachResizeTopHandlers(); // V10 §7
     drawNowLine();
     focusOnRequestedTime();
   }
@@ -784,7 +788,11 @@ function buildEventEl(r) {
     style: `top:${top}px;height:${height}px;background:${bg};`,
     'data-id': r.id,
     // V8: 더블클릭 → 원클릭 단일 트리거. 드래그(빈 셀 새 예약)와는 트리거 영역이 다르므로 충돌 없음.
-    onclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
+    // V10 §7: 리사이즈 핸들(상/하단) 클릭은 모달을 열지 않도록 차단
+    onclick: (e) => {
+      if (e.target.closest('.ev-resize-handle') || e.target.closest('.ev-resize-handle-top')) return;
+      e.stopPropagation(); openReservationDetail(r);
+    },
   },
     el('div', { class: 'ev-title' }, r.title || '새로운 일정'),
     height > 32 && el('div', { class: 'ev-time' }, `${r.start_time} - ${r.end_time}`),
@@ -793,6 +801,12 @@ function buildEventEl(r) {
       style: `background:${r.user_avatar_color || '#7a7a7a'};`,
       title: r.user_name
     }, initials(r.user_name)),
+    // V10 §7: 상단 리사이즈 핸들 (시작 시간 조정) — 개설자 또는 관리자만
+    isOwner && el('div', {
+      class: 'ev-resize-handle-top',
+      'data-id': r.id,
+      title: '드래그하여 시작 시간 조정'
+    }),
     // V4: 끝부분 리사이즈 핸들 (개설자 또는 관리자만)
     isOwner && el('div', {
       class: 'ev-resize-handle',
@@ -810,6 +824,7 @@ function attachDragHandlers() {
   grid.addEventListener('mousedown', (e) => {
     // 리사이즈 핸들/예약 블록 자체를 클릭한 경우는 새 예약 드래그 비활성화
     if (e.target.closest('.ev-resize-handle')) return;
+    if (e.target.closest('.ev-resize-handle-top')) return; // V10 §7
     if (e.target.closest('.timeline-event')) return;
     const cell = e.target.closest('.timeline-cell');
     if (!cell) return;
@@ -926,6 +941,120 @@ async function onResizeUp(e) {
   }
   await loadTimeline();
   // 빠른 리렌더 — 이벤트만 갱신
+  refreshTimelineEvents();
+}
+
+/** V10 §7: 예약 블록 시작 시간 리사이즈 (상단 핸들 드래그) */
+function attachResizeTopHandlers() {
+  const grid = $('#timeline-grid');
+  if (!grid) return;
+
+  grid.addEventListener('mousedown', (e) => {
+    const handle = e.target.closest('.ev-resize-handle-top');
+    if (!handle) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = Number(handle.dataset.id);
+    const r = State.reservations.find(x => x.id === id);
+    if (!r) return;
+    const eventEl = handle.parentElement;
+
+    // §7 가드: 같은 공간의 이전 예약 end_time을 미리 계산해 minStartMin 산출
+    const sameSpace = State.reservations
+      .filter(x => x.space_id === r.space_id && x.id !== r.id && x.status !== 'cancelled')
+      .map(x => {
+        const [h1, m1] = x.start_time.split(':').map(Number);
+        const [h2, m2] = x.end_time.split(':').map(Number);
+        return { startMin: h1 * 60 + m1, endMin: h2 * 60 + m2 };
+      });
+    // 현재 예약 시작 시간 이전에 끝나는 예약 중 가장 큰 endMin
+    const [csh, csm] = r.start_time.split(':').map(Number);
+    const curStartMin = csh * 60 + csm;
+    const predecessorEnd = sameSpace
+      .filter(x => x.endMin <= curStartMin)
+      .reduce((mx, x) => Math.max(mx, x.endMin), 0);
+
+    // 과거 시간 가드: 오늘 날짜인 경우 현재 시각 이전으로 못 가게
+    let nowMinFloor = 0;
+    if (r.date === dayjs().format('YYYY-MM-DD')) {
+      const now = dayjs();
+      nowMinFloor = now.hour() * 60 + now.minute();
+    }
+
+    const minStartMin = Math.max(predecessorEnd, nowMinFloor); // 둘 중 더 큰 값이 하한
+
+    resizeTopState = {
+      reservation: r,
+      eventEl,
+      startClientY: e.clientY,
+      originalHeight: eventEl.offsetHeight,
+      originalTop: eventEl.offsetTop,
+      minStartMin, // 시작 시간이 이 분(min) 미만으로 내려갈 수 없음
+    };
+  });
+
+  document.addEventListener('mousemove', onResizeTopMove);
+  document.addEventListener('mouseup', onResizeTopUp);
+}
+
+function onResizeTopMove(e) {
+  if (!resizeTopState) return;
+  const dy = e.clientY - resizeTopState.startClientY;
+  // 상단 핸들 드래그: dy가 음수면 위로 이동 → top 감소, height 증가
+  let newTop = resizeTopState.originalTop + dy;
+  // 하한(min start) 적용
+  const minTop = resizeTopState.minStartMin * (40 / 60);
+  if (newTop < minTop) newTop = minTop;
+  // end_time은 고정 — newTop이 originalTop+originalHeight 이상이면 안됨 (최소 20px 높이)
+  const maxTop = resizeTopState.originalTop + resizeTopState.originalHeight - 20;
+  if (newTop > maxTop) newTop = maxTop;
+
+  const newHeight = (resizeTopState.originalTop + resizeTopState.originalHeight) - newTop;
+  resizeTopState.eventEl.style.top = newTop + 'px';
+  resizeTopState.eventEl.style.height = newHeight + 'px';
+
+  // 시간 표시 갱신
+  const startMin = Math.round(newTop / 40 * 60 / 30) * 30;
+  const startStr = minutesToTime(startMin);
+  const timeLabel = resizeTopState.eventEl.querySelector('.ev-time');
+  if (timeLabel) timeLabel.textContent = `${startStr} - ${resizeTopState.reservation.end_time}`;
+}
+
+async function onResizeTopUp(e) {
+  if (!resizeTopState) return;
+  const rs = resizeTopState;
+  resizeTopState = null;
+  const newTop = parseFloat(rs.eventEl.style.top);
+  // 30분 스냅
+  let startMin = Math.round(newTop / 40 * 60 / 30) * 30;
+  // 하한 재적용 (스냅이 가드를 깰 수 있음)
+  const snappedMinStart = Math.ceil(rs.minStartMin / 30) * 30;
+  if (startMin < snappedMinStart) startMin = snappedMinStart;
+  // 종료 시간 직전 30분까지만 허용
+  const [eh, em] = rs.reservation.end_time.split(':').map(Number);
+  const endMin = eh * 60 + em;
+  if (startMin >= endMin) startMin = endMin - 30;
+  const newStart = minutesToTime(startMin);
+  if (newStart === rs.reservation.start_time) {
+    // 변경 없음 — 위치 원복
+    rs.eventEl.style.top = rs.originalTop + 'px';
+    rs.eventEl.style.height = rs.originalHeight + 'px';
+    return;
+  }
+
+  const res = await api(`/api/reservations/${rs.reservation.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ start_time: newStart })
+  });
+  if (!res.ok) {
+    toast(res.data?.error || '시작 시간 조정에 실패했습니다.', 'error');
+    // 실패 시 원복
+    rs.eventEl.style.top = rs.originalTop + 'px';
+    rs.eventEl.style.height = rs.originalHeight + 'px';
+  } else {
+    toast(`시작 시간을 ${newStart}로 변경했습니다.`, 'success');
+  }
+  await loadTimeline();
   refreshTimelineEvents();
 }
 
@@ -1705,7 +1834,7 @@ function openRecurringEditScopeModal() {
 }
 
 // ============== INSIGHTS ==============
-// ============== INSIGHTS (V4: 3-tab) ==============
+// ============== INSIGHTS (V4: 3-tab + V10 §5: 공간 필터) ==============
 const InsightState = {
   tab: 'overview',     // 'overview' | 'history' | 'stats'
   range: '30',         // '7' | '30' | '90' | '180' | '365' | 'custom'
@@ -1713,8 +1842,13 @@ const InsightState = {
   end: '',
   metric: 'count',     // 'count' | 'time' (통계 탭)
   charts: {},          // Chart 인스턴스 보관
+  // V10 §5: 공간 필터 — 빈 배열이면 전체 공간(필터 없음)
+  spaceIds: [],
+  spacesCache: [],     // 공간 목록 캐시
+  lastResponse: null,  // V10 §4-2: 엑셀 내보내기용 마지막 응답 보관
 };
 
+/** V10 §5: 쿼리 빌더 (기간 + 공간 필터) */
 function rangeQuery() {
   const p = new URLSearchParams();
   p.set('range', InsightState.range);
@@ -1722,7 +1856,198 @@ function rangeQuery() {
     if (InsightState.start) p.set('start', InsightState.start);
     if (InsightState.end) p.set('end', InsightState.end);
   }
+  if (InsightState.spaceIds && InsightState.spaceIds.length > 0) {
+    p.set('space_ids', InsightState.spaceIds.join(','));
+  }
   return p.toString();
+}
+
+/** V10 §5: 공간 필터 드롭다운 — 멀티셀렉트 */
+function buildSpaceFilter() {
+  const spaces = InsightState.spacesCache || [];
+  const selected = InsightState.spaceIds || [];
+  const allSelected = selected.length === 0;
+  const triggerLabel = allSelected
+    ? '전체 공간'
+    : selected.length === 1
+      ? (spaces.find(s => s.id === selected[0])?.name || '공간')
+      : `공간 ${selected.length}개`;
+
+  const panel = el('div', { class: 'space-filter-panel', id: 'spaceFilterPanel' },
+    el('div', { class: 'space-filter-actions' },
+      el('button', {
+        type: 'button',
+        onclick: (e) => {
+          e.stopPropagation();
+          InsightState.spaceIds = [];
+          renderInsights();
+        },
+      }, '전체 선택'),
+      el('button', {
+        type: 'button',
+        onclick: (e) => {
+          e.stopPropagation();
+          InsightState.spaceIds = spaces.map(s => s.id);
+          renderInsights();
+        },
+      }, '모두 체크'),
+    ),
+    el('div', { class: 'space-filter-divider' }),
+    ...spaces.map(s => {
+      const isOn = selected.includes(s.id);
+      return el('label', { class: 'space-filter-item' },
+        el('input', {
+          type: 'checkbox',
+          checked: isOn ? 'checked' : null,
+          onchange: (e) => {
+            e.stopPropagation();
+            const cur = new Set(InsightState.spaceIds);
+            if (e.target.checked) cur.add(s.id); else cur.delete(s.id);
+            InsightState.spaceIds = Array.from(cur);
+            renderInsights();
+          },
+        }),
+        el('span', { class: 'sf-dot', style: `background:${s.color || '#999'};` }),
+        el('span', { class: 'sf-name' }, s.name),
+      );
+    }),
+  );
+
+  return el('div', { class: 'space-filter-wrap' },
+    el('button', {
+      type: 'button',
+      class: 'space-filter-trigger',
+      onclick: (e) => {
+        e.stopPropagation();
+        const p = document.getElementById('spaceFilterPanel');
+        if (!p) return;
+        const willOpen = !p.classList.contains('is-open');
+        p.classList.toggle('is-open', willOpen);
+        if (willOpen) {
+          setTimeout(() => {
+            const closer = (ev) => {
+              if (!ev.target.closest('#spaceFilterPanel') && !ev.target.closest('.space-filter-trigger')) {
+                p.classList.remove('is-open');
+                document.removeEventListener('click', closer);
+              }
+            };
+            document.addEventListener('click', closer);
+          }, 0);
+        }
+      },
+    },
+      el('i', { class: 'fa-solid fa-filter', style: 'font-size:11px;' }),
+      el('span', null, triggerLabel),
+      !allSelected && el('span', { class: 'filter-count' }, String(selected.length)),
+      el('i', { class: 'fa-solid fa-chevron-down chev' }),
+    ),
+    panel
+  );
+}
+
+/** V10 §4-2: 엑셀(xlsx) 다운로드 */
+function exportInsightToExcel() {
+  if (typeof XLSX === 'undefined') {
+    toast('엑셀 라이브러리 로딩 중입니다. 잠시 후 다시 시도해 주세요.', 'warning');
+    return;
+  }
+  const data = InsightState.lastResponse;
+  if (!data) {
+    toast('데이터를 먼저 불러와 주세요.', 'warning');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const period = `${data.start || ''} ~ ${data.end || ''}`;
+  const spaceFilterLabel = (InsightState.spaceIds && InsightState.spaceIds.length > 0)
+    ? InsightState.spaceIds
+        .map(id => (InsightState.spacesCache.find(s => s.id === id)?.name || `#${id}`))
+        .join(', ')
+    : '전체 공간';
+
+  // 시트 1: 요약 메타
+  const metaRows = [
+    ['리포트', '메이트리그라운드 인사이트'],
+    ['생성일시', dayjs().format('YYYY-MM-DD HH:mm')],
+    ['조회 기간', period],
+    ['공간 필터', spaceFilterLabel],
+    ['탭', InsightState.tab === 'overview' ? '개요' : InsightState.tab === 'history' ? '내역' : '통계'],
+  ];
+  const wsMeta = XLSX.utils.aoa_to_sheet(metaRows);
+  wsMeta['!cols'] = [{ wch: 16 }, { wch: 60 }];
+  XLSX.utils.book_append_sheet(wb, wsMeta, '리포트 정보');
+
+  if (InsightState.tab === 'overview') {
+    const summary = [
+      ['평균 회의 진행 시간(분)', data.avg_minutes || 0],
+      ['총 예약 건수', data.total || 0],
+      ['가동 공간 수', (data.popular_spaces || []).filter(p => p.count > 0).length],
+      ['전체 공간 수', (data.popular_spaces || []).length],
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    wsSummary['!cols'] = [{ wch: 28 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, '요약');
+
+    const popular = [['순위', '공간명', '예약 건수'],
+      ...(data.popular_spaces || []).map((p, i) => [i + 1, p.name, p.count])];
+    const wsPop = XLSX.utils.aoa_to_sheet(popular);
+    wsPop['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, wsPop, '인기 공간');
+
+    // 히트맵 펼치기
+    const weekdayNames = ['일','월','화','수','목','금','토'];
+    const heatRows = [['요일', ...Array.from({length:24}, (_, h) => `${h}시`)]];
+    (data.heatmap || []).forEach((row, wd) => {
+      heatRows.push([weekdayNames[wd], ...row]);
+    });
+    const wsHeat = XLSX.utils.aoa_to_sheet(heatRows);
+    XLSX.utils.book_append_sheet(wb, wsHeat, '시간대 히트맵');
+  } else if (InsightState.tab === 'history') {
+    const header = ['날짜', '시작', '종료', '공간', '제목', '예약자', '소속', '상태'];
+    const rows = (data.history || []).map(r => [
+      r.date,
+      (r.start_time || '').slice(0,5),
+      (r.end_time || '').slice(0,5),
+      r.space_name || '',
+      r.title || '',
+      r.user_name || '',
+      r.tenant_name || '',
+      r.status === 'confirmed' ? '확정' : (r.status === 'cancelled' ? '취소' : r.status),
+    ]);
+    const wsHist = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    wsHist['!cols'] = [{wch:12},{wch:7},{wch:7},{wch:20},{wch:30},{wch:14},{wch:14},{wch:8}];
+    XLSX.utils.book_append_sheet(wb, wsHist, '예약 내역');
+  } else if (InsightState.tab === 'stats') {
+    const metricLabel = data.metric === 'time' ? '시간(분)' : '건수';
+    // 노쇼
+    const noshow = [['상태', metricLabel],
+      ['확정', data.noshow?.confirmed || 0],
+      ['취소', data.noshow?.cancelled || 0]];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(noshow), '노쇼 집계');
+    // 요일별
+    const wdNames = ['일','월','화','수','목','금','토'];
+    const wd = [['요일', metricLabel],
+      ...(data.weekday || []).map((v, i) => [wdNames[i], v])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wd), '요일별');
+    // 예약 방식
+    const mt = [['방식', metricLabel],
+      ['일반', data.method?.['일반'] || 0],
+      ['관리자', data.method?.['관리자'] || 0],
+      ['반복', data.method?.['반복'] || 0]];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mt), '예약 방식');
+    // 수용 인원별
+    const cap = [['수용 인원', metricLabel],
+      ...(data.capacity || []).map(r => [r.capacity, r.v])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cap), '수용 인원');
+    // 공간별
+    const bs = [['공간', metricLabel],
+      ...(data.by_space || []).map(r => [r.name, r.v])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bs), '공간별');
+  }
+
+  const filename = `mateground_insight_${InsightState.tab}_${dayjs().format('YYYYMMDD_HHmm')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  toast(`엑셀 파일이 다운로드되었습니다. (${filename})`, 'success');
 }
 
 function destroyCharts() {
@@ -1734,6 +2059,14 @@ function destroyCharts() {
 
 async function renderInsights() {
   destroyCharts();
+
+  // V10 §5: 공간 캐시가 비어 있으면 1회 로드
+  if (!InsightState.spacesCache || InsightState.spacesCache.length === 0) {
+    try {
+      const sres = await api('/api/spaces');
+      InsightState.spacesCache = sres?.data?.spaces || [];
+    } catch (e) { InsightState.spacesCache = []; }
+  }
 
   const tabs = [
     { key: 'overview', label: '개요', icon: 'fa-chart-pie' },
@@ -1808,6 +2141,24 @@ async function renderInsights() {
       customWrap
     ),
 
+    // V10 §4-2 / §5: 인사이트 툴바 — 공간 필터 + 엑셀 다운로드
+    el('div', { class: 'insight-toolbar' },
+      el('div', { class: 'insight-toolbar-left' },
+        buildSpaceFilter()
+      ),
+      el('div', { class: 'insight-toolbar-right' },
+        el('button', {
+          type: 'button',
+          class: 'insight-excel-btn',
+          onclick: exportInsightToExcel,
+          title: '현재 화면의 데이터를 엑셀 파일로 다운로드',
+        },
+          el('i', { class: 'fa-solid fa-file-excel' }),
+          el('span', null, '엑셀 다운로드')
+        )
+      )
+    ),
+
     // 탭 컨텐츠 컨테이너 (탭별 비동기 렌더)
     el('div', { id: 'insightTabBody', class: 'insight-tab-body' },
       el('div', { class: 'insight-loading' },
@@ -1836,6 +2187,7 @@ async function renderInsights() {
 async function renderInsightOverview(body) {
   const res = await api(`/api/insights/overview?${rangeQuery()}`);
   const data = res?.data || {};
+  InsightState.lastResponse = data; // V10 §4-2 엑셀 다운로드용 캐시
   const avgH = Math.floor((data.avg_minutes || 0) / 60);
   const avgM = (data.avg_minutes || 0) % 60;
   const heatmapMax = Math.max(1, ...((data.heatmap || []).flat()));
@@ -1884,6 +2236,7 @@ async function renderInsightOverview(body) {
 async function renderInsightHistory(body) {
   const res = await api(`/api/insights/history?${rangeQuery()}`);
   const rows = res?.data?.history || [];
+  InsightState.lastResponse = res?.data || { history: rows }; // V10 §4-2
 
   body.innerHTML = '';
 
@@ -1963,6 +2316,7 @@ async function renderInsightStats(body) {
 
   const res = await api(`/api/insights/stats?${rangeQuery()}&metric=${InsightState.metric}`);
   const stats = res?.data || {};
+  InsightState.lastResponse = stats; // V10 §4-2 엑셀 다운로드용 캐시
   const unitLabel = InsightState.metric === 'time' ? '분' : '건';
 
   const fmt = (v) => {
@@ -2670,6 +3024,7 @@ async function renderAdminGeneral() {
   const [membersRes, spacesRes] = await Promise.all([api('/api/members'), api('/api/spaces')]);
   const memberCount = (membersRes?.data?.members || []).length;
   const spaceCount = (spacesRes?.data?.spaces || []).length;
+  const spaces = spacesRes?.data?.spaces || []; // V10 §6: 색상 팔레트 편집용
 
   const main = el('main', { class: 'page-wrap' },
     el('div', { class: 'page-header is-admin-header' },
@@ -2722,12 +3077,166 @@ async function renderAdminGeneral() {
                 : el('span', { class: 'tag tag-dark' }, '러쉬코리아 (LUSH)')
             ),
           )
-        )
+        ),
+        // V10 §6: 색상 팔레트 — 공간별 색상을 한 번에 편집 + 실시간 동기화
+        buildColorPaletteCard(spaces)
       )
     )
   );
 
   renderShell(main);
+}
+
+/** V10 §6: 색상 팔레트 카드 — 공간별 색상을 동시에 편집 → DB 저장 → 캘린더 실시간 재렌더 */
+function buildColorPaletteCard(spaces) {
+  // 임시 변경 상태 (저장 전까지 보관)
+  const draft = {};
+  spaces.forEach(s => { draft[s.id] = s.color; });
+
+  // 프리셋 팔레트 (Deep Sapphire 계열 + 보조)
+  const presets = [
+    '#0f2647', '#0066cc', '#2563eb', '#1e88e5', '#0288d1',
+    '#00838f', '#00897b', '#43a047', '#7cb342', '#fdd835',
+    '#fb8c00', '#e53935', '#d81b60', '#8e24aa', '#5e35b1',
+    '#3949ab', '#546e7a', '#6d4c41', '#424242', '#0066cc',
+  ];
+
+  const card = el('div', {
+    class: 'color-palette-card',
+    style: 'margin-top:24px;background:#fafafc;padding:24px;border-radius:11px;'
+  },
+    el('div', {
+      style: 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;'
+    },
+      el('div', null,
+        el('h3', { style: 'margin:0;font-size:17px;font-weight:600;' },
+          el('i', { class: 'fa-solid fa-palette', style: 'margin-right:8px;color:#0066cc;' }),
+          '공간 색상 팔레트'
+        ),
+        el('p', { style: 'margin:6px 0 0;color:#7a7a7a;font-size:13px;' },
+          '공간별 색상을 변경하면 캘린더의 모든 예약 블록에 즉시 반영됩니다.'
+        )
+      ),
+      el('div', { style: 'display:flex;gap:8px;' },
+        el('button', {
+          type: 'button',
+          class: 'btn-secondary color-palette-reset',
+          onclick: () => {
+            // 원래 색으로 되돌리기
+            spaces.forEach(s => {
+              draft[s.id] = s.color;
+              const picker = document.getElementById(`color-input-${s.id}`);
+              const preview = document.getElementById(`color-preview-${s.id}`);
+              const text = document.getElementById(`color-text-${s.id}`);
+              if (picker) picker.value = s.color;
+              if (preview) preview.style.background = s.color;
+              if (text) text.textContent = s.color;
+            });
+            toast('변경사항을 되돌렸습니다.', 'info');
+          },
+        },
+          el('i', { class: 'fa-solid fa-rotate-left', style: 'margin-right:6px;' }), '되돌리기'
+        ),
+        el('button', {
+          type: 'button',
+          class: 'btn-primary color-palette-apply',
+          onclick: async () => {
+            // 변경된 공간만 PATCH
+            const changed = spaces.filter(s => draft[s.id] !== s.color);
+            if (changed.length === 0) {
+              toast('변경된 색상이 없습니다.', 'info');
+              return;
+            }
+            try {
+              await Promise.all(changed.map(s =>
+                api(`/api/spaces/${s.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ color: draft[s.id] }),
+                })
+              ));
+              toast(`${changed.length}개 공간의 색상이 저장되었습니다.`, 'success');
+              // 캘린더가 다음 진입 시 새 색상으로 갱신되도록 어드민 일반 탭 재렌더
+              await renderAdminGeneral();
+            } catch (err) {
+              toast('색상 저장 중 오류가 발생했습니다: ' + (err?.message || err), 'error');
+            }
+          },
+        },
+          el('i', { class: 'fa-solid fa-check', style: 'margin-right:6px;' }), '저장'
+        ),
+      )
+    ),
+    // 프리셋 스와치
+    el('div', { style: 'margin-bottom:16px;' },
+      el('div', { style: 'font-size:12px;color:#7a7a7a;margin-bottom:8px;' }, '프리셋 색상 (클릭하면 마지막 선택 공간에 적용)'),
+      el('div', { class: 'color-preset-row', style: 'display:flex;flex-wrap:wrap;gap:6px;' },
+        ...presets.map(c =>
+          el('button', {
+            type: 'button',
+            class: 'color-swatch',
+            'data-color': c,
+            title: c,
+            style: `width:24px;height:24px;border-radius:6px;background:${c};border:1px solid rgba(0,0,0,0.08);cursor:pointer;padding:0;`,
+            onclick: () => {
+              const focused = window.__paletteFocusedSpaceId;
+              if (!focused) {
+                toast('먼저 적용할 공간을 클릭해 주세요.', 'info');
+                return;
+              }
+              draft[focused] = c;
+              const picker = document.getElementById(`color-input-${focused}`);
+              const preview = document.getElementById(`color-preview-${focused}`);
+              const text = document.getElementById(`color-text-${focused}`);
+              if (picker) picker.value = c;
+              if (preview) preview.style.background = c;
+              if (text) text.textContent = c;
+            },
+          })
+        )
+      )
+    ),
+    // 공간별 컬러피커 목록
+    el('div', { class: 'color-palette-list', style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;' },
+      ...spaces.map(s =>
+        el('div', {
+          class: 'color-palette-item',
+          'data-space-id': s.id,
+          onclick: () => { window.__paletteFocusedSpaceId = s.id; },
+          style: 'display:flex;align-items:center;gap:12px;padding:12px;background:#fff;border-radius:9px;border:1px solid #ebebeb;cursor:pointer;',
+        },
+          el('div', {
+            id: `color-preview-${s.id}`,
+            class: 'color-palette-preview',
+            style: `width:40px;height:40px;border-radius:8px;background:${s.color};flex-shrink:0;border:1px solid rgba(0,0,0,0.05);`,
+          }),
+          el('div', { style: 'flex:1;min-width:0;' },
+            el('div', { style: 'font-size:14px;font-weight:600;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' }, s.name),
+            el('div', {
+              id: `color-text-${s.id}`,
+              style: 'font-size:12px;color:#7a7a7a;font-family:monospace;margin-top:2px;'
+            }, s.color)
+          ),
+          el('input', {
+            type: 'color',
+            id: `color-input-${s.id}`,
+            class: 'color-picker-input',
+            value: s.color,
+            onclick: (e) => { e.stopPropagation(); window.__paletteFocusedSpaceId = s.id; },
+            oninput: (e) => {
+              draft[s.id] = e.target.value;
+              const preview = document.getElementById(`color-preview-${s.id}`);
+              const text = document.getElementById(`color-text-${s.id}`);
+              if (preview) preview.style.background = e.target.value;
+              if (text) text.textContent = e.target.value;
+            },
+            style: 'width:40px;height:40px;border:none;border-radius:8px;cursor:pointer;background:transparent;padding:0;',
+          })
+        )
+      )
+    )
+  );
+
+  return card;
 }
 
 // ============== ADMIN - SPACES ==============
@@ -3163,7 +3672,10 @@ async function boot() {
     switch (State.page) {
       case 'home': await renderHome(); break;
       case 'spaces': await renderSpaces(); break;
-      case 'insights': await renderInsights(); break;
+      case 'insights':
+        // V10 §4-1: 어드민 아닐 경우 홈으로 리디렉션 (백엔드 미들웨어가 한 번 더 차단)
+        if (State.user.role !== 'admin') { location.href = '/home'; return; }
+        await renderInsights(); break;
       case 'admin-members': await renderAdminMembers(); break;
       case 'admin-general': await renderAdminGeneral(); break;
       case 'admin-spaces': await renderAdminSpaces(); break;

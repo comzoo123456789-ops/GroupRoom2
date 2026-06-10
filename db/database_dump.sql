@@ -13,7 +13,7 @@ CREATE TABLE _cf_METADATA (
         key INTEGER PRIMARY KEY,
         value BLOB
       );
-INSERT INTO _cf_METADATA VALUES(2,10445);
+INSERT INTO _cf_METADATA VALUES(2,12007);
 CREATE TABLE tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE users (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, is_first_login INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
-INSERT INTO users VALUES(1,'WYLIE','admin@wylie.co.kr','ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270','마스터 관리자 (WYLIE)',NULL,NULL,NULL,'admin','active','#0066cc','2026-06-09 08:27:38',0);
+INSERT INTO users VALUES(1,'WYLIE','admin@wylie.co.kr','ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270','마스터(WYLIE)',NULL,NULL,NULL,'admin','active','#0066cc','2026-06-09 08:27:38',0);
 INSERT INTO users VALUES(15,'LUSH','admin@lush.co.kr','ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270','관리자 (LUSH)',NULL,NULL,NULL,'admin','active','#1d1d1f','2026-06-09 12:58:14',0);
 INSERT INTO users VALUES(17,'WYLIE','bhmoon@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','문병훈','인재전략실','GM',NULL,'member','active','#06b6d4','2026-06-09 13:22:22',0);
 INSERT INTO users VALUES(18,'WYLIE','2@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','123@wylie.co.kr',NULL,NULL,NULL,'member','active','#06b6d4','2026-06-10 02:18:16',0);
@@ -244,6 +244,7 @@ INSERT INTO users VALUES(221,'WYLIE','jwkim3@wylie.co.kr','831c237928e6212bedaa4
 INSERT INTO users VALUES(222,'WYLIE','dnbaek@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','백다나','플랫폼운영본부','GA',NULL,'member','active','#ef4444','2026-06-10 04:42:08',1);
 INSERT INTO users VALUES(223,'WYLIE','hryang@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','양혜림','마케팅캠페인본부','GL',NULL,'member','active','#f97316','2026-06-10 04:42:08',1);
 INSERT INTO users VALUES(224,'WYLIE','jwchoi@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','최정원','마케팅캠페인본부','GM',NULL,'member','active','#8b5cf6','2026-06-10 04:42:08',1);
+INSERT INTO users VALUES(9999,'WYLIE','v10test@wylie.co.kr','937e8d5fbb48bd4949536cd65b8d35c426b80d2f830c5c308e2cdec422ae2244','V10테스트멤버',NULL,NULL,NULL,'member','active','#888','2026-06-10 07:23:30',0);
 CREATE TABLE spaces (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -370,6 +371,8 @@ INSERT INTO reservations VALUES(80,'WYLIE',17,4,'새로운 일정','2026-06-10',
 INSERT INTO reservations VALUES(81,'WYLIE',17,3,'새로운 일정','2026-06-10','17:00','19:00',NULL,NULL,0,'confirmed','2026-06-10 04:53:54','2026-06-10 04:53:54');
 INSERT INTO reservations VALUES(82,'WYLIE',17,3,'새로운 일정','2026-06-10','08:30','09:30',NULL,NULL,0,'confirmed','2026-06-10 04:54:45','2026-06-10 04:54:45');
 INSERT INTO reservations VALUES(83,'WYLIE',17,1,'새로운 일정','2026-06-10','10:00','12:30',NULL,NULL,0,'confirmed','2026-06-10 04:54:51','2026-06-10 04:54:51');
+INSERT INTO reservations VALUES(85,'WYLIE',17,2,'새로운 일정','2026-06-10','00:00','00:30',NULL,NULL,0,'confirmed','2026-06-10 06:10:15','2026-06-10 06:10:15');
+INSERT INTO reservations VALUES(86,'WYLIE',1,5,'V10§7테스트','2026-06-10','19:30','21:00',NULL,NULL,1,'cancelled','2026-06-10 07:24:26','2026-06-10 07:24:36');
 CREATE TABLE sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -418,9 +421,11 @@ INSERT INTO sessions VALUES('4990e27b1ddede019ec977897ca98ba4b022cc7e1f284f2f87d
 INSERT INTO sessions VALUES('1a742949023abea5b47a14beb242a5158f0f8468cfeecf9de06b5e302fa5cd21',1,'2026-06-17T03:46:30.815Z','2026-06-10 03:46:30');
 INSERT INTO sessions VALUES('53af4b26420dcb1027a0455203fb58d1fb7a435efc404a6ed398e0f16a3eb81d',1,'2026-06-17T04:02:24.023Z','2026-06-10 04:02:24');
 INSERT INTO sessions VALUES('390fe7e10f38b1f55ef1137b8245031888d77507903ac0bc47a1875a557b5208',127,'2026-06-17T04:46:38.315Z','2026-06-10 04:46:38');
-INSERT INTO sessions VALUES('2668320c659c13804f4cded2dfad62ea0cd4f97c3f51b0666ddbd31721e8393d',17,'2026-06-17T04:53:39.205Z','2026-06-10 04:53:39');
 INSERT INTO sessions VALUES('2e5e16000d6fe00fbd22af35650597d2738e96391be4780d4ed1b710e893b6bf',1,'2026-06-17T05:53:06.644Z','2026-06-10 05:53:06');
 INSERT INTO sessions VALUES('d3c32d787454571782603c7a845a11bb092680dfcd1ea8a75b529f08eb587cda',48,'2026-06-17T05:57:05.307Z','2026-06-10 05:57:05');
+INSERT INTO sessions VALUES('88277568de0582e64e26978b31f9dee63a411da1ef2ca202baedee53cbfe09ea',1,'2026-06-17T06:44:32.204Z','2026-06-10 06:44:32');
+INSERT INTO sessions VALUES('dc919648d393951f6380ca1e0043e65456f6cb1c4fdbe9b1027fb5773cea6aee',1,'2026-06-17T07:22:38.686Z','2026-06-10 07:22:38');
+INSERT INTO sessions VALUES('ee2b20b86ebcf3480f0f46df815bb7d13d29be27d8847ecba650a50efee492c3',9999,'2026-06-17T07:23:38.818Z','2026-06-10 07:23:38');
 CREATE TABLE departments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -466,15 +471,18 @@ CREATE TABLE reservation_attendees (
   FOREIGN KEY (member_id)      REFERENCES users(id)        ON DELETE CASCADE,
   UNIQUE (reservation_id, member_id)
 );
+INSERT INTO reservation_attendees VALUES(3,85,127,'PENDING','2026-06-10 06:10:15',NULL);
+INSERT INTO reservation_attendees VALUES(4,85,74,'PENDING','2026-06-10 06:10:15',NULL);
+INSERT INTO reservation_attendees VALUES(5,85,77,'PENDING','2026-06-10 06:10:15',NULL);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('d1_migrations',4);
 INSERT INTO sqlite_sequence VALUES('spaces',9);
-INSERT INTO sqlite_sequence VALUES('users',224);
-INSERT INTO sqlite_sequence VALUES('reservations',84);
+INSERT INTO sqlite_sequence VALUES('users',9999);
+INSERT INTO sqlite_sequence VALUES('reservations',86);
 INSERT INTO sqlite_sequence VALUES('recurring_rules',6);
 INSERT INTO sqlite_sequence VALUES('departments',17);
 INSERT INTO sqlite_sequence VALUES('positions',7);
-INSERT INTO sqlite_sequence VALUES('reservation_attendees',2);
+INSERT INTO sqlite_sequence VALUES('reservation_attendees',5);
 CREATE INDEX idx_users_tenant_id ON users(tenant_id);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_reservations_date_space ON reservations(date, space_id);

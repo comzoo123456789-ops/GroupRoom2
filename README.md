@@ -505,3 +505,91 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 | 빌드 `dist/_worker.js 81.30 kB` | ✅ |
 | 식별자 검증: app.js 6종(cal-badge-month/day, space-name-prefix/suffix, home-cal-badge, today.locale), styles.css 6종 | ✅ |
 | Playwright /login 콘솔 에러 0건 | ✅ |
+
+---
+
+## 🆕 V10 통합 패치 (2026-06-10)
+
+### §1 [원형 보존]
+- 기존 데이터 100% 보존: users 208 / spaces 9 / reservations 33 (조회 기준)
+- 모든 기존 이벤트 핸들러(click/submit/change) 유지 — 추가만 발생, 제거 없음
+
+### §2 [GNB 텍스트 — opacity 1 강제]
+- `.global-nav .nav-link / :hover / .is-active` 모두 `opacity:1 !important; color:#fff !important; font-weight:600 !important;`
+- 활성 탭: 라벤더 배지(#dfe7f7) + 딥 네이비(#0f2647) 글자색으로 컨트라스트 유지
+
+### §3 [모바일 사이드바 아이콘 노출]
+- `@media (max-width:768px)` 에서 `.admin-side-link i { display:inline-flex !important; visibility:visible !important; opacity:1 !important; }`
+- PC와 동일하게 [일반], [멤버], [부서/직책], [공간] 아이콘 가시
+
+### §4-1 [인사이트 어드민 가드]
+- **백엔드**: `src/auth.ts`에 `requireAdmin` 미들웨어 신설 → `src/index.tsx`에서 `/api/insights/*` + `/insights` 둘 다 보호
+- **프론트엔드**:
+  - 데스크탑 GNB의 `navLinksNode`에서 `isAdmin &&` 게이트
+  - 모바일 드로어 `navItem('insights', ...)` 게이트
+  - SPA 라우터 `case 'insights'`에서 비-관리자 → `/home` 리다이렉트
+- E2E 검증: 멤버 `GET /api/insights/overview` → **HTTP 403** ✅, 멤버 `GET /insights` → **HTTP 302 → /home** ✅
+
+### §4-2 [엑셀 다운로드]
+- 인사이트 우상단 [엑셀 다운로드] 버튼
+- 라이브러리: 기존 로드된 `xlsx@0.18.5` (V6-3 멤버 업로드용) 재활용
+- 탭별 멀티시트 워크북:
+  - 개요 탭: 리포트 정보 / 요약 / 인기 공간 / 시간대 히트맵
+  - 내역 탭: 예약 내역 (8컬럼)
+  - 통계 탭: 노쇼 집계 / 요일별 / 예약 방식 / 수용 인원 / 공간별
+- 파일명: `mateground_insight_${tab}_${YYYYMMDD_HHmm}.xlsx`
+- 현재 적용된 공간 필터(`space_ids`)와 기간이 시트 1(리포트 정보)에 메타로 기록됨
+
+### §5 [공간 필터 — 인사이트]
+- 우상단 멀티셀렉트 드롭다운 (전체 선택 / 모두 체크 / 개별 체크박스 + 색상 도트)
+- 백엔드: `resolveSpaceFilter()` 헬퍼 — `?space_ids=1,3,5` 쿼리스트링 → `AND r.space_id IN (?,?,?)` SQL 단편 + 바인딩
+- 3개 엔드포인트(/overview, /history, /stats) 모두 동일 필터 적용
+- 클라이언트: 체크 변경 시 `InsightState.spaceIds` 갱신 → `renderInsights()` 호출 → 리스트와 그래프가 동시에 재페치
+- E2E 검증: `?space_ids=1` 호출 시 `popular_spaces`에 Meeting Room A만 1건 ✅
+
+### §6 [색상 팔레트 시스템]
+- 어드민 > 일반 탭에 색상 팔레트 카드 신규 추가 (`buildColorPaletteCard()`)
+- 공간별 컬러 입력 + 20색 프리셋 스와치 + [되돌리기]/[저장] 액션
+- 저장 시 변경된 공간만 `PATCH /api/spaces/:id` 일괄 호출 → DB(D1) `spaces.color` 갱신
+- 모든 예약 블록은 SQL JOIN으로 `space_color`를 받으므로 다음 캘린더 진입 시 자동 반영
+- 저장 후 `renderAdminGeneral()` 재호출로 UI도 즉시 동기화
+- E2E 검증: `PATCH /api/spaces/1 {color:"#ff8800"}` → `{ok:true}` → 재조회 시 `#ff8800` 반영 ✅
+
+### §7 [상단 리사이즈 핸들 — 시작 시간 조정]
+- 예약 블록 상단에 `.ev-resize-handle-top` 8px 영역 신설 (커서 `ns-resize`)
+- 드래그 위로 → `start_time` 감소, `end_time`은 고정
+- **가드 1**: 같은 공간의 이전 예약(`endMin <= curStartMin`)의 최대 `endMin` 이하로는 못 내려감 (겹침 방지)
+- **가드 2**: 오늘 날짜인 경우 현재 시각 이전(`now.hour()*60 + now.minute()`)으로는 못 내려감 (과거 시간 방지)
+- **가드 3**: `end_time - 30분` 이상으로는 못 올라감 (최소 30분 보장)
+- 30분 스냅 + 변경 없을 시 위치 원복
+- 백엔드: 기존 `PATCH /api/reservations/:id`가 이미 `start_time` 지원 (line 414-423)
+- E2E 검증: 예약 20:00-21:00 → `PATCH {start_time:"19:30"}` → DB에서 19:30-21:00 반영 ✅
+
+### §6/§7 보존 원칙
+- §6: 별도 마이그레이션 불필요 — 기존 `spaces.color TEXT DEFAULT '#0066cc'` 컬럼 그대로 활용
+- §7: 기존 하단 리사이즈 핸들(`.ev-resize-handle`) 및 드래그-신규-예약 흐름 100% 그대로 유지 — 상단 핸들만 **추가**
+
+### 빌드/검증 산출물
+| 항목 | 값 |
+|---|---|
+| `dist/_worker.js` | 86.98 kB (V8 패치1 대비 +1.46 kB) |
+| `public/static/app.js` | 158,183 bytes / 3,707 lines |
+| `public/static/styles.css` | 116,097 bytes / 4,580 lines |
+| `src/api/insights.ts` | 216 lines (resolveSpaceFilter + 3 endpoints with `r.space_id IN`) |
+| `src/auth.ts` | 78 lines (+requireAdmin) |
+| `src/index.tsx` | 66 lines (insight middleware chain) |
+| Vite 빌드 시간 | 1.30s ✅ |
+| TypeScript 컴파일 오류 | 0건 ✅ |
+| Playwright `/login` 콘솔 메시지 | 0건 ✅ |
+
+### V10 E2E 검증 매트릭스
+| 시나리오 | 결과 |
+|---|---|
+| §4-1 비로그인 → /api/insights/overview | HTTP 401 ✅ |
+| §4-1 admin → /api/insights/overview | HTTP 200 ✅ |
+| §4-1 member → /api/insights/overview | HTTP 403 `Forbidden — admin only` ✅ |
+| §4-1 member → /insights (페이지) | HTTP 302 → /home ✅ |
+| §5 admin → /api/insights/overview?space_ids=1 | popular_spaces에 Meeting Room A 1건만 ✅ |
+| §6 admin → PATCH /api/spaces/1 {color:"#ff8800"} | `{ok:true}` + 재조회 시 색 반영 ✅ |
+| §7 admin → PATCH /api/reservations/86 {start_time:"19:30"} | `{ok:true,updated:1}` + DB에 19:30 반영 ✅ |
+| 데이터 보존 (users 208 / spaces 9 / reservations 33) | ✅ |

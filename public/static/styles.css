@@ -4213,3 +4213,368 @@ a:hover { color: var(--primary-focus) !important; }
 /* =============================================================================
    ███ V8 패치 1 끝 ███
    ============================================================================= */
+
+/* =============================================================================
+   ███ V10 패치 — GNB opacity 0 + 모바일 사이드바 아이콘 + 인사이트/팔레트 ███
+   ============================================================================= */
+
+/* === §2. GNB hover/active opacity 잔존 룰 100% 제거 ========================= */
+.global-nav,
+.global-nav *,
+.global-nav .nav-link,
+.global-nav .nav-link *,
+.global-nav .nav-link i,
+.global-nav .nav-link:hover,
+.global-nav .nav-link:hover *,
+.global-nav .nav-link.is-active,
+.global-nav .nav-link.is-active *,
+.global-nav .nav-link.active,
+.global-nav .nav-brand,
+.global-nav .nav-brand *,
+.global-nav .nav-user-name {
+  opacity: 1 !important;
+}
+
+/* hover/active 시에도 텍스트는 무조건 흰색, 볼드 유지 */
+.global-nav .nav-link,
+.global-nav .nav-link i {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+.global-nav .nav-link:hover,
+.global-nav .nav-link:hover i {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+/* 활성 탭만 라벤더 배지 위 딥 네이비로 시인성↑ */
+.global-nav .nav-link.is-active,
+.global-nav .nav-link.is-active i,
+.global-nav .nav-link.active,
+.global-nav .nav-link.active i {
+  color: #0f2647 !important;
+  font-weight: 700 !important;
+}
+
+/* === §3. 모바일 관리자 사이드바 아이콘 — 노출 강제 ========================== */
+@media (max-width: 768px) {
+  .admin-side-nav .admin-side-link i,
+  .admin-side-link i {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-size: 12px !important;
+    margin-right: 4px !important;
+    width: auto !important;
+  }
+  /* 모바일에서도 라벨 + 아이콘 둘 다 표시 (라벨 숨김 룰 무력화) */
+  .admin-side-nav .side-label {
+    /* 사이드 라벨은 그대로 숨김 유지 — 메뉴 항목명만 표시 */
+  }
+  /* V8 패치1의 border-bottom 인디케이터를 999px 라운드 알약과 양립시키기 */
+  .admin-side-nav .admin-side-link {
+    border-radius: 999px !important;   /* 모바일 칩 스타일은 둥근 알약 유지 */
+    border: 1px solid transparent !important;
+    border-bottom: none !important;     /* V8패치1 잔존 룰 무력화 */
+    background: #ffffff !important;
+    color: #28354a !important;
+  }
+  .admin-side-nav .admin-side-link.is-active {
+    background: #dfe7f7 !important;
+    color: #1a365d !important;
+    border: 1px solid #1a365d !important;
+    border-bottom: 1px solid #1a365d !important;
+    font-weight: 700 !important;
+    padding-left: 12px !important;
+  }
+}
+
+/* === §4-5. 인사이트 — 엑셀 버튼 + 공간 필터 드롭다운 ========================= */
+.insight-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.insight-toolbar-left {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.insight-toolbar-right {
+  display: flex; gap: 8px; align-items: center;
+}
+.insight-excel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a365d !important;
+  color: #ffffff !important;
+  border: 1px solid #1a365d !important;
+  padding: 8px 14px !important;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 4px !important;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.insight-excel-btn:hover {
+  background: #244977 !important;
+  border-color: #244977 !important;
+}
+.insight-excel-btn i { font-size: 13px; }
+
+/* 공간 필터 드롭다운 (멀티셀렉트) */
+.space-filter-wrap {
+  position: relative;
+  display: inline-block;
+}
+.space-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff !important;
+  color: #1a365d !important;
+  border: 1px solid #c7d3ea !important;
+  padding: 7px 12px !important;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 4px !important;
+  cursor: pointer;
+  min-height: 34px;
+}
+.space-filter-trigger:hover {
+  border-color: #1a365d !important;
+}
+.space-filter-trigger .chev {
+  font-size: 10px;
+  margin-left: 4px;
+  color: #5a6678;
+}
+.space-filter-trigger .filter-count {
+  background: #1a365d;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+.space-filter-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #c7d3ea;
+  border-radius: 4px;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 6px 0;
+}
+.space-filter-panel.is-open { display: block; }
+.space-filter-panel:not(.is-open) { display: none; }
+.space-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #28354a;
+  user-select: none;
+}
+.space-filter-item:hover { background: #f4f7fc; }
+.space-filter-item input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #1a365d;
+}
+.space-filter-item .sf-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.space-filter-item .sf-name {
+  flex: 1;
+  color: #0f1c2e;
+  font-weight: 500;
+}
+.space-filter-divider {
+  height: 1px;
+  background: #e3ebf6;
+  margin: 4px 0;
+}
+.space-filter-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px 4px;
+}
+.space-filter-actions button {
+  flex: 1;
+  background: transparent;
+  border: 1px solid #c7d3ea;
+  color: #1a365d;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.space-filter-actions button:hover {
+  background: #f4f7fc;
+}
+
+/* === §6. 컬러 팔레트 카드 (관리탭) ========================================== */
+.color-palette-card {
+  background: #ffffff;
+  border: 1px solid #c7d3ea;
+  border-radius: 4px;
+  padding: 20px 22px;
+  margin-top: 20px;
+}
+.color-palette-card h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f1c2e;
+  letter-spacing: -0.01em;
+}
+.color-palette-card .palette-desc {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #5a6678;
+  line-height: 1.5;
+}
+.color-palette-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.color-palette-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #28354a;
+  min-width: 96px;
+}
+.color-palette-swatches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.08);
+  cursor: pointer;
+  position: relative;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.color-swatch:hover {
+  transform: scale(1.08);
+  border-color: #1a365d;
+}
+.color-swatch.is-selected {
+  border: 2px solid #1a365d;
+  box-shadow: 0 0 0 2px #ffffff inset !important;
+}
+.color-swatch.is-selected::after {
+  content: '✓';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.color-picker-input {
+  width: 50px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid #c7d3ea;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #ffffff;
+}
+.color-palette-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f4f7fc;
+  border: 1px solid #c7d3ea;
+  border-radius: 4px;
+  margin: 10px 0 14px;
+}
+.color-palette-preview .cpp-block {
+  width: 80px; height: 40px;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  color: #ffffff; font-weight: 700; font-size: 12px;
+}
+.color-palette-preview .cpp-text {
+  font-size: 13px;
+  color: #28354a;
+}
+.color-palette-actions {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.color-palette-apply {
+  background: #1a365d !important;
+  color: #ffffff !important;
+  border: 1px solid #1a365d !important;
+  padding: 8px 18px !important;
+  border-radius: 4px !important;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.color-palette-apply:hover { background: #244977 !important; border-color: #244977 !important; }
+.color-palette-reset {
+  background: transparent !important;
+  color: #5a6678 !important;
+  border: 1px solid #c7d3ea !important;
+  padding: 8px 18px !important;
+  border-radius: 4px !important;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.color-palette-reset:hover { background: #f4f7fc !important; }
+
+/* === §7. 타임라인 상단 리사이즈 핸들 ======================================== */
+.ev-resize-handle-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 4;
+  background: transparent;
+}
+.ev-resize-handle-top:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,0.45), transparent);
+}
+.ev-resize-handle-top:hover::before {
+  content: '';
+  position: absolute;
+  top: 2px; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 3px;
+  background: rgba(255,255,255,0.9);
+  border-radius: 2px;
+}
+/* 하단 리사이즈 핸들과 시각적으로 통일 */
+.ev-resize-handle {
+  z-index: 4;
+}
+
+/* =============================================================================
+   ███ V10 패치 끝 ███
+   ============================================================================= */

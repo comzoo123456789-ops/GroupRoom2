@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { renderer } from './renderer';
-import { authMiddleware } from './auth';
+import { authMiddleware, requireAdmin } from './auth';
 import authApi from './api/auth';
 import spacesApi from './api/spaces';
 import reservationsApi from './api/reservations';
@@ -35,7 +35,8 @@ app.use('/api/reservations/*', authMiddleware);
 app.route('/api/reservations', reservationsApi);
 app.use('/api/members/*', authMiddleware);
 app.route('/api/members', membersApi);
-app.use('/api/insights/*', authMiddleware);
+// V10 §4-1: 인사이트 API는 어드민 전용
+app.use('/api/insights/*', authMiddleware, requireAdmin);
 app.route('/api/insights', insightsApi);
 app.use('/api/org/*', authMiddleware);
 app.route('/api/org', orgApi);
@@ -49,7 +50,8 @@ app.get('/login', (c) => c.render(<LoginPage />, { title: '로그인 · 메이�
 app.use('/', authMiddleware);
 app.use('/home', authMiddleware);
 app.use('/spaces', authMiddleware);
-app.use('/insights', authMiddleware);
+// V10 §4-1: 인사이트 페이지도 어드민 전용
+app.use('/insights', authMiddleware, requireAdmin);
 app.use('/admin/*', authMiddleware);
 
 app.get('/', (c) => c.redirect('/home'));
