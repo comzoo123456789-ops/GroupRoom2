@@ -6,7 +6,53 @@ WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
 - **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
 
-## 🆕 V8 비주얼 리브랜딩 (최신 — Deep Sapphire Minimal)
+## 🆕 V8 패치 1 (최신 — GNB 가독성 + 사이드바 인디케이터 + 원클릭 모달)
+
+V8 리브랜딩 직후 발견된 가독성/UX 이슈 4건을 정밀 보정. 기존 데이터(멤버 205명·공간 8개) 및 모든 이벤트 핸들러 100% 보존.
+
+### §1 — GNB 헤더 텍스트 진한 화이트 강제 (가독성 불능 오류 해결)
+- **문제**: 헤더가 `#0f2647` Deep Sapphire로 어두워지면서 기존 어두운 텍스트 색이 묻혀 [메이트리그라운드/홈/공간/인사이트/관리] 메뉴가 거의 보이지 않음
+- **해결**: 헤더 영역 전체 텍스트를 `#ffffff !important` + `opacity: 1` + `font-weight: 600` 강제
+  - `.nav-brand`, `.nav-brand *`, `.nav-user-name`, `.nav-link` 일괄 적용
+  - hover 시에도 색 변화 없이 `rgba(255,255,255,0.10)` 배경만 변동 → 텍스트 가독성 유지
+  - 활성 탭(`.is-active`)은 라벤더 배지(#dfe7f7) 위에 딥 네이비(#0f2647) 텍스트로 고대비 확보
+  - 브랜드 바 아이콘 3개도 흰색 통일 (3번째만 라벤더 톤 포인트)
+
+### §2 — 관리자 사이드바 active 탭 투명화 (네이비 블록 제거)
+- **문제**: 좌측 메뉴([일반]/[멤버]/[부서·직책]/[공간]) 클릭 시 `background: var(--ink)` 즉 `#0f1c2e` 차콜 단색 블록이 메뉴를 통째로 덮어 글자 가독성 저하 + 미니멀 인상 훼손
+- **해결**: 진한 단색 배경을 완전 투명으로 리셋하고 좌측 3px 라인 인디케이터로 대체
+  - `.admin-side-link.is-active { background: transparent; color: #1a365d; font-weight: 700; border-left: 3px solid #1a365d; border-radius: 0 }`
+  - 비활성 상태도 `border-left: 3px solid transparent`로 폭 유지 → 클릭 시 글자 점프 방지
+  - hover는 라벤더 틴트(`#f4f7fc`) + 라벤더 라인 → 자연스러운 단계감
+  - 모바일(≤768px): 가로 스크롤 사이드바에서는 `border-bottom: 3px solid #1a365d`로 인디케이터 방향 전환
+
+### §3 — 타임라인 일정 슬롯 더블클릭 → 원클릭 단일 트리거 (app.js)
+- **문제**: 기존 예약 블록(`.timeline-event`) 클릭 시 모달이 안 뜨고 더블클릭해야 진입 — 모바일 터치 UX에 부적합
+- **해결**: `public/static/app.js` line 787에서 트리거 교체 (단 한 줄 수정)
+  ```js
+  // AS-IS
+  onclick: (e) => { e.stopPropagation(); /* 빈 핸들러 */ },
+  ondblclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
+  // TO-BE
+  onclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
+  ```
+- **드래그 호환성**: 새 예약 생성은 빈 셀 드래그(`onDragUp` → `openReservationModal`)로 분리되어 있어 클릭 트리거와 충돌 0
+- **결과**: 모든 디바이스에서 일정 블록 1번 탭/클릭으로 즉시 상세 모달 진입
+
+### §4 — 곡률·그림자 미니멀 규격 유지 검증
+- `*` 셀렉터에 `box-shadow: none !important` 전역 강제 (V8 본편에서 기적용)
+- `border-radius` 모든 컴포넌트 2~4px 직각 (원형 아바타·점은 화이트리스트로 50% 유지)
+- V8 패치 1 추가분에서도 사이드바 active를 `border-radius: 0`(완전 직선)으로 강조하여 일관성 유지
+
+### ✅ 보존 검증
+- `dist/_worker.js` 빌드 사이즈: **85.52 kB** (V8 본편 대비 동일 — JS는 단 한 줄만 수정, 모듈 구조 무변경)
+- Playwright `/login` 콘솔 메시지: **0건**
+- `dblclick` 잔존 검사: `grep -c "dblclick" public/static/app.js` → **0**
+- 멤버 205명 · 공간 8개 · 모든 예약 일정 · M:N 참석자 데이터 무변경
+
+---
+
+## V8 비주얼 리브랜딩 (직전 — Deep Sapphire Minimal)
 
 기능/이벤트 핸들러는 **단 한 줄도 건드리지 않은 채** `public/static/styles.css` 끝에 ~530줄의 테마 오버레이 레이어를 추가하여 시각 아이덴티티를 전면 차별화.
 
@@ -445,7 +491,7 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 - **Platform**: Cloudflare Pages
 - **Status**: 로컬 개발 환경 (PM2 + wrangler pages dev)
 - **Tech Stack**: Hono + TypeScript + Vanilla JS SPA + D1 + Tailwind(인라인 CSS 변수) + Font Awesome
-- **Last Updated**: 2026-06-10 (V8 비주얼 리브랜딩 — Deep Sapphire Minimal · 기능 100% 보존)
+- **Last Updated**: 2026-06-10 (V8 패치 1 — GNB 화이트 강제 + 사이드바 인디케이터 + 일정 원클릭)
 
 ## 검증 결과 (V7 완결본 E2E)
 | 시나리오 | 결과 |

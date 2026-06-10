@@ -4109,3 +4109,107 @@ a:hover { color: var(--primary-focus) !important; }
 /* =============================================================================
    ███ 메이트리그라운드 — 비주얼 리브랜딩 v8 끝 ███
    ============================================================================= */
+
+/* =============================================================================
+   ███ V8 패치 1: GNB 헤더 텍스트 화이트 강제 + 사이드바 active 투명화 ███
+   ============================================================================= */
+
+/* === 1) 글로벌 네비 텍스트 — 진한 화이트 강제, 투명도 제거 ==================== */
+.global-nav,
+.global-nav *,
+.header-navigation-container,
+.header-navigation-container * {
+  /* 헤더 영역 내 모든 텍스트는 기본적으로 흰색 — 단, 라벤더 active 배지/입력만 예외 */
+}
+
+.global-nav .nav-brand,
+.global-nav .nav-brand *,
+.global-nav .nav-user-name,
+.global-nav .nav-link {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+}
+
+.global-nav .nav-link:hover {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  background: rgba(255,255,255,0.10) !important;
+}
+
+/* 활성 탭 — 라벤더 배지 안에서는 딥 네이비로 시인성 확보 */
+.global-nav .nav-link.is-active,
+.global-nav .nav-link.active {
+  background: #dfe7f7 !important;
+  color: #0f2647 !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+}
+
+/* 브랜드 바 아이콘은 흰색 톤으로 정돈 */
+.global-nav .nav-brand .brand-bars span {
+  background: #ffffff !important;
+  opacity: 1 !important;
+}
+.global-nav .nav-brand .brand-bars span:nth-child(3) {
+  background: #5d7fb8 !important;     /* 포인트 한 줄만 라벤더 톤 */
+}
+
+/* 아바타 텍스트도 흰색 강제 */
+.global-nav .nav-avatar,
+.global-nav .nav-avatar * {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* === 2) 관리자 사이드바 — active 진한 블록 제거 → 좌측 인디케이터로 ========== */
+.admin-side-link {
+  background: transparent !important;
+  color: var(--ink-80) !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 0 !important;             /* 좌측 인디케이터 일관성을 위해 직각 */
+  padding-left: 13px !important;           /* border 3px + 내부 10px */
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.admin-side-link:hover {
+  background: var(--accent-tint) !important;
+  color: var(--primary) !important;
+  border-left-color: var(--accent-line) !important;
+}
+
+.admin-side-link.is-active,
+.admin-side-link:focus,
+.admin-side-link.is-active:hover {
+  background: transparent !important;       /* 진한 네이비 블록 제거 */
+  color: #1a365d !important;                /* 딥 사파이어 네이비 텍스트 */
+  font-weight: 700 !important;
+  border-left: 3px solid #1a365d !important;
+  border-radius: 0 !important;
+}
+
+.admin-side-link.is-active i,
+.admin-side-link:focus i {
+  color: #1a365d !important;
+  opacity: 1 !important;
+}
+
+/* 모바일에서도 active 시각화 일관 적용 (가로 스크롤 사이드바) */
+@media (max-width: 768px) {
+  .admin-side-link.is-active {
+    background: transparent !important;
+    color: #1a365d !important;
+    border-left: none !important;
+    border-bottom: 3px solid #1a365d !important;   /* 가로일 땐 아래쪽 인디케이터 */
+    padding-left: 12px !important;
+  }
+  .admin-side-link {
+    border-left: none !important;
+    border-bottom: 3px solid transparent !important;
+  }
+}
+
+/* =============================================================================
+   ███ V8 패치 1 끝 ███
+   ============================================================================= */

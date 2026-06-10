@@ -783,8 +783,8 @@ function buildEventEl(r) {
     class: 'timeline-event' + highlight,
     style: `top:${top}px;height:${height}px;background:${bg};`,
     'data-id': r.id,
-    onclick: (e) => { e.stopPropagation(); /* 단일 클릭은 무시(드래그/리사이즈와 충돌) */ },
-    ondblclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
+    // V8: 더블클릭 → 원클릭 단일 트리거. 드래그(빈 셀 새 예약)와는 트리거 영역이 다르므로 충돌 없음.
+    onclick: (e) => { e.stopPropagation(); openReservationDetail(r); },
   },
     el('div', { class: 'ev-title' }, r.title || '새로운 일정'),
     height > 32 && el('div', { class: 'ev-time' }, `${r.start_time} - ${r.end_time}`),
