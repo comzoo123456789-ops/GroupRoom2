@@ -614,7 +614,9 @@ a:hover { text-decoration: underline; }
 }
 .timeline-grid {
   display: grid;
-  grid-template-columns: 56px repeat(7, 1fr);
+  /* V6-1: grid-template-columns는 buildTimelineGrid()에서 spaces 개수에 따라 동적으로 설정.
+     아래 fallback은 spaces 데이터가 비었을 때만 적용. */
+  grid-template-columns: 56px repeat(auto-fit, minmax(130px, 1fr));
   position: relative;
 }
 .timeline-header-cell {
@@ -1205,7 +1207,7 @@ a:hover { text-decoration: underline; }
    RESPONSIVE
    ===================================================== */
 @media (max-width: 1024px) {
-  .timeline-grid { grid-template-columns: 50px repeat(7, minmax(110px, 1fr)); }
+  /* V6-1: timeline-grid의 컬럼 정의는 JS에서 spaces 개수에 따라 동적으로 설정되므로 여기서는 건드리지 않음 */
   .insight-stats-grid, .summary-cards { grid-template-columns: 1fr; }
   .popular-grid { grid-template-columns: repeat(3, 1fr); }
   .admin-layout { grid-template-columns: 1fr; }
@@ -1216,7 +1218,9 @@ a:hover { text-decoration: underline; }
   .upcoming-row .space-pill, .upcoming-row .avatar { display: none; }
   .login-card { padding: 32px 24px; }
   .login-title { font-size: 32px; }
+  /* V6-2: 데스크톱 가로 nav 숨기고 햄버거 노출 */
   .nav-links { display: none; }
+  .nav-hamburger { display: inline-flex !important; }
 }
 
 /* Scrollable wrapper for timeline */
@@ -1997,4 +2001,300 @@ a:hover { text-decoration: underline; }
   padding: 12px;
   font-size: 14px;
   font-weight: 600;
+}
+
+/* =====================================================
+   V6 - 햄버거 메뉴 · 모바일 드로어 · 필터 수직 재배치 · 호버/Ripple
+   ===================================================== */
+
+/* V6-2: 햄버거 버튼 (데스크톱에서는 숨김, 모바일에서만 노출) */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+}
+.nav-hamburger .hb-bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 2px;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.nav-hamburger:hover .hb-bar { background: #fff; }
+
+/* V6-2: 모바일 드로어 오버레이 */
+.mobile-nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  z-index: 1000;
+  transition: background 0.22s ease;
+  display: flex;
+  justify-content: flex-end;
+}
+.mobile-nav-overlay.is-open { background: rgba(0, 0, 0, 0.45); }
+.mobile-nav-overlay.is-closing { background: rgba(0, 0, 0, 0); }
+
+.mobile-nav-drawer {
+  width: min(86vw, 320px);
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: -8px 0 24px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.mobile-nav-overlay.is-open .mobile-nav-drawer { transform: translateX(0); }
+.mobile-nav-overlay.is-closing .mobile-nav-drawer { transform: translateX(100%); }
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--hairline);
+}
+.mobile-nav-brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+}
+.mobile-nav-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  color: var(--ink-80);
+  cursor: pointer;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-nav-close:hover { background: var(--parchment); }
+
+.mobile-nav-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--parchment);
+}
+.mobile-nav-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px;
+  gap: 2px;
+  overflow-y: auto;
+}
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+.mobile-nav-item:hover { background: var(--parchment); }
+.mobile-nav-item.is-active {
+  background: rgba(0, 102, 204, 0.08);
+  color: var(--primary);
+}
+.mobile-nav-item i:first-child {
+  font-size: 16px;
+  width: 24px;
+  text-align: center;
+}
+.mobile-nav-foot {
+  padding: 16px 20px 24px;
+  border-top: 1px solid var(--hairline);
+}
+.mobile-nav-logout {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  background: #fff;
+  color: var(--ink-80);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mobile-nav-logout:hover {
+  background: var(--parchment);
+  color: var(--ink);
+}
+
+/* V6-2: 타임라인 툴바 2단 분리 (날짜 줄 / 필터 줄) — 기존 line 574 정의 덮어쓰기 */
+.timeline-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  /* 기존 정의의 시각 속성 유지 */
+  padding: 16px 24px;
+  background: var(--canvas);
+  border-radius: var(--r-lg);
+  margin-bottom: 16px;
+  justify-content: flex-start;
+}
+.timeline-toolbar .tt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.timeline-toolbar .tt-row-date { justify-content: space-between; }
+.timeline-toolbar .tt-row-filters {
+  justify-content: space-between;
+  padding-top: 4px;
+  border-top: 1px solid var(--divider-soft);
+}
+
+@media (max-width: 768px) {
+  .timeline-toolbar { padding: 14px 16px; }
+  .timeline-toolbar .tt-row { width: 100%; }
+  .timeline-toolbar .tt-row-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .timeline-toolbar .timeline-view-switch {
+    margin-right: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .timeline-toolbar .view-tab {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+  .timeline-toolbar .timeline-legend {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .timeline-toolbar .timeline-date-nav { flex-wrap: wrap; }
+  .timeline-toolbar .date-display { font-size: 17px; }
+  .date-jump-input { margin-left: 0; }
+}
+
+/* V6-4: 홈 '앞으로의 일정' 클릭 가능 카드 — 호버 배경 + 음영 + Ripple */
+.upcoming-row.is-clickable,
+.upcoming-day-label.is-clickable {
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  padding-left: 12px;
+  padding-right: 12px;
+  margin-left: -12px;
+  margin-right: -12px;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
+}
+.upcoming-row.is-clickable:hover {
+  background: rgba(0, 102, 204, 0.05);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+.upcoming-row.is-clickable:active {
+  transform: scale(0.995);
+  background: rgba(0, 102, 204, 0.08);
+}
+.upcoming-day-label.is-clickable:hover {
+  background: rgba(0, 102, 204, 0.04);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* V6-4: Ripple 효과 (클릭 시 카드 위에 잔물결) */
+.upcoming-row.is-clickable::after,
+.upcoming-day-label.is-clickable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(0, 102, 204, 0.18) 10%, transparent 11%);
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: background-size 0.42s ease-out, opacity 0.42s ease-out;
+  pointer-events: none;
+}
+.upcoming-row.is-clickable:active::after,
+.upcoming-day-label.is-clickable:active::after {
+  background-size: 1500% 1500%;
+  opacity: 1;
+  transition: 0s;
+}
+
+/* V6-3: 멤버 일괄 등록 - 엑셀 드래그앤드롭 */
+.bulk-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 16px;
+  border: 2px dashed #bfd6ee;
+  border-radius: 12px;
+  background: rgba(0, 102, 204, 0.03);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.bulk-dropzone:hover {
+  border-color: var(--primary);
+  background: rgba(0, 102, 204, 0.06);
+}
+.bulk-dropzone.is-drag {
+  border-color: var(--primary);
+  background: rgba(0, 102, 204, 0.1);
+  transform: scale(1.01);
+}
+.bulk-dropzone-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+}
+.bulk-dropzone-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-48);
+  letter-spacing: -0.1px;
+}
+.bulk-dropzone-source {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-80);
+  font-weight: 500;
+  border: 1px solid var(--hairline);
 }

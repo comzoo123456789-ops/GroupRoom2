@@ -15,7 +15,14 @@ const State = {
   user: null,
   spaces: [],
   reservations: [],
-  date: todayISO(),
+  // V6-4: 홈 → 공간 이동 시 sessionStorage에 저장된 jumpDate를 우선 적용
+  date: (() => {
+    try {
+      const jd = sessionStorage.getItem('jumpDate');
+      if (jd && /^\d{4}-\d{2}-\d{2}$/.test(jd)) return jd;
+    } catch (e) {}
+    return todayISO();
+  })(),
   page: (document.getElementById('app-root')?.dataset.page) || 'home',
 };
 
@@ -87,6 +94,26 @@ function renderShell(content) {
   const tenantName = State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아';
 
   document.body.innerHTML = '';
+
+  // V6-2: 모바일 햄버거 드로어용 navLinks 노드 (데스크톱/모바일 공통)
+  const navLinksNode = el('nav', { class: 'nav-links' },
+    navLink('home', '홈', 'fa-house', '/home'),
+    navLink('spaces', '공간', 'fa-calendar-day', '/spaces'),
+    navLink('insights', '인사이트', 'fa-chart-column', '/insights'),
+    isAdmin && navLink('admin-members', '관리', 'fa-gear', '/admin/members'),
+  );
+
+  // V6-2: 햄버거 버튼 (모바일에서만 노출, CSS로 제어)
+  const hamburgerBtn = el('button', {
+    class: 'nav-hamburger',
+    'aria-label': '메뉴 열기',
+    onclick: openMobileNavDrawer,
+  },
+    el('span', { class: 'hb-bar' }),
+    el('span', { class: 'hb-bar' }),
+    el('span', { class: 'hb-bar' }),
+  );
+
   const shell = el('div', { class: 'app-shell' },
     // Global Nav
     el('header', { class: 'global-nav' },
@@ -97,19 +124,15 @@ function renderShell(content) {
           ),
           el('span', null, '메이트리그라운드')
         ),
-        el('nav', { class: 'nav-links' },
-          navLink('home', '홈', 'fa-house', '/home'),
-          navLink('spaces', '공간', 'fa-calendar-day', '/spaces'),
-          navLink('insights', '인사이트', 'fa-chart-column', '/insights'),
-          isAdmin && navLink('admin-members', '관리', 'fa-gear', '/admin/members'),
-        ),
+        navLinksNode,
         el('div', { class: 'nav-actions' },
           el('div', {
             class: 'nav-avatar',
             style: `background:${State.user?.avatar_color || '#7a7a7a'};`,
             title: `${State.user?.name} · ${tenantName}`,
             onclick: handleLogout,
-          }, initials(State.user?.name))
+          }, initials(State.user?.name)),
+          hamburgerBtn
         )
       )
     ),
@@ -124,6 +147,76 @@ function navLink(pageKey, label, icon, href) {
     href,
     class: `nav-link ${isActive ? 'is-active' : ''}`,
   }, el('i', { class: `fa-solid ${icon}` }), label);
+}
+
+// V6-2: 모바일 햄버거 드로어
+function openMobileNavDrawer() {
+  // 기존 드로어 제거
+  $('.mobile-nav-overlay')?.remove();
+
+  const isAdmin = State.user?.role === 'admin';
+  const tenantName = State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아';
+
+  const close = () => {
+    const overlay = $('.mobile-nav-overlay');
+    if (!overlay) return;
+    overlay.classList.add('is-closing');
+    setTimeout(() => overlay.remove(), 220);
+  };
+
+  const navItem = (pageKey, label, icon, href) => {
+    const isActive = State.page === pageKey || (pageKey === 'admin-members' && State.page.startsWith('admin-'));
+    return el('a', {
+      href,
+      class: `mobile-nav-item ${isActive ? 'is-active' : ''}`,
+      onclick: close,
+    },
+      el('i', { class: `fa-solid ${icon}` }),
+      el('span', null, label),
+      el('i', { class: 'fa-solid fa-chevron-right', style: 'margin-left:auto;font-size:11px;opacity:0.5;' })
+    );
+  };
+
+  const overlay = el('div', {
+    class: 'mobile-nav-overlay',
+    onclick: (e) => { if (e.target === overlay) close(); },
+  },
+    el('div', { class: 'mobile-nav-drawer' },
+      el('div', { class: 'mobile-nav-header' },
+        el('div', { class: 'mobile-nav-brand' }, '메이트리그라운드'),
+        el('button', {
+          class: 'mobile-nav-close',
+          'aria-label': '메뉴 닫기',
+          onclick: close,
+        }, el('i', { class: 'fa-solid fa-xmark' }))
+      ),
+      el('div', { class: 'mobile-nav-user' },
+        el('div', {
+          class: 'nav-avatar',
+          style: `background:${State.user?.avatar_color || '#7a7a7a'};width:36px;height:36px;font-size:14px;`,
+        }, initials(State.user?.name)),
+        el('div', { style: 'display:flex;flex-direction:column;gap:2px;' },
+          el('div', { style: 'font-size:14px;font-weight:600;color:#1d1d1f;' }, State.user?.name || ''),
+          el('div', { style: 'font-size:12px;color:#7a7a7a;' }, tenantName + ' · ' + (State.user?.role === 'admin' ? '관리자' : '멤버'))
+        )
+      ),
+      el('div', { class: 'mobile-nav-list' },
+        navItem('home', '홈', 'fa-house', '/home'),
+        navItem('spaces', '공간', 'fa-calendar-day', '/spaces'),
+        navItem('insights', '인사이트', 'fa-chart-column', '/insights'),
+        isAdmin && navItem('admin-members', '관리', 'fa-gear', '/admin/members'),
+      ),
+      el('div', { class: 'mobile-nav-foot' },
+        el('button', {
+          class: 'mobile-nav-logout',
+          onclick: async () => { close(); await new Promise(r => setTimeout(r, 220)); handleLogout(); },
+        }, el('i', { class: 'fa-solid fa-arrow-right-from-bracket' }), '로그아웃')
+      )
+    )
+  );
+  document.body.append(overlay);
+  // 애니메이션 트리거
+  requestAnimationFrame(() => overlay.classList.add('is-open'));
 }
 
 async function handleLogout() {
@@ -144,9 +237,13 @@ async function renderHome() {
   }
 
   const goToSpace = (date, time) => {
-    // V4: 대시보드 일자 클릭 시 해당 날짜의 타임라인으로 라우팅 + 시간 포커스
+    // V6-4: 클릭한 카드의 날짜(예: 6/20)로 정확히 이동 — sessionStorage에 jumpDate 저장하여 페이지 리로드 후에도 유지
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      sessionStorage.setItem('jumpDate', date);
+    }
     sessionStorage.setItem('spaceFocusTime', time || '');
     State.date = date;
+    State.view = 'day';   // 일간 뷰로 강제 전환
     window.location.href = '/spaces';
   };
 
@@ -233,6 +330,15 @@ async function loadTimeline() {
 }
 
 async function renderSpaces() {
+  // V6-4: jumpDate가 있다면 한 번 더 적용 (renderSpaces가 navigation 없이 호출되는 경우 대비)
+  try {
+    const jd = sessionStorage.getItem('jumpDate');
+    if (jd && /^\d{4}-\d{2}-\d{2}$/.test(jd)) {
+      State.date = jd;
+      sessionStorage.removeItem('jumpDate');
+    }
+  } catch (e) {}
+
   await loadTimeline();
   startPolling();
 
@@ -240,37 +346,42 @@ async function renderSpaces() {
     ? dayjs(State.date).locale('ko').format('YYYY년 M월')
     : dayjs(State.date).locale('ko').format('YYYY년 M월 D일 (ddd)');
 
+  // V6-2: 툴바를 2단으로 분리 — (1) 날짜 표시 줄  (2) 보기 모드 + 회사 필터 줄
   const toolbar = el('div', { class: 'timeline-toolbar' },
-    el('div', { class: 'timeline-date-nav' },
-      el('button', { class: 'btn-icon', onclick: () => changeDate(-1) }, el('i', { class: 'fa-solid fa-chevron-left' })),
-      el('div', { class: 'date-display' }, dateLabel),
-      el('button', { class: 'btn-icon', onclick: () => changeDate(1) }, el('i', { class: 'fa-solid fa-chevron-right' })),
-      el('button', { class: 'btn-ghost', onclick: () => { State.date = dayjs().format('YYYY-MM-DD'); renderSpaces(); } }, '오늘'),
-      el('input', {
-        type: 'date',
-        value: State.date,
-        class: 'date-jump-input',
-        onchange: (e) => { if (e.target.value) { State.date = e.target.value; renderSpaces(); } }
-      })
+    el('div', { class: 'tt-row tt-row-date' },
+      el('div', { class: 'timeline-date-nav' },
+        el('button', { class: 'btn-icon', onclick: () => changeDate(-1) }, el('i', { class: 'fa-solid fa-chevron-left' })),
+        el('div', { class: 'date-display' }, dateLabel),
+        el('button', { class: 'btn-icon', onclick: () => changeDate(1) }, el('i', { class: 'fa-solid fa-chevron-right' })),
+        el('button', { class: 'btn-ghost', onclick: () => { State.date = dayjs().format('YYYY-MM-DD'); renderSpaces(); } }, '오늘'),
+        el('input', {
+          type: 'date',
+          value: State.date,
+          class: 'date-jump-input',
+          onchange: (e) => { if (e.target.value) { State.date = e.target.value; renderSpaces(); } }
+        })
+      )
     ),
-    el('div', { class: 'timeline-view-switch' },
-      el('button', {
-        class: 'view-tab ' + (State.view === 'day' ? 'is-active' : ''),
-        onclick: () => { State.view = 'day'; renderSpaces(); }
-      }, el('i', { class: 'fa-regular fa-calendar' }), '일간'),
-      el('button', {
-        class: 'view-tab ' + (State.view === 'month' ? 'is-active' : ''),
-        onclick: () => { State.view = 'month'; renderSpaces(); }
-      }, el('i', { class: 'fa-regular fa-calendar-days' }), '월간'),
-      el('button', {
-        class: 'view-tab mine-tab ' + (State.mineOnly ? 'is-active' : ''),
-        onclick: () => { State.mineOnly = !State.mineOnly; renderSpaces(); },
-        title: '본인이 개설자 또는 참석자인 일정만 보기'
-      }, el('i', { class: 'fa-solid fa-user' }), '내 일정')
-    ),
-    el('div', { class: 'timeline-legend' },
-      el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#0066cc;' }), '와일리'),
-      el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#1d1d1f;' }), '러쉬코리아'),
+    el('div', { class: 'tt-row tt-row-filters' },
+      el('div', { class: 'timeline-view-switch' },
+        el('button', {
+          class: 'view-tab ' + (State.view === 'day' ? 'is-active' : ''),
+          onclick: () => { State.view = 'day'; renderSpaces(); }
+        }, el('i', { class: 'fa-regular fa-calendar' }), '일간'),
+        el('button', {
+          class: 'view-tab ' + (State.view === 'month' ? 'is-active' : ''),
+          onclick: () => { State.view = 'month'; renderSpaces(); }
+        }, el('i', { class: 'fa-regular fa-calendar-days' }), '월간'),
+        el('button', {
+          class: 'view-tab mine-tab ' + (State.mineOnly ? 'is-active' : ''),
+          onclick: () => { State.mineOnly = !State.mineOnly; renderSpaces(); },
+          title: '본인이 개설자 또는 참석자인 일정만 보기'
+        }, el('i', { class: 'fa-solid fa-user' }), '내 일정')
+      ),
+      el('div', { class: 'timeline-legend' },
+        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#0066cc;' }), '와일리'),
+        el('span', { class: 'legend-chip' }, el('span', { class: 'legend-square', style: 'background:#1d1d1f;' }), '러쉬코리아'),
+      )
     )
   );
 
@@ -368,7 +479,21 @@ function buildMonthView() {
 }
 
 function buildTimelineGrid() {
-  const grid = el('div', { class: 'timeline-grid', id: 'timeline-grid' });
+  // V6-1: spaces 개수에 동적으로 대응하는 그리드 컬럼 정의
+  //  - 데스크톱(viewport >= 1280px): 시간컬럼(56px) + spaces균등분할(1fr)
+  //  - 모바일/좁은 화면: 각 컬럼 최소 너비(min 130px) 보장 → 가로 스크롤 (timeline-scroll로 감쌈)
+  const spaceCount = State.spaces.length || 1;
+  const isNarrow = window.innerWidth < 1280;
+  const colTemplate = isNarrow
+    ? `50px repeat(${spaceCount}, minmax(130px, 1fr))`
+    : `56px repeat(${spaceCount}, minmax(0, 1fr))`;
+  // 좁은 화면에서는 최소 너비를 확보해 가로 스크롤이 작동하도록 함
+  const minWidth = isNarrow ? (50 + spaceCount * 130) : 0;
+  const grid = el('div', {
+    class: 'timeline-grid',
+    id: 'timeline-grid',
+    style: `grid-template-columns: ${colTemplate};${minWidth ? `min-width:${minWidth}px;` : ''}`,
+  });
 
   // Top-left empty cell
   grid.append(el('div', { class: 'timeline-header-cell', style: 'background:#fff;' }));
@@ -1535,6 +1660,7 @@ async function openMemberCreateModal() {
   const state = {
     name: '', email: '', password: '', department: '', position: '', role: 'member',
     bulkRows: Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })),
+    bulkSource: '',  // V6-3: 업로드한 파일명 표시
   };
 
   const render = () => {
@@ -1603,35 +1729,138 @@ async function openMemberCreateModal() {
     )
   );
 
-  const renderBulk = () => el('div', null,
-    el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;' },
-      el('div', { style: 'font-size:14px;color:#7a7a7a;' }, `${state.bulkRows.length}명까지 등록 가능 (초기 패스워드: user1234)`),
-      el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows.push(...Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' }))); render(); } }, '+ 5명 더 추가')
-    ),
-    el('div', { style: 'overflow:auto;max-height:340px;border:1px solid #e0e0e0;border-radius:11px;' },
-      el('table', { class: 'data-table', style: 'font-size:13px;' },
-        el('thead', null, el('tr', null,
-          el('th', null, '이름 *'), el('th', null, '이메일 *'), el('th', null, '부서'), el('th', null, '직책')
-        )),
-        el('tbody', null,
-          ...state.bulkRows.map((row, i) =>
-            el('tr', null,
-              el('td', null, el('input', { value: row.name, oninput: e => state.bulkRows[i].name = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-              el('td', null, el('input', { value: row.email, oninput: e => state.bulkRows[i].email = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-              el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].department = e.target.value },
-                el('option', { value: '' }, '—'),
-                ...OrgCache.departments.map(d => el('option', { value: d.name, selected: row.department === d.name ? 'selected' : null }, d.name))
-              )),
-              el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].position = e.target.value },
-                el('option', { value: '' }, '—'),
-                ...OrgCache.positions.map(p => el('option', { value: p.name, selected: row.position === p.name ? 'selected' : null }, p.name))
-              ))
+  // V6-3: 엑셀/CSV 파일을 파싱해 state.bulkRows에 자동 매핑
+  const COLUMN_ALIASES = {
+    name: ['이름', '성명', '사용자명', 'name', 'Name', 'NAME', '사용자 이름', '담당자', '담당자명'],
+    email: ['이메일', '이메일주소', '메일', 'email', 'Email', 'EMAIL', 'e-mail', 'E-mail', '계정', '아이디'],
+    department: ['부서', '소속', '팀', '본부', 'department', 'Department', 'DEPT', 'dept', '소속부서'],
+    position: ['직책', '직급', '직위', '포지션', 'position', 'Position', 'POSITION', 'title', 'Title'],
+  };
+  const resolveColumn = (rowKeys, aliases) => {
+    for (const alias of aliases) {
+      const found = rowKeys.find(k => String(k).trim().toLowerCase() === String(alias).trim().toLowerCase());
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const parseAndFill = async (file) => {
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      toast('파일 파서를 로드하지 못했습니다. 페이지 새로고침 후 다시 시도해 주세요.', 'error');
+      return;
+    }
+    const ext = (file.name || '').toLowerCase().split('.').pop();
+    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+      toast('지원하지 않는 형식입니다 (.xlsx / .xls / .csv 만 가능).', 'error');
+      return;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      if (!rows.length) { toast('파일에서 데이터를 찾을 수 없습니다.', 'error'); return; }
+
+      const firstKeys = Object.keys(rows[0]);
+      const nameKey = resolveColumn(firstKeys, COLUMN_ALIASES.name);
+      const emailKey = resolveColumn(firstKeys, COLUMN_ALIASES.email);
+      const deptKey = resolveColumn(firstKeys, COLUMN_ALIASES.department);
+      const posKey = resolveColumn(firstKeys, COLUMN_ALIASES.position);
+
+      if (!nameKey && !emailKey) {
+        toast(`컬럼명을 인식하지 못했습니다. 헤더는 [이름, 이메일, 부서, 직책] 이어야 합니다. (감지된 컬럼: ${firstKeys.join(', ')})`, 'error');
+        return;
+      }
+
+      const mapped = rows.map(r => ({
+        name: nameKey ? String(r[nameKey] || '').trim() : '',
+        email: emailKey ? String(r[emailKey] || '').trim() : '',
+        department: deptKey ? String(r[deptKey] || '').trim() : '',
+        position: posKey ? String(r[posKey] || '').trim() : '',
+      })).filter(r => r.name || r.email);
+
+      if (mapped.length === 0) { toast('유효한 행이 없습니다.', 'error'); return; }
+
+      // 기존 빈 행 제거 후 교체
+      state.bulkRows = mapped;
+      state.bulkSource = `${file.name} · ${mapped.length}행 파싱됨`;
+      toast(`${mapped.length}명을 폼에 자동 기입했습니다. 검토 후 [생성하기]를 눌러주세요.`, 'success');
+      render();
+    } catch (err) {
+      console.error('[bulk parse]', err);
+      toast('파일을 파싱하지 못했습니다: ' + (err.message || '알 수 없는 오류'), 'error');
+    }
+  };
+
+  const renderBulk = () => {
+    const fileInputId = 'bulk-file-input-' + Math.random().toString(36).slice(2, 8);
+
+    // V6-3: 드래그앤드롭 영역
+    const dropZone = el('div', {
+      class: 'bulk-dropzone',
+      ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('is-drag'); },
+      ondragleave: (e) => { e.currentTarget.classList.remove('is-drag'); },
+      ondrop: (e) => {
+        e.preventDefault();
+        e.currentTarget.classList.remove('is-drag');
+        const f = e.dataTransfer.files?.[0];
+        if (f) parseAndFill(f);
+      },
+      onclick: () => $(`#${fileInputId}`)?.click(),
+    },
+      el('i', { class: 'fa-solid fa-file-arrow-up', style: 'font-size:28px;color:#0066cc;margin-bottom:8px;' }),
+      el('div', { class: 'bulk-dropzone-title' }, '엑셀(.xlsx) · CSV(.csv) 파일을 드래그하거나 클릭해서 업로드'),
+      el('div', { class: 'bulk-dropzone-sub' }, '헤더: 이름 · 이메일 · 부서 · 직책 (자동 매핑)'),
+      state.bulkSource ? el('div', { class: 'bulk-dropzone-source' }, el('i', { class: 'fa-solid fa-circle-check', style: 'color:#0a8a0a;margin-right:6px;' }), state.bulkSource) : null,
+      el('input', {
+        type: 'file',
+        id: fileInputId,
+        accept: '.xlsx,.xls,.csv',
+        style: 'display:none;',
+        onchange: (e) => { const f = e.target.files?.[0]; if (f) parseAndFill(f); }
+      })
+    );
+
+    return el('div', null,
+      dropZone,
+      el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin:12px 0;' },
+        el('div', { style: 'font-size:14px;color:#7a7a7a;' }, `현재 ${state.bulkRows.length}행 · 초기 패스워드 user1234`),
+        el('div', { style: 'display:flex;gap:8px;' },
+          el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows.push(...Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' }))); render(); } }, '+ 5명 더'),
+          el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows = Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })); state.bulkSource = ''; render(); } }, '초기화')
+        )
+      ),
+      el('div', { style: 'overflow:auto;max-height:300px;border:1px solid #e0e0e0;border-radius:11px;' },
+        el('table', { class: 'data-table', style: 'font-size:13px;' },
+          el('thead', null, el('tr', null,
+            el('th', null, '이름 *'), el('th', null, '이메일 *'), el('th', null, '부서'), el('th', null, '직책')
+          )),
+          el('tbody', null,
+            ...state.bulkRows.map((row, i) =>
+              el('tr', null,
+                el('td', null, el('input', { value: row.name, oninput: e => state.bulkRows[i].name = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
+                el('td', null, el('input', { value: row.email, oninput: e => state.bulkRows[i].email = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
+                el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].department = e.target.value },
+                  el('option', { value: '' }, '—'),
+                  ...OrgCache.departments.map(d => el('option', { value: d.name, selected: row.department === d.name ? 'selected' : null }, d.name)),
+                  // 엑셀에서 들어온 부서가 마스터에 없으면 그대로 보존
+                  row.department && !OrgCache.departments.some(d => d.name === row.department)
+                    ? el('option', { value: row.department, selected: 'selected' }, row.department + ' (미등록)') : null
+                )),
+                el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].position = e.target.value },
+                  el('option', { value: '' }, '—'),
+                  ...OrgCache.positions.map(p => el('option', { value: p.name, selected: row.position === p.name ? 'selected' : null }, p.name)),
+                  row.position && !OrgCache.positions.some(p => p.name === row.position)
+                    ? el('option', { value: row.position, selected: 'selected' }, row.position + ' (미등록)') : null
+                ))
+              )
             )
           )
         )
       )
-    )
-  );
+    );
+  };
 
   const submit = async () => {
     if (mode === 'single') {
