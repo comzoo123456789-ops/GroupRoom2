@@ -2298,3 +2298,274 @@ a:hover { text-decoration: underline; }
   font-weight: 500;
   border: 1px solid var(--hairline);
 }
+
+/* =====================================================
+   V7 — 모바일 헤더 / 관리 페이지 가로 탭 / 멤버 카드 / sticky 해제
+   ===================================================== */
+
+/* V7-1: 사용자 이름 텍스트 (데스크톱에서는 숨김 — title 호버에만 표시) */
+.nav-user-name {
+  display: none;
+}
+
+/* 데스크톱에서는 멤버 카드 숨김 (테이블만 표시) */
+.member-cards-mobile { display: none; }
+
+/* ============ MOBILE (≤ 768px) ============ */
+@media (max-width: 768px) {
+
+  /* V7-1: 상단 헤더 양 끝 정렬 + 우측 정렬 (브랜드 좌 / 액션 우) */
+  .global-nav-inner {
+    justify-content: space-between !important;
+    gap: 12px !important;
+    padding: 0 14px !important;
+  }
+  .nav-brand {
+    flex-shrink: 0;
+    /* 매우 좁은 화면에서 텍스트 잘림 방지 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 50vw;
+  }
+  .nav-brand span:last-child {
+    font-size: 13px;
+  }
+  .nav-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: auto !important;  /* 우측 끝 밀착 */
+    flex-shrink: 0;
+  }
+  .nav-user-name {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.92);
+    letter-spacing: -0.1px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .nav-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+  .nav-hamburger {
+    margin-left: 2px !important;
+  }
+
+  /* V7-2: 관리 페이지 세로 분할 해제 + 가로 탭 바 */
+  .admin-layout {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  .admin-side-nav {
+    /* V7-4: position: sticky 해제 (모바일 전면) */
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    padding: 8px !important;
+    /* V7-2: 가로 한 줄 + 가로 스와이프 */
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .admin-side-nav::-webkit-scrollbar { height: 4px; }
+  .admin-side-nav::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+  .admin-side-nav .side-label {
+    display: none;  /* 모바일에서는 라벨 숨김 */
+  }
+  .admin-side-link {
+    flex: 0 0 auto;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    border-radius: 999px !important;
+    background: var(--parchment);
+    color: var(--ink-80);
+  }
+  .admin-side-link.is-active {
+    background: var(--ink) !important;
+    color: #fff !important;
+  }
+  .admin-side-link i {
+    font-size: 12px;
+    margin-right: 4px;
+  }
+  .admin-content {
+    padding: 18px 16px !important;
+  }
+
+  /* V7-3: 멤버 테이블 → 카드 UI 전환 */
+  .member-table-desktop { display: none !important; }
+  .member-cards-mobile {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* 검색창 폭 가변 */
+  .table-search input {
+    width: 100% !important;
+  }
+  .table-search {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  /* V7-3: 모달 가변 폭 */
+  .modal {
+    width: 92% !important;
+    max-width: 100% !important;
+  }
+  .modal-backdrop {
+    padding: 12px !important;
+  }
+  /* 모달 내부 헤더 텍스트가 줄넘김 가능하도록 */
+  .modal-header {
+    padding: 16px 18px 12px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .modal-body { padding: 0 18px 18px !important; }
+  .modal-footer {
+    padding: 12px 18px !important;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .modal-footer .btn-primary,
+  .modal-footer .btn-secondary {
+    width: 100%;
+  }
+  /* 일괄 등록 모달은 일반 모달보다 더 크게 (640px 등) 지정되어 있음 */
+  .modal[style*="max-width:640px"],
+  .modal[style*="max-width: 640px"],
+  .modal[style*="max-width:560px"],
+  .modal[style*="max-width: 560px"] {
+    max-width: 100% !important;
+    width: 92% !important;
+  }
+
+  /* V7-3: 일괄 등록 드롭존 가변 폭 */
+  .bulk-dropzone {
+    width: 100%;
+    padding: 18px 12px;
+  }
+  .bulk-dropzone-title { font-size: 13px; }
+  .bulk-dropzone-sub { font-size: 11px; }
+
+  /* 일괄 등록 미리보기 테이블도 가로 스크롤 (테이블은 카드 변환 어려움) */
+  .modal .data-table {
+    font-size: 12px;
+  }
+
+  /* 페이지 헤더 폰트 크기 축소 */
+  .page-header h1 { font-size: 28px; }
+  .page-header p { font-size: 13px; }
+
+  /* V7-4: 추가 sticky 해제 안전망 — 페이지 진입 시 본문이 가려지지 않도록 */
+  .sub-nav {
+    position: relative !important;
+    top: auto !important;
+  }
+}
+
+/* V7-3: 모바일 카드 — 미디어 무관 카드 디자인 */
+.member-card {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.18s ease;
+}
+.member-card:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06); }
+.member-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.member-card-id {
+  flex: 1;
+  min-width: 0;
+}
+.member-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-card-email {
+  font-size: 12px;
+  color: var(--ink-48);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.member-card-badges {
+  flex-shrink: 0;
+}
+.member-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--divider-soft);
+}
+.member-card-meta .meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.meta-label {
+  color: var(--ink-48);
+  font-weight: 500;
+}
+.meta-value {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: right;
+}
+.member-card-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+.btn-card-action {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--hairline);
+  background: #fff;
+  color: var(--primary);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-card-action:hover {
+  background: rgba(0, 102, 204, 0.05);
+  border-color: var(--primary);
+}
+.btn-card-action.is-danger { color: #d33; }
+.btn-card-action.is-danger:hover {
+  background: rgba(211, 51, 51, 0.06);
+  border-color: #d33;
+}

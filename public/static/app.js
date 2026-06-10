@@ -126,6 +126,8 @@ function renderShell(content) {
         ),
         navLinksNode,
         el('div', { class: 'nav-actions' },
+          // V7-1: 사용자 이름 텍스트 (모바일 전용 노출 — CSS로 데스크톱에서는 숨김)
+          el('span', { class: 'nav-user-name', title: tenantName }, State.user?.name || ''),
           el('div', {
             class: 'nav-avatar',
             style: `background:${State.user?.avatar_color || '#7a7a7a'};`,
@@ -1565,6 +1567,8 @@ function buildAdminSidebar(active) {
     { key: 'org', label: '부서/직책', icon: 'fa-sitemap', href: '/admin/org' },
     { key: 'spaces', label: '공간', icon: 'fa-cube', href: '/admin/spaces' },
   ];
+  // V7-2: 모바일에서는 가로 탭 바로 전환되도록 CSS가 처리.
+  // V7-4: position: sticky를 CSS에서 모바일 한정 해제.
   return el('aside', { class: 'admin-side-nav' },
     el('div', { class: 'side-label' }, '메이트리그라운드'),
     ...links.map(l =>
@@ -1580,9 +1584,10 @@ function buildAdminSidebar(active) {
 }
 
 function buildMemberTable(members) {
+  // V7-3: 데스크톱(테이블) + 모바일(카드) 듀얼 렌더링 — CSS @media로 토글
   const tbody = el('tbody', { id: 'member-tbody' });
   for (const m of members) {
-    const tr = el('tr', null,
+    const tr = el('tr', { 'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase() },
       el('td', null,
         el('div', { class: 'user-cell' },
           el('div', { class: 'avatar', style: `background:${m.avatar_color};` }, initials(m.name)),
@@ -1611,7 +1616,7 @@ function buildMemberTable(members) {
     );
     tbody.append(tr);
   }
-  return el('table', { class: 'data-table' },
+  const table = el('table', { class: 'data-table member-table-desktop' },
     el('thead', null,
       el('tr', null,
         el('th', null, '이름'),
@@ -1624,13 +1629,64 @@ function buildMemberTable(members) {
     ),
     tbody
   );
+
+  // V7-3: 모바일 전용 카드 리스트
+  const cards = el('div', { class: 'member-cards-mobile', id: 'member-cards-mobile' },
+    ...members.map(m =>
+      el('div', { class: 'member-card', 'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase() },
+        el('div', { class: 'member-card-head' },
+          el('div', { class: 'avatar', style: `background:${m.avatar_color};width:42px;height:42px;font-size:15px;` }, initials(m.name)),
+          el('div', { class: 'member-card-id' },
+            el('div', { class: 'member-card-name' }, m.name),
+            el('div', { class: 'member-card-email' }, m.email)
+          ),
+          el('div', { class: 'member-card-badges' },
+            el('span', { class: m.role === 'admin' ? 'status-badge s-admin' : 'status-badge s-member' }, m.role === 'admin' ? 'Admin' : '일반')
+          )
+        ),
+        el('div', { class: 'member-card-meta' },
+          el('div', { class: 'meta-row' },
+            el('span', { class: 'meta-label' }, '부서'),
+            el('span', { class: 'meta-value' }, m.department || '-')
+          ),
+          el('div', { class: 'meta-row' },
+            el('span', { class: 'meta-label' }, '직책'),
+            el('span', { class: 'meta-value' }, m.position || '-')
+          ),
+          el('div', { class: 'meta-row' },
+            el('span', { class: 'meta-label' }, '상태'),
+            el('span', { class: 'meta-value' }, el('span', { class: 'status-badge s-active' }, '활성'))
+          )
+        ),
+        el('div', { class: 'member-card-actions' },
+          el('button', { class: 'btn-card-action', onclick: () => openMemberEditModal(m) },
+            el('i', { class: 'fa-solid fa-pen', style: 'margin-right:6px;font-size:11px;' }),
+            '수정'
+          ),
+          m.id !== State.user.id
+            ? el('button', { class: 'btn-card-action is-danger', onclick: () => deleteMember(m.id) },
+                el('i', { class: 'fa-solid fa-trash', style: 'margin-right:6px;font-size:11px;' }),
+                '삭제'
+              )
+            : null
+        )
+      )
+    )
+  );
+
+  return el('div', { class: 'member-list-wrap' }, table, cards);
 }
 
 function filterMemberTable(q) {
   const ql = q.toLowerCase();
+  // V7-3: 데스크톱 테이블 + 모바일 카드 양쪽 필터링
   $$('#member-tbody tr').forEach(tr => {
-    const txt = tr.textContent.toLowerCase();
+    const txt = tr.dataset.search || tr.textContent.toLowerCase();
     tr.style.display = txt.includes(ql) ? '' : 'none';
+  });
+  $$('#member-cards-mobile .member-card').forEach(card => {
+    const txt = card.dataset.search || card.textContent.toLowerCase();
+    card.style.display = txt.includes(ql) ? '' : 'none';
   });
 }
 

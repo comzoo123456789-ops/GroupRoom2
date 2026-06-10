@@ -1,10 +1,42 @@
-# 메이트리그라운드 (Mateground) — V6
+# 메이트리그라운드 (Mateground) — V7
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
 ## 프로젝트 개요
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
-- **주요 기능**: 공간 예약, 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI
+- **주요 기능**: 공간 예약, 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI (V7 모바일 UX 전면 고도화)
+
+## 🆕 V7 신규 기능 (모바일 UX 전면 고도화)
+
+### V7-1 — 상단 헤더 양 끝 정렬 (좌 로고 / 우 아바타+이름+햄버거)
+- 모바일(≤768px) `.global-nav-inner`에 `justify-content: space-between` 적용
+- 왼쪽: `.nav-brand` (로고 + "메이트리그라운드", 50vw 최대치, 잘림 방지)
+- 오른쪽: `.nav-actions`에 `margin-left: auto`로 우측 끝 밀착
+- **사용자 이름 텍스트 신설** (`.nav-user-name`) — 데스크톱에서는 숨김, 모바일에서만 노출 (최대 90px 말줄임)
+- 우측 정렬 순서: `이름 → 아바타(28px) → 햄버거 버튼`
+
+### V7-2 — 관리 페이지 모바일 가로 탭 바
+- 모바일에서 `.admin-layout`을 `grid-template-columns: 1fr` 로 강제 (세로 분할 해제)
+- `.admin-side-nav`를 `display: flex; flex-direction: row; overflow-x: auto; white-space: nowrap`로 가로 한 줄 배치
+- `-webkit-overflow-scrolling: touch` + 4px 가로 스크롤바 → 부드러운 터치 스와이프
+- 각 탭은 `border-radius: 999px` 알약형 + 활성 탭만 진한 배경(`var(--ink)`)으로 강조
+- "메이트리그라운드" side-label은 모바일에서 숨김
+
+### V7-3 — 멤버 테이블/모달/드롭존 모바일 가변 폭 + 카드 UI 전환
+- **모달**: `.modal`이 `width: 92%; max-width: 100%`로 가변. 인라인 `max-width: 640px/560px`도 미디어 쿼리로 덮어쓰기
+- **모달 푸터**: 모바일에서 버튼 `flex-direction: column`으로 세로 배치 + `width: 100%`
+- **드롭존**: `.bulk-dropzone`이 `width: 100%`로 부모 폭에 맞춰 가변
+- **멤버 리스트 카드화**: `buildMemberTable()`이 데스크톱 `<table.member-table-desktop>` + 모바일 `<div.member-cards-mobile>` 듀얼 렌더링
+  - 데스크톱: 기존 테이블 그대로
+  - 모바일: 카드 한 장에 `[아바타+이름+이메일+역할 뱃지] → [부서/직책/상태] → [수정/삭제 액션]` 세로 정렬
+  - 가로 스크롤 완전 제거
+- **검색**: `filterMemberTable()`이 양쪽(테이블 tr + 카드)을 동시에 필터링 (`data-search` 속성 활용)
+
+### V7-4 — 관리 메뉴 sticky/fixed 모바일 전면 해제
+- 기존 `.admin-side-nav { position: sticky; top: 116px }`이 모바일에서 본문을 가리는 문제
+- 모바일 미디어 쿼리에서 `.admin-side-nav`에 `position: relative !important; top: auto !important` 강제
+- 안전망: `.sub-nav`도 모바일에서 `position: relative !important`로 해제
+- 사용자가 페이지를 스크롤하면 관리 탭 바가 자연스럽게 본문과 함께 위로 사라짐
 
 ## 접속 URL
 - **로컬 개발**: http://localhost:3000
@@ -12,7 +44,7 @@ WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 - **WYLIE 관리자**: `admin@wylie.co.kr` / `admin1234`
 - **LUSH 관리자**: `admin@lush.co.kr` / `admin1234`
 
-## 🆕 V6 신규 기능
+## V6 누적 기능 (요약)
 
 ### V6-1 — 캘린더 레이아웃 동적 컬럼 + 5층 회의실 통합
 - **문제**: 공간이 7개를 넘으면(예: WYLIE의 8번째 '5층 회의실') CSS 그리드가 `repeat(7, 1fr)` 하드코딩으로 인해 컬럼이 왼쪽 구석에 세로로 깨져 잘려 나옴
@@ -150,22 +182,32 @@ npx wrangler d1 execute webapp-production --local --command="SELECT email, is_fi
 npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant_scope FROM spaces"
 ```
 
-## 검증 결과 (V6 E2E)
+## 검증 결과 (V7 E2E)
 | 시나리오 | 결과 |
 |---|---|
-| **V6-1** WYLIE / spaces 응답 = 8개 (5층 회의실 포함, tenant_scope=WYLIE) | ✅ |
-| **V6-1** LUSH / spaces 응답에 5층 회의실 미포함 | ✅ |
-| **V6-1** 빌드 산출물에 동적 grid-template-columns 로직 포함 | ✅ |
-| **V6-2** `.nav-hamburger`, `.mobile-nav-drawer`, `.tt-row-filters` CSS 빌드 포함 | ✅ |
-| **V6-3** SheetJS CDN(xlsx@0.18.5)이 _worker.js에 포함 | ✅ |
-| **V6-3** `parseAndFill`/`.bulk-dropzone`/한글 alias 매핑 코드 포함 | ✅ |
-| **V6-4** `jumpDate` sessionStorage 패턴 7개 위치 사용 | ✅ |
-| **V6-4** `.upcoming-row.is-clickable:hover` + Ripple `::after` 스타일 포함 | ✅ |
-| Playwright /home, /spaces, /insights, /admin/members 콘솔 에러 0건 | ✅ 4페이지 모두 |
-| WYLIE + LUSH 양쪽 로그인 → 페이지 진입 정상 | ✅ |
+| **V7-1** `.nav-user-name` 신설, 모바일 미디어 쿼리에서 `display: inline-block` | ✅ |
+| **V7-1** 모바일 `.global-nav-inner { justify-content: space-between }` | ✅ |
+| **V7-2** 모바일 `.admin-side-nav { display: flex; flex-direction: row; overflow-x: auto }` | ✅ |
+| **V7-2** 알약형 탭(`border-radius: 999px`) + 활성 탭 진한 배경 | ✅ |
+| **V7-3** 모바일 `.modal { width: 92%; max-width: 100% }` + 푸터 세로 버튼 | ✅ |
+| **V7-3** 멤버 테이블 듀얼 렌더링 (`.member-table-desktop` + `.member-cards-mobile`) | ✅ |
+| **V7-3** `filterMemberTable()`이 카드/테이블 양쪽 필터 (`data-search` 속성) | ✅ |
+| **V7-4** 모바일 `.admin-side-nav { position: relative !important; top: auto !important }` | ✅ |
+| **V7-4** 안전망: `.sub-nav`도 모바일에서 sticky 해제 | ✅ |
+| Playwright /admin/members, /admin/spaces, /admin/org, /admin/general 콘솔 에러 0건 | ✅ 4페이지 모두 |
+| 서빙되는 app.js에 V7 식별자 12회 / styles.css에 21회 포함 | ✅ |
+
+## 검증 결과 (V6 E2E — 회귀 OK)
+| 시나리오 | 결과 |
+|---|---|
+| WYLIE / spaces 응답 = 8개 (5층 회의실 포함) | ✅ |
+| LUSH / spaces 응답에 5층 회의실 미포함 | ✅ |
+| SheetJS(xlsx@0.18.5) CDN 로드 | ✅ |
+| `jumpDate` sessionStorage 라우팅 패턴 동작 | ✅ |
+| Playwright /home, /spaces, /insights, /admin/members 콘솔 에러 0건 | ✅ |
 
 ## 배포
 - **Platform**: Cloudflare Pages
 - **Status**: 로컬 개발 환경 (PM2 + wrangler pages dev)
 - **Tech Stack**: Hono + TypeScript + Vanilla JS SPA + D1 + Tailwind(인라인 CSS 변수) + Font Awesome
-- **Last Updated**: 2026-06-10 (V6)
+- **Last Updated**: 2026-06-10 (V7)
