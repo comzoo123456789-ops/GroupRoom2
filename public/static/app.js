@@ -371,8 +371,13 @@ async function handleLogout() {
 
 // ============== HOME PAGE ==============
 async function renderHome() {
-  const res = await api('/api/reservations/upcoming');
-  const reservations = res?.data?.reservations || [];
+  // V7 고도화 §3: 받은 초대(PENDING) + 다가오는 일정(주최 OR 수락) 병렬 로드
+  const [resUpcoming, resInvites] = await Promise.all([
+    api('/api/reservations/upcoming'),
+    api('/api/reservations/invitations'),
+  ]);
+  const reservations = resUpcoming?.data?.reservations || [];
+  const invitations = resInvites?.data?.invitations || [];
 
   const grouped = {};
   for (const r of reservations) {
@@ -412,7 +417,13 @@ async function renderHome() {
               el('i', { class: 'fa-regular fa-clock', style: 'margin-right:6px;font-size:11px;color:#7a7a7a;' }),
               `${r.start_time} - ${r.end_time}`
             ),
-            el('div', { class: 'title' }, r.title || '새로운 일정'),
+            el('div', { class: 'title' },
+              r.title || '새로운 일정',
+              /* V7 고도화 §3: 본인 역할 배지 — 주최/참석 구분 */
+              r.my_role === 'ATTENDEE'
+                ? el('span', { class: 'role-badge is-attendee' }, '참석')
+                : el('span', { class: 'role-badge is-owner' }, '주최')
+            ),
             el('div', { class: 'space-pill' },
               el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
               r.space_name
@@ -438,6 +449,51 @@ async function renderHome() {
         el('p', null, '오늘도 좋은 하루 되세요!')
       )
     ),
+
+    /* [V7 고도화 §3] 받은 초대 알림 박스 — PENDING 상태인 초대만, 수락/거절 인라인 액션 */
+    invitations.length > 0
+      ? el('div', { class: 'invites-section' },
+          el('h3', { class: 'invites-section-title' },
+            el('i', { class: 'fa-solid fa-envelope-open-text', style: 'margin-right:8px;color:#0066cc;' }),
+            '받은 초대',
+            el('span', { class: 'invites-count-badge' }, invitations.length)
+          ),
+          el('div', { class: 'invites-list' },
+            ...invitations.map(inv =>
+              el('div', { class: 'invite-card' },
+                el('div', { class: 'invite-card-main' },
+                  el('div', { class: 'invite-card-title' }, inv.title || '새로운 일정'),
+                  el('div', { class: 'invite-card-meta' },
+                    el('span', { class: 'invite-card-time' },
+                      el('i', { class: 'fa-regular fa-calendar', style: 'margin-right:4px;' }),
+                      `${dayjs(inv.date).locale('ko').format('M월 D일 (dd)')} · ${inv.start_time} - ${inv.end_time}`
+                    ),
+                    el('span', { class: 'invite-card-space' },
+                      el('span', { class: 'space-dot', style: `background:${inv.space_color || '#7a7a7a'};` }),
+                      inv.space_name
+                    ),
+                  ),
+                  el('div', { class: 'invite-card-owner' },
+                    el('div', { class: 'avatar', style: `background:${inv.owner_avatar_color || '#7a7a7a'};width:20px;height:20px;font-size:10px;` }, initials(inv.owner_name)),
+                    el('span', null, `${inv.owner_name}님이 초대했습니다`)
+                  ),
+                ),
+                el('div', { class: 'invite-card-actions' },
+                  el('button', {
+                    class: 'btn-primary invite-accept-btn',
+                    onclick: () => respondInvitation(inv.id, 'ACCEPT'),
+                  }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
+                  el('button', {
+                    class: 'btn-secondary invite-decline-btn',
+                    onclick: () => respondInvitation(inv.id, 'DECLINE'),
+                  }, '거절'),
+                )
+              )
+            )
+          )
+        )
+      : null,
+
     el('div', { class: 'upcoming-section' },
       el('h3', null, '앞으로의 일정'),
       reservations.length === 0
@@ -948,6 +1004,11 @@ function openReservationModal(initial = {}) {
     start_time: initial.start_time || '09:00',
     end_time: initial.end_time || '10:00',
     recurring: null, // {frequency, end_type, end_date, end_count}
+    // V7 고도화 §2: 참석자 멀티셀렉트
+    attendees: [],           // [{id, name, email, avatar_color, department, position}]
+    attendeeQuery: '',       // 자동완성 입력 텍스트
+    attendeeSuggestions: [], // 드롭다운 후보
+    attendeeDropdownOpen: false,
   };
   renderModal();
 }
@@ -1007,6 +1068,9 @@ function renderModal() {
         )
       ),
 
+      /* [V7 고도화 §2] 참석자 초대 — 자동완성 + 멀티셀렉트 태그 */
+      buildAttendeesSection(),
+
       modalState.recurring && el('div', { class: 'modal-section repeat-panel' },
         el('div', { class: 'modal-section-title' }, '반복주기'),
         el('div', { class: 'repeat-freq-tabs' },
@@ -1064,6 +1128,176 @@ function renderModal() {
   document.body.append(backdrop);
 }
 
+/* ===== [V7 고도화 §2] 참석자 초대 섹션 빌더 ===== */
+function buildAttendeesSection() {
+  const tagsBox = el('div', { class: 'attendees-tags', id: 'attendees-tags' });
+  for (const a of modalState.attendees) {
+    tagsBox.append(
+      el('span', { class: 'attendee-tag' },
+        el('span', { class: 'attendee-tag-dot', style: `background:${a.avatar_color || '#7a7a7a'};` }),
+        el('span', { class: 'attendee-tag-name' }, a.name),
+        el('button', {
+          type: 'button',
+          class: 'attendee-tag-remove',
+          'aria-label': `${a.name} 제거`,
+          onclick: (e) => { e.preventDefault(); removeAttendee(a.id); },
+        }, '×')
+      )
+    );
+  }
+
+  const input = el('input', {
+    type: 'text',
+    class: 'attendee-search-input',
+    id: 'attendee-search-input',
+    placeholder: modalState.attendees.length === 0
+      ? '이름·이메일·부서로 검색해 초대하세요'
+      : '추가 검색…',
+    value: modalState.attendeeQuery,
+    autocomplete: 'off',
+    oninput: (e) => onAttendeeQueryInput(e.target.value),
+    onfocus: () => openAttendeeDropdown(),
+    onkeydown: (e) => {
+      if (e.key === 'Escape') closeAttendeeDropdown();
+      if (e.key === 'Backspace' && !modalState.attendeeQuery && modalState.attendees.length > 0) {
+        // 빈 입력에서 백스페이스 → 마지막 태그 제거
+        removeAttendee(modalState.attendees[modalState.attendees.length - 1].id);
+      }
+    },
+  });
+
+  const dropdown = el('div', {
+    class: 'attendee-dropdown' + (modalState.attendeeDropdownOpen ? ' is-open' : ''),
+    id: 'attendee-dropdown',
+  });
+  renderAttendeeSuggestionsInto(dropdown);
+
+  return el('div', { class: 'modal-section' },
+    el('div', { class: 'modal-section-title' }, '참석자 초대'),
+    el('div', { class: 'attendees-field' },
+      tagsBox,
+      el('div', { class: 'attendee-search-wrap', style: 'position:relative;' },
+        input,
+        dropdown,
+      ),
+    ),
+  );
+}
+
+function renderAttendeeSuggestionsInto(dropdown) {
+  dropdown.innerHTML = '';
+  const selectedIds = new Set(modalState.attendees.map(a => a.id));
+  const list = (modalState.attendeeSuggestions || []).filter(u => !selectedIds.has(u.id));
+  if (list.length === 0) {
+    dropdown.append(el('div', { class: 'attendee-dropdown-empty' },
+      modalState.attendeeQuery ? '검색 결과가 없습니다.' : '초대 가능한 멤버가 없습니다.'));
+    return;
+  }
+  for (const u of list) {
+    const meta = [u.department, u.position].filter(Boolean).join(' · ');
+    dropdown.append(
+      el('button', {
+        type: 'button',
+        class: 'attendee-dropdown-item',
+        onmousedown: (e) => { e.preventDefault(); addAttendee(u); },
+      },
+        el('span', { class: 'attendee-dd-avatar', style: `background:${u.avatar_color || '#7a7a7a'};` }, initials(u.name)),
+        el('div', { class: 'attendee-dd-text' },
+          el('div', { class: 'attendee-dd-name' }, u.name),
+          el('div', { class: 'attendee-dd-meta' }, meta || u.email),
+        ),
+      )
+    );
+  }
+}
+
+let attendeeSearchTimer = null;
+function onAttendeeQueryInput(q) {
+  modalState.attendeeQuery = q;
+  modalState.attendeeDropdownOpen = true;
+  if (attendeeSearchTimer) clearTimeout(attendeeSearchTimer);
+  attendeeSearchTimer = setTimeout(() => fetchAttendeeSuggestions(q), 150);
+  // 즉시 드롭다운 표시 갱신
+  const dd = $('#attendee-dropdown');
+  if (dd) {
+    dd.classList.add('is-open');
+    renderAttendeeSuggestionsInto(dd);
+  }
+}
+
+async function fetchAttendeeSuggestions(q) {
+  const url = `/api/members/search?q=${encodeURIComponent(q || '')}&limit=20`;
+  const res = await api(url);
+  if (!res.ok) return;
+  modalState.attendeeSuggestions = res.data?.users || [];
+  const dd = $('#attendee-dropdown');
+  if (dd && modalState.attendeeDropdownOpen) {
+    renderAttendeeSuggestionsInto(dd);
+  }
+}
+
+function openAttendeeDropdown() {
+  modalState.attendeeDropdownOpen = true;
+  // 처음 포커스 시 빈 검색으로 초기 목록 로딩
+  if ((modalState.attendeeSuggestions || []).length === 0) {
+    fetchAttendeeSuggestions(modalState.attendeeQuery || '');
+  } else {
+    const dd = $('#attendee-dropdown');
+    if (dd) { dd.classList.add('is-open'); renderAttendeeSuggestionsInto(dd); }
+  }
+  // 바깥 클릭 시 닫힘
+  setTimeout(() => {
+    document.addEventListener('mousedown', onceCloseAttendeeDropdown, { once: true });
+  }, 0);
+}
+
+function onceCloseAttendeeDropdown(e) {
+  if (e.target.closest('.attendee-search-wrap') || e.target.closest('.attendee-dropdown')) {
+    // 내부 클릭 → 닫지 않고 다시 리스너 등록
+    document.addEventListener('mousedown', onceCloseAttendeeDropdown, { once: true });
+    return;
+  }
+  closeAttendeeDropdown();
+}
+
+function closeAttendeeDropdown() {
+  modalState.attendeeDropdownOpen = false;
+  const dd = $('#attendee-dropdown');
+  if (dd) dd.classList.remove('is-open');
+}
+
+function addAttendee(user) {
+  if (modalState.attendees.some(a => a.id === user.id)) return;
+  modalState.attendees.push({
+    id: user.id, name: user.name, email: user.email,
+    avatar_color: user.avatar_color, department: user.department, position: user.position,
+  });
+  modalState.attendeeQuery = '';
+  // 태그 박스만 업데이트하기보다 모달 본체를 다시 그리는 게 안정적
+  rerenderAttendeesSection();
+  // 입력 포커스 다시 가져가기
+  setTimeout(() => $('#attendee-search-input')?.focus(), 0);
+}
+
+function removeAttendee(memberId) {
+  modalState.attendees = modalState.attendees.filter(a => a.id !== memberId);
+  rerenderAttendeesSection();
+}
+
+function rerenderAttendeesSection() {
+  // 부분 재렌더 — 태그박스 + 드롭다운 영역만 갱신
+  const oldField = $('.attendees-field');
+  if (!oldField) return;
+  const fresh = buildAttendeesSection();
+  const newField = fresh.querySelector('.attendees-field');
+  oldField.replaceWith(newField);
+  // 드롭다운이 열려있으면 다시 렌더
+  if (modalState.attendeeDropdownOpen) {
+    renderAttendeeSuggestionsInto($('#attendee-dropdown'));
+    $('#attendee-dropdown')?.classList.add('is-open');
+  }
+}
+
 function buildTimeSelect(name, value) {
   const options = [];
   for (let h = 0; h < 24; h++) {
@@ -1111,6 +1345,8 @@ async function submitReservation(force = false) {
     start_time: modalState.start_time,
     end_time: modalState.end_time,
     recurring: modalState.recurring,
+    // V7 고도화 §2: 참석자 다대다 — 백엔드가 PENDING 상태로 reservation_attendees에 bulk insert
+    attendee_ids: (modalState.attendees || []).map(a => a.id),
     force,
   };
   const res = await api('/api/reservations', { method: 'POST', body: JSON.stringify(body) });
@@ -1125,7 +1361,13 @@ async function submitReservation(force = false) {
     toast(res.data?.error || '예약에 실패했습니다.', 'error');
     return;
   }
-  toast(`예약이 생성되었습니다. (${res.data.created}건)`, 'success');
+  const invited = res.data.invited || 0;
+  toast(
+    invited > 0
+      ? `예약이 생성되었습니다. (${res.data.created}건 · ${invited}명에게 초대 발송)`
+      : `예약이 생성되었습니다. (${res.data.created}건)`,
+    'success'
+  );
   closeModal();
   loadTimeline().then(() => {
     const grid = $('#timeline-grid');
@@ -1140,8 +1382,21 @@ async function submitReservation(force = false) {
   });
 }
 
-function openReservationDetail(r) {
+async function openReservationDetail(r) {
   const canEdit = State.user.role === 'admin' || State.user.id === r.user_id;
+  // V7 고도화 §3a: 상세 API로 attendees + my_invitation_status 동승 가져오기
+  let attendees = [];
+  let myInvitationStatus = null;
+  let myRole = State.user.id === r.user_id ? 'OWNER' : 'NONE';
+  try {
+    const detail = await api(`/api/reservations/${r.id}`);
+    if (detail.ok) {
+      attendees = detail.data?.attendees || [];
+      myInvitationStatus = detail.data?.my_invitation_status || null;
+      myRole = detail.data?.my_role || myRole;
+    }
+  } catch (_) { /* 상세 실패 시 기본값으로 폴백 */ }
+
   // 편집용 임시 state
   const edit = {
     title: r.title || '',
@@ -1201,14 +1456,71 @@ function openReservationDetail(r) {
           r.space_name
         )
       ),
+      /* [V7 고도화 §3a] 예약자(owner) — 단독 섹션, 굵게 강조 */
       el('div', { class: 'modal-section' },
         el('div', { class: 'modal-section-title' }, '예약자'),
-        el('div', { style: 'display:flex;align-items:center;gap:8px;' },
-          el('div', { class: 'avatar', style: `background:${r.user_avatar_color || '#7a7a7a'};width:28px;height:28px;font-size:11px;` }, initials(r.user_name)),
-          el('div', null, r.user_name, ' · ', r.tenant_name || ''),
-          r.created_by_admin ? el('span', { class: 'tag tag-blue', style: 'margin-left:6px;' }, 'Admin') : null
+        el('div', { class: 'detail-owner-row' },
+          el('div', { class: 'avatar', style: `background:${r.user_avatar_color || '#7a7a7a'};width:32px;height:32px;font-size:12px;` }, initials(r.user_name)),
+          el('div', { class: 'detail-owner-text' },
+            el('div', { class: 'detail-owner-name' }, r.user_name || '-',
+              r.tenant_name ? el('span', { class: 'detail-owner-tenant' }, ' · ', r.tenant_name) : null
+            ),
+            r.created_by_admin ? el('span', { class: 'tag tag-blue' }, 'Admin') : null
+          )
         )
       ),
+
+      /* [V7 고도화 §3a] 참석자(attendees) — 별도 섹션. 수락/대기/거절 배지 노출 */
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'modal-section-title' },
+          '참석자',
+          el('span', { class: 'detail-attendees-count' },
+            ` (${attendees.length}명${attendees.length > 0
+              ? ` · 수락 ${attendees.filter(a => a.status === 'ACCEPTED').length}`
+              : ''})`)
+        ),
+        attendees.length === 0
+          ? el('div', { class: 'detail-attendees-empty' }, '초대된 참석자가 없습니다.')
+          : el('div', { class: 'detail-attendees-list' },
+              ...attendees.map(a =>
+                el('div', { class: 'detail-attendee-row' },
+                  el('div', { class: 'avatar', style: `background:${a.avatar_color || '#7a7a7a'};width:26px;height:26px;font-size:11px;` }, initials(a.name)),
+                  el('div', { class: 'detail-attendee-text' },
+                    el('div', { class: 'detail-attendee-name' }, a.name),
+                    el('div', { class: 'detail-attendee-meta' },
+                      [a.department, a.position].filter(Boolean).join(' · ') || a.email
+                    )
+                  ),
+                  el('span', { class: `attendee-status-badge is-${(a.status || 'PENDING').toLowerCase()}` },
+                    a.status === 'ACCEPTED' ? '수락' : a.status === 'DECLINED' ? '거절' : '대기'
+                  )
+                )
+              )
+            )
+      ),
+
+      /* [V7 고도화 §3a] 본인이 초대받은 경우 — 수락/거절 인라인 안내 */
+      (myRole === 'ATTENDEE' && myInvitationStatus === 'PENDING')
+        ? el('div', { class: 'modal-section invite-action-banner' },
+            el('div', { class: 'invite-action-title' }, '이 일정에 참석 여부를 선택해 주세요'),
+            el('div', { class: 'invite-action-buttons' },
+              el('button', {
+                class: 'btn-primary invite-accept-btn',
+                onclick: () => respondInvitation(r.id, 'ACCEPT'),
+              }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
+              el('button', {
+                class: 'btn-secondary invite-decline-btn',
+                onclick: () => respondInvitation(r.id, 'DECLINE'),
+              }, el('i', { class: 'fa-solid fa-xmark' }), ' 거절'),
+            )
+          )
+        : (myRole === 'ATTENDEE' && myInvitationStatus)
+            ? el('div', { class: 'modal-section invite-status-banner' },
+                myInvitationStatus === 'ACCEPTED'
+                  ? '이 일정의 참석을 수락하셨습니다.'
+                  : '이 일정의 참석을 거절하셨습니다.'
+              )
+            : null,
     ),
     el('div', { class: 'modal-footer' },
       canEdit ? el('button', { class: 'btn-secondary', style: 'color:#d33;', onclick: () => deleteReservation(r.id, r.recurring_rule_id) }, '예약 취소') : null,
@@ -1217,6 +1529,36 @@ function openReservationDetail(r) {
   );
   backdrop.append(modal);
   document.body.append(backdrop);
+}
+
+/**
+ * V7 고도화 §3: 초대 응답 처리 — 수락(ACCEPT)/거절(DECLINE)
+ *  수락 시 해당 예약이 본인 '앞으로의 일정' 및 공간 타임라인 mine 필터에 즉시 반영됨.
+ */
+async function respondInvitation(reservationId, action) {
+  const res = await api(`/api/reservations/${reservationId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    toast(res.data?.error || '응답 처리에 실패했습니다.', 'error');
+    return;
+  }
+  toast(
+    action === 'ACCEPT'
+      ? '초대를 수락했습니다. 일정이 캘린더에 반영됩니다.'
+      : '초대를 거절했습니다.',
+    'success'
+  );
+  closeModal();
+  // 홈/공간 타임라인 둘 다 갱신 — 현재 페이지가 어디든 안전하게
+  try {
+    if (State.page === 'home') await renderHome();
+    else if (State.page === 'spaces') {
+      await loadTimeline();
+      renderSpaces();
+    }
+  } catch (_) {}
 }
 
 /**

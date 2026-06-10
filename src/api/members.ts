@@ -169,14 +169,33 @@ members.delete('/:id', async (c) => {
 });
 
 /** 모든 사용자 검색 (참석자 추가용) - 본인 회사 멤버만 */
+/**
+ * V7 고도화 §2: 참석자 자동완성용 멤버 검색
+ *  - 이름 / 이메일 / 부서 / 직책 모두 LIKE 매칭
+ *  - 빈 q일 때도 같은 테넌트의 활성 멤버 상위 20명 반환 (드롭다운 초기 노출)
+ *  - 본인은 응답에서 제외 (자신을 참석자로 초대 불가)
+ */
 members.get('/search', async (c) => {
   const user = c.get('user');
-  const q = c.req.query('q') || '';
-  const result = await c.env.DB.prepare(`
-    SELECT id, name, email, avatar_color FROM users
-    WHERE tenant_id = ? AND status = 'active' AND (name LIKE ? OR email LIKE ?)
-    LIMIT 10
-  `).bind(user.tenant_id, `%${q}%`, `%${q}%`).all();
+  const q = (c.req.query('q') || '').trim();
+  const limit = Math.min(Number(c.req.query('limit')) || 20, 50);
+
+  let sql = `
+    SELECT id, name, email, avatar_color, department, position
+    FROM users
+    WHERE tenant_id = ? AND status = 'active' AND id != ?
+  `;
+  const binds: any[] = [user.tenant_id, user.id];
+
+  if (q) {
+    sql += ` AND (name LIKE ? OR email LIKE ? OR IFNULL(department,'') LIKE ? OR IFNULL(position,'') LIKE ?)`;
+    const wild = `%${q}%`;
+    binds.push(wild, wild, wild, wild);
+  }
+  sql += ` ORDER BY name ASC LIMIT ?`;
+  binds.push(limit);
+
+  const result = await c.env.DB.prepare(sql).bind(...binds).all();
   return c.json({ users: result.results || [] });
 });
 

@@ -3220,3 +3220,361 @@ html, body, button, input, select, textarea {
 /* ===================================================================== */
 /*  V7 완결본 후속 패치 끝                                                 */
 /* ===================================================================== */
+
+/* ===================================================================== */
+/*  V7 고도화 — 다대다 참석자 시스템 (자동완성 / 태그 / 초대 카드 / 배지)  */
+/* ===================================================================== */
+
+/* ---------- 예약 모달: 참석자 멀티셀렉트 ---------- */
+.attendees-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attendees-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 0;
+}
+.attendees-tags:empty { display: none; }
+.attendee-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 8px;
+  background: #eef3ff;
+  border: 1px solid #d6e1f7;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #1a3a7a;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.attendee-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.attendee-tag-name { white-space: nowrap; }
+.attendee-tag-remove {
+  background: none;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  color: #1a3a7a;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-weight: 600;
+}
+.attendee-tag-remove:hover { color: #d33; }
+
+.attendee-search-wrap {
+  position: relative;
+}
+.attendee-search-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid #e0e0e0;
+  font-size: 14px;
+  background: #fff;
+  font-family: inherit;
+}
+.attendee-search-input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.12);
+}
+
+.attendee-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 11px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1100;
+  display: none;
+}
+.attendee-dropdown.is-open { display: block; }
+.attendee-dropdown-empty {
+  padding: 14px;
+  font-size: 13px;
+  color: #888;
+  text-align: center;
+}
+.attendee-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+.attendee-dropdown-item:hover { background: #f5f8ff; }
+.attendee-dd-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  flex-shrink: 0;
+}
+.attendee-dd-text { min-width: 0; flex: 1; }
+.attendee-dd-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.attendee-dd-meta {
+  font-size: 12px;
+  color: #7a7a7a;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 예약 상세 모달: 예약자 / 참석자 구분 + 배지 ---------- */
+.detail-owner-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.detail-owner-text { min-width: 0; flex: 1; }
+.detail-owner-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.detail-owner-tenant { color: #7a7a7a; font-weight: 400; font-size: 13px; }
+
+.detail-attendees-count {
+  font-size: 12px;
+  color: #7a7a7a;
+  font-weight: 400;
+}
+.detail-attendees-empty {
+  font-size: 13px;
+  color: #999;
+  padding: 8px 0;
+}
+.detail-attendees-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.detail-attendee-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.detail-attendee-text { min-width: 0; flex: 1; }
+.detail-attendee-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-attendee-meta {
+  font-size: 12px;
+  color: #7a7a7a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.attendee-status-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: -0.02em;
+}
+.attendee-status-badge.is-pending {
+  background: #fff7e0;
+  color: #b07700;
+}
+.attendee-status-badge.is-accepted {
+  background: #e0f6e7;
+  color: #1b8a3a;
+}
+.attendee-status-badge.is-declined {
+  background: #fde7e7;
+  color: #c0392b;
+}
+
+/* 본인 초대 액션 배너 (상세 모달 안) */
+.invite-action-banner {
+  background: #f5f8ff;
+  border: 1px solid #d6e1f7;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.invite-action-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a3a7a;
+  margin-bottom: 10px;
+}
+.invite-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+.invite-action-buttons .btn-primary,
+.invite-action-buttons .btn-secondary {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+.invite-status-banner {
+  background: #f3f3f3;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #555;
+}
+
+/* ---------- 홈: '앞으로의 일정' 역할 배지 (주최/참석) ---------- */
+.role-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: -0.02em;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+.role-badge.is-owner {
+  background: #e7f0ff;
+  color: #0a52b8;
+}
+.role-badge.is-attendee {
+  background: #f0e7ff;
+  color: #5b2bb0;
+}
+
+/* ---------- 홈: 받은 초대 알림 박스 ---------- */
+.invites-section {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: 24px 28px;
+  margin-bottom: var(--space-xl);
+  border: 1px solid #e6efff;
+}
+.invites-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+}
+.invites-count-badge {
+  margin-left: 8px;
+  background: #0066cc;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  min-width: 22px;
+  text-align: center;
+}
+.invites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.invite-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #f9fbff;
+  border: 1px solid #e0eaff;
+  border-radius: 12px;
+}
+.invite-card-main { flex: 1; min-width: 0; }
+.invite-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+.invite-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #6a6a6a;
+  margin-bottom: 6px;
+}
+.invite-card-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.invite-card-space { display: inline-flex; align-items: center; gap: 5px; }
+.invite-card-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #555;
+}
+.invite-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.invite-card-actions .btn-primary {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.invite-card-actions .btn-secondary {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* 모바일: 초대 카드 세로 스택 */
+@media (max-width: 768px) {
+  .invites-section { padding: 18px 18px; }
+  .invite-card { flex-direction: column; align-items: stretch; gap: 10px; }
+  .invite-card-actions { width: 100%; }
+  .invite-card-actions .btn-primary,
+  .invite-card-actions .btn-secondary { flex: 1; }
+  .attendee-dropdown { max-height: 200px; }
+}
+
+/* ===================================================================== */
+/*  V7 고도화 — 다대다 참석자 시스템 끝                                    */
+/* ===================================================================== */

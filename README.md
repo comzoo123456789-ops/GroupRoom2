@@ -6,7 +6,79 @@ WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
 - **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
 
-## 🆕 V7 완결본 후속 패치 (최신 — 헤더 롤백 + 홈 일정 한 줄)
+## 🆕 V7 고도화 최종 (최신 — M:N 참석자 시스템 + 초대 수락/거절)
+
+회의 예약을 **예약자 1명 → 참석자 N명** 구조로 확장. 초대받은 참석자가 수락하면 본인의 캘린더(`/upcoming`, 공간 타임라인)에 실시간으로 자동 연동됩니다.
+
+### §1 — DB: `reservation_attendees` M:N 매핑 테이블 신설
+- **마이그레이션**: `migrations/0004_v7_reservation_attendees.sql`
+- **스키마**:
+  ```sql
+  CREATE TABLE reservation_attendees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservation_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING'
+      CHECK (status IN ('PENDING','ACCEPTED','DECLINED')),
+    invited_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at DATETIME,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE (reservation_id, member_id)
+  );
+  CREATE INDEX idx_resv_attendees_member ON reservation_attendees (member_id, status);
+  CREATE INDEX idx_resv_attendees_reservation ON reservation_attendees (reservation_id);
+  ```
+
+### §2 — 백엔드 API (총 6개 엔드포인트)
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| `POST` | `/api/reservations` | **확장**: 본문에 `attendee_ids: number[]` 수신 → 예약 INSERT 후 `c.env.DB.batch()`로 PENDING 행 일괄 삽입(자기 자신·중복 자동 제외). 응답에 `invited` 카운트 추가 |
+| `GET` | `/api/reservations` | **확장**: `attendees_count` / `accepted_count` 서브쿼리 컬럼 추가. `?mine=1` 필터가 `owner OR EXISTS(attendee ACCEPTED)`로 확장 |
+| `GET` | `/api/reservations/upcoming` | **확장**: `my_role` CASE 컬럼(`OWNER`/`ATTENDEE`) + 같은 OR 필터 적용 → 수락한 초대 일정이 본인 캘린더에 즉시 노출 |
+| `GET` | `/api/reservations/invitations` | **신규**: 현재 사용자의 PENDING 초대 목록만 반환(주최자/공간/시간 조인 포함) |
+| `GET` | `/api/reservations/:id` | **신규**: 상세(`{reservation, attendees[], my_role, my_invitation_status}`) — 모달용 |
+| `POST` | `/api/reservations/:id/respond` | **신규**: `{action: 'ACCEPT'\|'DECLINE'}` → `status` + `responded_at` 갱신 |
+
+추가로 `GET /api/members/search`를 자동완성용으로 강화:
+- 빈 쿼리(`q=`) 허용 → 상위 N건 반환
+- LIKE 대상 확장: `name + department + position`
+- 자기 자신(`id != ?`) 자동 제외, `?limit=` 쿼리 파라미터 지원
+
+### §3 — 프론트엔드 UI 3개 영역
+
+**(a) 예약 등록 모달 — 참석자 멀티 셀렉트**
+- `buildAttendeesSection()` + 10개 헬퍼 함수(autocomplete, debounce 150ms, outside-click 닫기)
+- 입력창에 이름/부서/직책 일부 → 드롭다운 아바타+이름+소속 표기
+- 선택 시 `[● 이름 ×]` 태그 형태로 누적, X 버튼으로 개별 제거
+- 제출 시 `attendee_ids: [...]`로 함께 전송, 토스트에 `초대 N명` 표시
+
+**(b) 예약 상세 모달 — 예약자/참석자 명확 분리**
+- 상단 `.detail-owner-row`: 예약자(주최자) 아바타 + 이름 + 테넌트
+- 그 아래 `.detail-attendees-list`: 참석자 1명당 한 행으로 아바타+이름+부서/직책 + 상태 배지
+  - 상태 배지 컬러: PENDING(앰버), ACCEPTED(그린), DECLINED(레드)
+- 본인이 PENDING 초대자인 경우 `.invite-action-banner`에 **[수락] [거절]** 버튼 표시
+  - 클릭 → `respondInvitation()` → 토스트 + 홈/타임라인 자동 새로고침
+
+**(c) 홈 — 초대함 + 일정 카드 역할 배지**
+- `renderHome`에서 `Promise.all([/upcoming, /invitations])` 병렬 호출
+- 초대 PENDING ≥ 1건이면 hero 아래 `.invites-section` 노출 (배지에 카운트)
+- `.invite-card`마다 주최자 정보 + 시간/장소 + **[수락][거절][상세]** 버튼
+- '앞으로의 일정' 각 행에 `role-badge.is-owner(주최)` / `is-attendee(참석)` 표기
+- 직전 패치의 `white-space: nowrap` 시간 룰을 참석 일정에도 동일 적용
+
+### §4 — E2E 검증 결과 (관리자 ↔ 강남욱 시나리오, 모두 ✅)
+1. 관리자 로그인 → `POST /api/reservations`에 `attendee_ids: [48, 203]` → `{ok:true, ids:[84], invited:2}`
+2. DB `reservation_attendees`: 2행 PENDING 정상 생성
+3. 강남욱(id=48) 로그인 → `GET /invitations` → 예약 84 PENDING 노출
+4. `POST /84/respond {action:'ACCEPT'}` → `status:'ACCEPTED'`, `responded_at` 기록
+5. `GET /upcoming` → 예약 84가 `my_role:'ATTENDEE'`, `attendees_count:2`로 즉시 등장 — **실시간 캘린더 연동 작동**
+6. `GET /84` → `attendees[]`에 강남욱(ACCEPTED) + 강다현(PENDING) 동시 반환
+7. 테스트 데이터 정리 완료
+
+---
+
+## V7 완결본 후속 패치 (직전 — 헤더 롤백 + 홈 일정 한 줄)
 
 ### §1 — 헤더 메뉴 버튼 스타일 원상복구 (ROLLBACK)
 - **문제**: 직전 라운드에 `.nav-link / .nav-avatar / .nav-brand` 자체에 `#dfe7f7` 라벤더 블루를 강제 적용해 다크 글로벌 네비 위 메뉴 버튼이 본래 디자인 톤을 잃었음
@@ -329,7 +401,7 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 - **Platform**: Cloudflare Pages
 - **Status**: 로컬 개발 환경 (PM2 + wrangler pages dev)
 - **Tech Stack**: Hono + TypeScript + Vanilla JS SPA + D1 + Tailwind(인라인 CSS 변수) + Font Awesome
-- **Last Updated**: 2026-06-10 (V7 완결본 — 홈 캘린더 동적화 + 모바일 공간헤더 두 줄 분리 + Pretendard/#dfe7f7)
+- **Last Updated**: 2026-06-10 (V7 고도화 최종 — M:N 참석자 시스템 + 초대 수락/거절 + 실시간 캘린더 연동)
 
 ## 검증 결과 (V7 완결본 E2E)
 | 시나리오 | 결과 |

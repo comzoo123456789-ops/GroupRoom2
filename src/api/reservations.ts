@@ -71,7 +71,9 @@ async function checkRoomLimit(
   return { ok: spaceIds.size <= 3, count: spaceIds.size };
 }
 
-/** 예약 목록 - 날짜 범위 조회 (모든 사용자가 통합 타임라인 공유) */
+/** 예약 목록 - 날짜 범위 조회 (모든 사용자가 통합 타임라인 공유)
+ *  V7 고도화: 공간 타임라인 일정 조회에 참석자 수락(ACCEPTED) 일정도 함께 포함되도록
+ *  reservation_attendees JOIN으로 표시할 수 있게 attendees_summary 컬럼 동승. */
 reservations.get('/', async (c) => {
   const user = c.get('user');
   const date = c.req.query('date');
@@ -81,7 +83,9 @@ reservations.get('/', async (c) => {
 
   let query = `
     SELECT r.*, u.name as user_name, u.avatar_color as user_avatar_color, u.tenant_id as user_tenant_id,
-           s.name as space_name, s.color as space_color, t.name as tenant_name
+           s.name as space_name, s.color as space_color, t.name as tenant_name,
+           (SELECT COUNT(*) FROM reservation_attendees ra WHERE ra.reservation_id = r.id) AS attendees_count,
+           (SELECT COUNT(*) FROM reservation_attendees ra WHERE ra.reservation_id = r.id AND ra.status = 'ACCEPTED') AS accepted_count
     FROM reservations r
     JOIN users u ON u.id = r.user_id
     JOIN spaces s ON s.id = r.space_id
@@ -99,9 +103,17 @@ reservations.get('/', async (c) => {
   }
 
   if (mine) {
-    // 본인이 개설자이거나 참석자로 등록된 예약 (attendees는 JSON 배열 / 이메일 포함 가능)
-    query += ' AND (r.user_id = ? OR r.attendees LIKE ? OR r.attendees LIKE ?)';
-    binds.push(user.id, `%"${user.email}"%`, `%"${user.id}"%`);
+    // V7 고도화: 본인이 개설자(user_id) OR 참석자로 ACCEPTED 한 예약
+    //   reservation_attendees 정규화 테이블 우선, 레거시 r.attendees JSON 컬럼도 함께 OR 처리
+    query += ` AND (
+      r.user_id = ?
+      OR EXISTS (
+        SELECT 1 FROM reservation_attendees ra
+        WHERE ra.reservation_id = r.id AND ra.member_id = ? AND ra.status = 'ACCEPTED'
+      )
+      OR r.attendees LIKE ? OR r.attendees LIKE ?
+    )`;
+    binds.push(user.id, user.id, `%"${user.email}"%`, `%"${user.id}"%`);
   }
 
   query += ' ORDER BY r.date ASC, r.start_time ASC';
@@ -110,20 +122,115 @@ reservations.get('/', async (c) => {
   return c.json({ reservations: result.results || [] });
 });
 
-/** 다가오는 내 예약 (홈 대시보드용) */
+/** 다가오는 내 예약 (홈 대시보드용)
+ *  V7 고도화 §3: 주최자(user_id) OR 참석자 수락(ACCEPTED) 상태인 일정을 함께 노출.
+ *  각 행에 my_role = 'OWNER' | 'ATTENDEE' 플래그를 동승. */
 reservations.get('/upcoming', async (c) => {
   const user = c.get('user');
   const result = await c.env.DB.prepare(`
-    SELECT r.*, s.name as space_name, s.color as space_color, u.avatar_color as user_avatar_color, u.name as user_name
+    SELECT r.*, s.name as space_name, s.color as space_color,
+           u.avatar_color as user_avatar_color, u.name as user_name,
+           CASE WHEN r.user_id = ? THEN 'OWNER' ELSE 'ATTENDEE' END AS my_role,
+           (SELECT COUNT(*) FROM reservation_attendees ra WHERE ra.reservation_id = r.id) AS attendees_count
     FROM reservations r
     JOIN spaces s ON s.id = r.space_id
     JOIN users u ON u.id = r.user_id
-    WHERE r.user_id = ? AND r.status = 'confirmed'
+    WHERE r.status = 'confirmed'
       AND (r.date > date('now') OR (r.date = date('now') AND r.end_time > strftime('%H:%M', 'now', 'localtime')))
+      AND (
+        r.user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM reservation_attendees ra
+          WHERE ra.reservation_id = r.id AND ra.member_id = ? AND ra.status = 'ACCEPTED'
+        )
+      )
     ORDER BY r.date ASC, r.start_time ASC
     LIMIT 50
-  `).bind(user.id).all<Reservation>();
+  `).bind(user.id, user.id, user.id).all<Reservation>();
   return c.json({ reservations: result.results || [] });
+});
+
+/** V7 고도화 §3: 받은 초대 목록 (PENDING 상태) — 홈 알림 영역에서 사용 */
+reservations.get('/invitations', async (c) => {
+  const user = c.get('user');
+  const result = await c.env.DB.prepare(`
+    SELECT r.id, r.title, r.date, r.start_time, r.end_time,
+           s.name AS space_name, s.color AS space_color,
+           ow.id AS owner_id, ow.name AS owner_name, ow.avatar_color AS owner_avatar_color,
+           ra.id AS invitation_id, ra.status AS invitation_status, ra.invited_at
+    FROM reservation_attendees ra
+    JOIN reservations r ON r.id = ra.reservation_id
+    JOIN spaces s       ON s.id = r.space_id
+    JOIN users ow       ON ow.id = r.user_id
+    WHERE ra.member_id = ?
+      AND ra.status = 'PENDING'
+      AND r.status = 'confirmed'
+      AND (r.date > date('now') OR (r.date = date('now') AND r.end_time > strftime('%H:%M', 'now', 'localtime')))
+    ORDER BY r.date ASC, r.start_time ASC
+  `).bind(user.id).all();
+  return c.json({ invitations: result.results || [] });
+});
+
+/** V7 고도화 §3: 단건 예약 상세 — 예약자(owner) + 참석자(attendees) 분리 동승 */
+reservations.get('/:id', async (c) => {
+  const user = c.get('user');
+  const id = Number(c.req.param('id'));
+  const r = await c.env.DB.prepare(`
+    SELECT r.*, s.name AS space_name, s.color AS space_color,
+           u.name AS user_name, u.email AS user_email,
+           u.avatar_color AS user_avatar_color, u.department AS user_department, u.position AS user_position
+    FROM reservations r
+    JOIN spaces s ON s.id = r.space_id
+    JOIN users u  ON u.id = r.user_id
+    WHERE r.id = ?
+  `).bind(id).first<any>();
+  if (!r) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
+
+  // 다대다 참석자 목록 (PENDING / ACCEPTED / DECLINED 모두)
+  const attRes = await c.env.DB.prepare(`
+    SELECT ra.id AS invitation_id, ra.status, ra.invited_at, ra.responded_at,
+           m.id, m.name, m.email, m.avatar_color, m.department, m.position
+    FROM reservation_attendees ra
+    JOIN users m ON m.id = ra.member_id
+    WHERE ra.reservation_id = ?
+    ORDER BY ra.id ASC
+  `).bind(id).all<any>();
+
+  // 현재 로그인한 사용자의 참여 상태(있다면)
+  const myInvitation = (attRes.results || []).find((a: any) => a.id === user.id) || null;
+
+  return c.json({
+    reservation: r,
+    attendees: attRes.results || [],
+    my_role: r.user_id === user.id ? 'OWNER' : (myInvitation ? 'ATTENDEE' : 'NONE'),
+    my_invitation_status: myInvitation?.status || null,
+  });
+});
+
+/** V7 고도화 §3: 초대 응답 — ACCEPT / DECLINE */
+reservations.post('/:id/respond', async (c) => {
+  const user = c.get('user');
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json<{ action: 'ACCEPT' | 'DECLINE' }>();
+  const action = body.action;
+  if (action !== 'ACCEPT' && action !== 'DECLINE') {
+    return c.json({ error: '잘못된 action 입니다.' }, 400);
+  }
+  const newStatus = action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED';
+
+  // 본인 초대 레코드 검증
+  const inv = await c.env.DB.prepare(
+    'SELECT * FROM reservation_attendees WHERE reservation_id = ? AND member_id = ?'
+  ).bind(id, user.id).first<any>();
+  if (!inv) {
+    return c.json({ error: '초대 레코드를 찾을 수 없습니다.' }, 404);
+  }
+
+  await c.env.DB.prepare(
+    'UPDATE reservation_attendees SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(newStatus, inv.id).run();
+
+  return c.json({ ok: true, invitation_id: inv.id, status: newStatus });
 });
 
 /** 예약 생성 */
@@ -135,7 +242,8 @@ reservations.post('/', async (c) => {
     date: string;
     start_time: string;
     end_time: string;
-    attendees?: string[];
+    attendees?: string[];          // 레거시 JSON 배열 (이메일/문자열) — 하위 호환 유지
+    attendee_ids?: number[];       // V7 고도화: 다대다 참석자 user.id 배열
     recurring?: {
       frequency: 'daily' | 'weekly' | 'monthly';
       end_type: 'date' | 'count';
@@ -145,7 +253,7 @@ reservations.post('/', async (c) => {
     force?: boolean; // 충돌 발생 시 충돌 일자 제외하고 진행
   }>();
 
-  const { space_id, title, date, start_time, end_time, attendees, recurring, force } = body;
+  const { space_id, title, date, start_time, end_time, attendees, attendee_ids, recurring, force } = body;
 
   if (!space_id || !date || !start_time || !end_time) {
     return c.json({ error: '필수 정보가 누락되었습니다.' }, 400);
@@ -240,6 +348,23 @@ reservations.post('/', async (c) => {
   const skipSet = new Set([...conflictDates, ...limitFailDates]);
   const insertDates = dates.filter(d => !skipSet.has(d));
 
+  // V7 고도화: 유효 attendee_ids 산출 — 본인은 자동 제외(예약자는 자동 OWNER)
+  const validAttendeeIds: number[] = [];
+  if (Array.isArray(attendee_ids) && attendee_ids.length > 0) {
+    const filtered = attendee_ids
+      .map(n => Number(n))
+      .filter(n => Number.isFinite(n) && n > 0 && n !== user.id);
+    if (filtered.length > 0) {
+      // 존재하는 user_id만 통과
+      const placeholders = filtered.map(() => '?').join(',');
+      const okRows = await c.env.DB.prepare(
+        `SELECT id FROM users WHERE id IN (${placeholders})`
+      ).bind(...filtered).all<{ id: number }>();
+      const okIds = new Set((okRows.results || []).map(r => r.id));
+      for (const n of filtered) if (okIds.has(n)) validAttendeeIds.push(n);
+    }
+  }
+
   const createdIds: number[] = [];
   for (const d of insertDates) {
     const res = await c.env.DB.prepare(`
@@ -252,7 +377,19 @@ reservations.post('/', async (c) => {
       recurringRuleId,
       isAdmin ? 1 : 0
     ).run();
-    createdIds.push(res.meta.last_row_id as number);
+    const newId = res.meta.last_row_id as number;
+    createdIds.push(newId);
+
+    // V7 고도화: reservation_attendees 다대다 bulk insert (PENDING 상태로 초대)
+    if (validAttendeeIds.length > 0) {
+      // D1 batch — 단일 트랜잭션처럼 처리
+      const stmts = validAttendeeIds.map(mid =>
+        c.env.DB.prepare(
+          "INSERT OR IGNORE INTO reservation_attendees (reservation_id, member_id, status) VALUES (?, ?, 'PENDING')"
+        ).bind(newId, mid)
+      );
+      await c.env.DB.batch(stmts);
+    }
   }
 
   return c.json({
@@ -260,6 +397,7 @@ reservations.post('/', async (c) => {
     created: createdIds.length,
     ids: createdIds,
     skipped: Array.from(skipSet),
+    invited: validAttendeeIds.length,
   });
 });
 
