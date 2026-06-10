@@ -3578,3 +3578,534 @@ html, body, button, input, select, textarea {
 /* ===================================================================== */
 /*  V7 고도화 — 다대다 참석자 시스템 끝                                    */
 /* ===================================================================== */
+
+/* =============================================================================
+   ███ 메이트리그라운드 — 비주얼 리브랜딩 v8 (Deep Sapphire Minimal) ███
+   적용 원칙: HTML/JS/이벤트 핸들러 100% 보존, 본 파일의 시각 토큰만 재정의
+   - 베이스   : Lavender Mist  #dfe7f7
+   - 액센트   : Deep Sapphire  #1a365d  (← 기존 --primary #0066cc 대체)
+   - 잉크     : Charcoal Ink   #0f1c2e
+   - 컴포넌트 : 4px 직각 미니멀, 그림자 제거, 1px 헤어라인 보더
+   - 밀도     : padding/gap 20%+ 재조정으로 타사 동선 유사성 차단
+   ============================================================================= */
+
+:root {
+  /* 컬러 토큰 전면 재바인딩 */
+  --primary:          #1a365d;
+  --primary-focus:    #244977;
+  --primary-on-dark:  #5d7fb8;
+  --accent-deep:      #0f2647;
+  --accent-soft:      #dfe7f7;
+  --accent-soft-2:    #eef2fb;
+  --accent-line:      #c7d3ea;
+  --accent-tint:      #f4f7fc;
+
+  --ink:              #0f1c2e;
+  --body:             #0f1c2e;
+  --ink-80:           #28354a;
+  --ink-48:           #5a6678;
+  --ink-32:           #8a93a3;
+
+  --canvas:           #ffffff;
+  --parchment:        #f4f7fc;
+  --pearl:            #ffffff;
+
+  --hairline:         #c7d3ea;
+  --divider-soft:     #e3ebf6;
+
+  /* 직각 미니멀 — 모든 radius 토큰 ≤ 4px로 일괄 축소 */
+  --r-xs:  2px;
+  --r-sm:  3px;
+  --r-md:  4px;
+  --r-lg:  4px;
+  --r-pill: 4px;
+  --r-full: 50%;            /* 아바타·점 등 원형은 보존 */
+
+  /* 그림자 토큰 무력화 */
+  --shadow-product:   0 0 0 1px var(--hairline);
+  --shadow-soft:      0 0 0 1px var(--hairline);
+
+  /* 밀도 토큰 — 약간 더 압축해 정보 밀도↑ */
+  --space-md: 14px;
+  --space-lg: 20px;
+  --space-xl: 28px;
+  --space-xxl: 40px;
+  --space-section: 56px;
+}
+
+/* === 1. 전역 보호막: 둥근 곡률 / 그림자 / 그라데이션 일괄 차단 =============== */
+*,
+*::before,
+*::after {
+  box-shadow: none !important;
+}
+
+/* 둥근 곡률 강제 축소 — 단, 원형으로 유지해야 하는 컴포넌트만 화이트리스트 */
+*:not(.avatar):not(.nav-avatar):not(.user-avatar):not(.member-avatar):not(.attendee-tag-dot):not(.detail-avatar):not(.invite-avatar):not(.attendee-dd-avatar):not(.color-dot):not(.role-dot):not(.brand-dot):not(.spinner):not(.loader):not(.dot):not(.point):not(.indicator) {
+  border-radius: var(--r-md) !important;
+}
+
+/* === 2. 베이스 캔버스 — 라벤더 미스트 톤으로 통일 ============================ */
+html, body {
+  background: var(--parchment);
+  color: var(--ink);
+}
+
+/* === 3. 헤더 (글로벌 네비) — 딥 사파이어 단색 + 라벤더 액티브 ================ */
+.global-nav,
+.header-navigation-container,
+header.global-nav,
+nav.global-nav {
+  background: var(--accent-deep) !important;
+  border-bottom: 1px solid var(--accent-deep) !important;
+}
+
+.global-nav .nav-brand,
+.global-nav .nav-user-name {
+  color: #ffffff !important;
+  letter-spacing: -0.02em;
+}
+
+.global-nav .nav-link {
+  background: transparent !important;
+  color: rgba(255,255,255,0.78) !important;
+  border-radius: var(--r-sm) !important;
+  padding: 8px 14px !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background 120ms ease, color 120ms ease;
+}
+.global-nav .nav-link:hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: #ffffff !important;
+}
+.global-nav .nav-link.is-active,
+.global-nav .nav-link.active {
+  background: var(--accent-soft) !important;
+  color: var(--accent-deep) !important;
+}
+
+.global-nav .nav-avatar {
+  border-radius: var(--r-full) !important;
+  border: 1.5px solid rgba(255,255,255,0.32) !important;
+}
+
+/* === 4. 카드/패널 — 그림자 0, 헤어라인 1px, 4px 직각 ========================== */
+.card,
+.panel,
+.dashboard-grid-box,
+.timeline-card-wrapper,
+.upcoming-card,
+.invite-card,
+.member-row,
+.space-row,
+.insight-card,
+.summary-card,
+.list-card,
+section.card {
+  background: var(--canvas) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+}
+
+.card:hover,
+.invite-card:hover,
+.upcoming-card:hover {
+  border-color: var(--primary) !important;
+}
+
+/* === 5. 버튼 — 직각 미니멀 + 단색 액센트 ===================================== */
+.btn,
+button.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.primary-action-button,
+input[type="button"],
+input[type="submit"] {
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.btn-primary,
+.primary-action-button {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--primary) !important;
+}
+.btn-primary:hover,
+.primary-action-button:hover {
+  background: var(--primary-focus) !important;
+  border-color: var(--primary-focus) !important;
+}
+
+.btn-secondary {
+  background: var(--canvas) !important;
+  color: var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+}
+.btn-secondary:hover {
+  background: var(--accent-soft) !important;
+}
+
+.btn-ghost {
+  background: transparent !important;
+  color: var(--ink-80) !important;
+  border: 1px solid var(--hairline) !important;
+}
+.btn-ghost:hover {
+  background: var(--accent-tint) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+/* === 6. 입력폼 — 깔끔한 1px 보더 + 포커스 시 네이비 링 ======================= */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="date"],
+input[type="time"],
+select,
+textarea {
+  background: var(--canvas) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-md) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  transition: border-color 120ms ease;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--accent-soft) !important;  /* 포커스 링은 의도된 시각 신호 */
+}
+
+/* === 7. 모달 — 4px 직각, 그림자 0, 헤어라인 보더 ============================= */
+.modal,
+.modal-container,
+.modal-dialog,
+.reservation-modal-container,
+.modal-content,
+.modal-overlay > div,
+.modal-wrap > div {
+  border-radius: var(--r-md) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--hairline) !important;
+  background: var(--canvas) !important;
+}
+.modal-overlay,
+.modal-backdrop {
+  background: rgba(15, 28, 46, 0.42) !important;   /* 차콜 네이비 오버레이 */
+  backdrop-filter: blur(1.5px);
+}
+.modal-header,
+.modal-title {
+  border-bottom: 1px solid var(--divider-soft) !important;
+}
+.modal-footer {
+  border-top: 1px solid var(--divider-soft) !important;
+  background: var(--accent-tint) !important;
+}
+
+/* === 8. 타임라인 (공간 그리드) — 액센트 바 네이비 + 격자 라인 한층 가볍게 ==== */
+.timeline,
+.timeline-grid,
+.timeline-container {
+  background: var(--canvas) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-md) !important;
+}
+.timeline-active-bar,
+.timeline-cell.is-selected,
+.timeline-cell.selected,
+.timeline-slot.is-booked,
+.timeline-block,
+.reservation-block {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: var(--r-sm) !important;
+  box-shadow: none !important;
+}
+.timeline-cell:hover {
+  background: var(--accent-soft-2) !important;
+}
+.timeline-hour-label,
+.timeline-time-label {
+  color: var(--ink-48) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* === 9. 홈 hero / 미니 캘린더 — 라벤더 베이스 + 네이비 헤더 ================== */
+.hero,
+.home-hero,
+.dashboard-hero {
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--accent-line) !important;
+  border-radius: var(--r-md) !important;
+  padding: 28px 24px !important;
+}
+.home-cal-badge {
+  background: var(--canvas) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: var(--r-md) !important;
+  overflow: hidden;
+}
+.cal-badge-month {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  letter-spacing: -0.01em;
+}
+.cal-badge-day {
+  color: var(--ink) !important;
+  font-weight: 700;
+}
+
+/* === 10. 앞으로의 일정 행 — 좌측 컬러 인디케이터 + 간결한 행 구조 ============ */
+.upcoming-row,
+.list-row {
+  border-bottom: 1px solid var(--divider-soft) !important;
+  padding: 14px 16px !important;
+  border-radius: 0 !important;          /* 행 단위는 각 잡힌 직선 유지 */
+  background: var(--canvas) !important;
+  transition: background 120ms ease;
+}
+.upcoming-row:hover,
+.list-row:hover {
+  background: var(--accent-tint) !important;
+}
+.upcoming-row:last-child {
+  border-bottom: none !important;
+}
+.upcoming-row .time {
+  color: var(--primary) !important;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* === 11. 역할/상태 배지 — 컬러는 유지하되 4px 직각 + 보더 ==================== */
+.role-badge,
+.status-badge,
+.attendee-status-badge,
+.tag,
+.chip,
+.label {
+  border-radius: var(--r-sm) !important;
+  box-shadow: none !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 3px 9px !important;
+}
+.role-badge.is-owner {
+  background: var(--accent-soft) !important;
+  color: var(--primary) !important;
+  border: 1px solid var(--accent-line) !important;
+}
+.role-badge.is-attendee {
+  background: #efeaf9 !important;
+  color: #4a2a8a !important;
+  border: 1px solid #d9cef0 !important;
+}
+.attendee-status-badge.is-pending {
+  background: #fff4d6 !important;
+  color: #8c5a00 !important;
+  border: 1px solid #f0d99a !important;
+}
+.attendee-status-badge.is-accepted {
+  background: #d8f0e0 !important;
+  color: #146b34 !important;
+  border: 1px solid #a7d9ba !important;
+}
+.attendee-status-badge.is-declined {
+  background: #fbdcdc !important;
+  color: #a02828 !important;
+  border: 1px solid #f0b5b5 !important;
+}
+
+/* === 12. 참석자 태그/드롭다운 — 직각 + 헤어라인 ============================== */
+.attendee-tag,
+.attendee-dropdown,
+.attendee-dropdown-item,
+.attendee-search-input {
+  border-radius: var(--r-sm) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--hairline) !important;
+}
+.attendee-tag {
+  background: var(--accent-soft) !important;
+  color: var(--primary) !important;
+  border: 1px solid var(--accent-line) !important;
+}
+.attendee-dropdown {
+  background: var(--canvas) !important;
+}
+.attendee-dropdown-item:hover {
+  background: var(--accent-tint) !important;
+}
+
+/* === 13. 초대함 카드 — 좌측 컬러 인디케이터 + 깔끔한 정보 위계 =============== */
+.invites-section {
+  margin: 20px 0 !important;
+}
+.invites-count-badge {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-radius: var(--r-sm) !important;
+  font-weight: 700;
+}
+.invite-card {
+  background: var(--canvas) !important;
+  border: 1px solid var(--hairline) !important;
+  border-left: 3px solid var(--primary) !important;
+  border-radius: var(--r-md) !important;
+  padding: 16px 18px !important;
+}
+.invite-card:hover {
+  border-color: var(--primary) !important;
+  border-left-color: var(--primary-focus) !important;
+}
+.invite-action-banner {
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--accent-line) !important;
+  border-radius: var(--r-md) !important;
+  padding: 12px 14px !important;
+}
+
+/* === 14. 디테일 모달 — 예약자/참석자 구분 시각화 강화 ======================== */
+.detail-owner-row,
+.detail-attendees-list,
+.detail-attendee-row {
+  border-radius: var(--r-md) !important;
+  border: 1px solid var(--divider-soft) !important;
+  background: var(--canvas) !important;
+}
+.detail-owner-row {
+  background: var(--accent-tint) !important;
+  border-left: 3px solid var(--primary) !important;
+  padding: 12px 14px !important;
+}
+.detail-attendees-list {
+  padding: 4px 0 !important;
+}
+.detail-attendee-row {
+  border: none !important;
+  border-bottom: 1px solid var(--divider-soft) !important;
+  border-radius: 0 !important;
+  padding: 10px 14px !important;
+}
+.detail-attendee-row:last-child {
+  border-bottom: none !important;
+}
+
+/* === 15. 테이블 — 1px 헤어라인, 헤더 라벤더 톤 =============================== */
+table,
+.data-table {
+  border-collapse: collapse !important;
+  width: 100%;
+}
+table th,
+.data-table th {
+  background: var(--accent-tint) !important;
+  color: var(--ink-80) !important;
+  border-bottom: 1.5px solid var(--accent-line) !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+table td,
+.data-table td {
+  border-bottom: 1px solid var(--divider-soft) !important;
+}
+table tr:hover td {
+  background: var(--accent-tint) !important;
+}
+
+/* === 16. 탭 / 세그먼티드 컨트롤 ============================================== */
+.tab-link,
+.tab-btn,
+.segment-item {
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  color: var(--ink-48) !important;
+  font-weight: 600;
+  padding: 10px 14px !important;
+}
+.tab-link.is-active,
+.tab-link.active,
+.tab-btn.is-active,
+.segment-item.is-active {
+  color: var(--primary) !important;
+  border-bottom-color: var(--primary) !important;
+  background: transparent !important;
+}
+
+/* === 17. 토스트 — 직각, 네이비 단색 ========================================== */
+.toast,
+.notification,
+.snackbar {
+  border-radius: var(--r-md) !important;
+  background: var(--accent-deep) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--accent-deep) !important;
+  box-shadow: none !important;
+}
+
+/* === 18. 스크롤바 — 네이비 톤으로 통일 ======================================= */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--accent-tint); }
+::-webkit-scrollbar-thumb {
+  background: var(--accent-line);
+  border-radius: var(--r-sm);
+  border: 2px solid var(--accent-tint);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--primary-on-dark); }
+
+/* === 19. 링크/포커스 가시화 ================================================= */
+a { color: var(--primary) !important; }
+a:hover { color: var(--primary-focus) !important; }
+:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 2px;
+}
+
+/* === 20. 모바일(≤768px) — 밀도 추가 압축 ===================================== */
+@media (max-width: 768px) {
+  .hero,
+  .home-hero,
+  .dashboard-hero {
+    padding: 20px 16px !important;
+  }
+  .card,
+  .invite-card,
+  .upcoming-card {
+    border-radius: var(--r-md) !important;
+  }
+  .invite-card {
+    padding: 14px 14px !important;
+  }
+  .modal,
+  .modal-container,
+  .reservation-modal-container {
+    border-radius: var(--r-md) !important;
+  }
+}
+
+/* === 21. 그라데이션·블러 제거 (시각적 복제 인상 방지) ======================== */
+.gradient,
+.bg-gradient,
+[class*="gradient"] {
+  background-image: none !important;
+}
+
+/* =============================================================================
+   ███ 메이트리그라운드 — 비주얼 리브랜딩 v8 끝 ███
+   ============================================================================= */
