@@ -991,6 +991,42 @@ a:hover { text-decoration: underline; }
 }
 .heatmap-cell:hover { transform: scale(1.1); }
 
+/* V14 §UI-2: 요일·시간대별 예약 밀집도 — 모바일에서 오른쪽 끝(23시)이 잘리는 문제 해결
+   - 카드 padding 축소로 사용 가능 너비 확보
+   - 요일 라벨 폭 축소(36px → 22px) + 셀 간 gap 축소(2px → 1px)
+   - 셀 폰트/높이 축소
+   - 그래도 화면이 좁으면 가로 스크롤 허용 (overflow-x:auto + min-width)
+   - 헤더 시간 라벨도 더 컴팩트하게 */
+@media (max-width: 768px) {
+  .insight-heatmap {
+    padding: 16px 12px;
+    overflow-x: auto;          /* 안전망: 더 좁은 화면에서 가로 스크롤 */
+    -webkit-overflow-scrolling: touch;
+  }
+  .insight-heatmap h3 {
+    font-size: 16px;
+    margin: 0 0 12px;
+  }
+  .heatmap-grid {
+    grid-template-columns: 22px repeat(24, minmax(13px, 1fr));
+    gap: 1px;
+    min-width: 340px;          /* 24열 × 13px + 라벨 — 이하로는 스크롤 */
+  }
+  .heatmap-header {
+    font-size: 9px;
+    padding: 2px 0;
+  }
+  .heatmap-row-label {
+    font-size: 11px;
+    padding-right: 4px;
+  }
+  .heatmap-cell {
+    height: 22px;
+    font-size: 9px;
+    border-radius: 2px;
+  }
+}
+
 /* =====================================================
    ADMIN - MEMBER TABLE
    ===================================================== */
@@ -2472,6 +2508,24 @@ a:hover { text-decoration: underline; }
   /* 페이지 헤더 폰트 크기 축소 */
   .page-header h1 { font-size: 28px; }
   .page-header p { font-size: 13px; }
+
+  /* V14 §UI-1: 인사이트 페이지 헤더 모바일 컴팩트화
+     (is-admin-header 미적용 페이지 — 인사이트는 숨기지 않고 좁힘) */
+  .page-wrap > .page-header:not(.is-admin-header) {
+    margin-bottom: 12px;
+  }
+  .page-wrap > .page-header:not(.is-admin-header) .page-title-block h1 {
+    font-size: 24px;
+    line-height: 1.15;
+  }
+  .page-wrap > .page-header:not(.is-admin-header) .page-title-block p {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+  /* 헤더 아래 첫 번째 자식(탭/필터)와의 간격도 살짝 줄임 */
+  .page-wrap > .page-header:not(.is-admin-header) + .insight-tabs {
+    margin-top: 0;
+  }
 
   /* V7-4: 추가 sticky 해제 안전망 — 페이지 진입 시 본문이 가려지지 않도록 */
   .sub-nav {
