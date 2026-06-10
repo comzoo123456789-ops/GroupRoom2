@@ -1,12 +1,85 @@
-# 메이트리그라운드 (Mateground) — V7 완결본
+# 메이트리그라운드 (Mateground) — V13 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
 ## 프로젝트 개요
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
-- **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
+- **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록 + V13 본인 외 일괄 삭제), 인사이트 대시보드(회의 목적 포함), 테넌트별 공간 격리, **V13: 크로스 테넌트 일정 상세 접근 차단**, **V13: 회의 목적 자유 텍스트 필드**, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI
 
-## 🆕 V8 패치 1 (최신 — GNB 가독성 + 사이드바 인디케이터 + 원클릭 모달)
+## 🆕 V13 (최신 — 5대 이슈 근본 해결 + 신규 2개 기능)
+
+### §1 — 일괄 삭제 완전 정상화 (FK 제약 + SQLite 변수 한도 동시 해결)
+- **문제 (V12)**: 회원 일괄 삭제 시 "일괄 삭제 실패" 에러. 근본 원인 2가지:
+  1. **FK NO ACTION**: `reservations.user_id → users(id)`가 NO ACTION이라 사용자 삭제 전 예약 정리가 필요한데, V12는 `UPDATE reservations SET status='cancelled'`만 수행 → FK 제약 위반으로 user 삭제 실패
+  2. **SQLite 변수 한도(~100)**: 100명 넘는 일괄 삭제 시 `IN (?,?,?,…)`의 바인딩 변수 초과로 statement 단계에서 실패
+- **해결**: `src/api/members.ts`
+  - `UPDATE reservations` → **`DELETE FROM reservations`** 로 변경 (참석자/세션/예약 모두 cascade 정리)
+  - **50개 단위 chunking**: `for (let i=0; i<ids.length; i+=50) { batch DELETE … }` — 어떤 규모도 안전
+  - `POST /bulk-delete`: `exclude_admin: true` 옵션 → 입력에 admin이 섞여도 자동 제외
+  - **신규 `POST /purge-all-except-self`**: "나(요청자) 외 같은 테넌트 전원 삭제" — 와일리 어드민이 실행해도 러쉬 어드민은 안전(테넌트 격리)
+- **검증**: WYLIE 멤버 194명 일괄 삭제 성공, LUSH 멤버 무손상 확인
+
+### §2-A — 모든 예약 블록이 화면 맨 아래에 표시되는 버그 (CSS 우선순위 함정)
+- **문제**: 00:30-05:00 예약을 만들어도 24:00 라인 아래에 거대 블록으로 표시. JS는 정상이었지만 CSS에서 `position`이 강제로 `relative`로 덮어써져 `top:NNNpx`가 절대 좌표가 아닌 형제 박스 기준 오프셋으로 잘못 해석됨
+- **해결**: `public/static/styles.css` line 4584
+  ```css
+  /* V13 §2-A FIX: V12에서 잘못 들어간 'position:relative' 오버라이드 제거 */
+  .timeline-event { position: absolute !important; }
+  ```
+- **추가 안전망 (`app.js`)**:
+  - `buildEventEl`: `if (eh >= 24) { eh = 23; em = 30; }` — 잘못된 `24:00` 종료 데이터 클램프
+  - `onDragUp` / `onResizeUp`: `MAX_END_MIN = 1410` (=23:30) 상한
+  - `minutesToTime`: 1410분 이상 입력 클램프
+- **검증 (Playwright)**: 00:30 예약의 `getBoundingClientRect().top` = col 상단 + 20px (= 30분 × 40px/60분 = 20px) — 절대 좌표 정상 동작
+
+### §2-B — 상단(시작 시간) 리사이즈 핸들 동작 보정
+- **변경**: `attachResizeTopHandlers`에서 픽셀 좌표 직접 계산 → `getBoundingClientRect()` 기반 시간 환산으로 일관화 (스크롤/리렌더 시점에도 안정)
+
+### §3 — 테넌트 컬러 실시간 동기화 (관리자 설정 ↔ 화면)
+- **문제**: 관리자가 WYLIE=보라 / LUSH=빨강으로 바꿔도 화면에 파랑/검정이 그대로 노출
+- **원인**: `buildEventEl`의 인라인 `style="background:#0066cc"` 와 `month-event`의 하드코딩 색상이 CSS 변수(`--wylie-schedule-color` / `--lush-korea-schedule-color`)를 무력화
+- **해결**: 인라인 background 완전 제거 → CSS 변수가 즉시 적용. 관리자 수정 즉시 모든 일정 블록 색상 반영
+- **검증**: LUSH 일정의 `getComputedStyle().backgroundColor` = `rgb(216,27,96)` (= `#d81b60`) 정상 반영
+
+### §NEW-1 — 크로스 테넌트 일정 상세 접근 차단
+- **요구사항**: "러쉬 사람들이 와일리 일정을 상세보기 누르지 못하게, 와일리 사람들도 러쉬 일정 누르지 못하게. 단 어드민만 모든 일정 컨트롤 가능"
+- **백엔드 (`src/api/reservations.ts`)**:
+  ```ts
+  // GET /:id, PATCH /:id 둘 다 적용
+  if (user.role !== 'admin' && r.tenant_id !== user.tenant_id) {
+    return c.json({ error: '다른 소속의 일정은 조회할 수 없습니다.' }, 403);
+  }
+  ```
+- **프런트 (`public/static/app.js` — `buildEventEl`)**: 
+  - `isCrossTenant` 계산 → onclick 가드 + `is-cross-tenant` CSS 클래스(투명도 0.45 + not-allowed 커서 + 리사이즈 핸들 숨김)
+  - admin 역할이면 `isCrossTenant=false` 처리 — 모든 일정 정상 컨트롤
+- **검증**:
+  - LUSH member → WYLIE 일정 GET: **403 차단** ✅
+  - LUSH member → WYLIE 일정 PATCH: **403 차단** ✅
+  - LUSH **admin** → WYLIE 일정 GET: **200 통과** ✅
+
+### §NEW-2 — 회의 목적(purpose) 자유 텍스트 필드
+- **요구사항**: "일정 추가 팝업에 어떤 목적으로 회의하는지 타이핑할 수 있게", "인사이트 내역에도 목적이 보이고, 엑셀 다운로드에도 목적이 나와야 해"
+- **DB**: `migrations/0006_v13_reservation_purpose.sql` — `ALTER TABLE reservations ADD COLUMN purpose TEXT;`
+- **백엔드**:
+  - `POST /api/reservations`: body `purpose` 수용 + INSERT
+  - `PATCH /api/reservations/:id`: body `purpose` 수용 + UPDATE (명시 undefined면 기존 값 유지)
+  - `GET /api/insights/history`: SELECT 절에 `r.purpose` 추가
+- **프런트 (`public/static/app.js`)**:
+  - 예약 생성 모달: 장소 ↔ 참석자 사이에 `회의 목적` textarea(3 rows, placeholder, oninput → modalState.purpose)
+  - 예약 상세 모달: 동일 textarea — 본인/관리자는 편집 가능, 타인은 disabled + 회색 배경
+  - 인사이트 내역 표: `회의 목적` 컬럼 추가, 40자 초과 시 `…` 처리 + title 툴팁
+  - 엑셀 다운로드(`exportInsightToExcel`): 헤더 `['날짜','시작','종료','공간','제목','회의 목적','예약자','소속','상태']`로 9열 확장
+- **검증**: id=105 일정 생성 후 purpose 정상 저장/조회/수정 확인
+
+### ✅ V13 빌드 / 보존
+- `dist/_worker.js`: **91.17 kB**
+- 신규 마이그레이션 1건(0006) — 기존 데이터 그대로 (purpose 컬럼은 NULL 허용)
+- 멤버 / 공간 / 부서·직책 데이터 무손상
+
+---
+
+## 🆕 V8 패치 1 (이전 — GNB 가독성 + 사이드바 인디케이터 + 원클릭 모달)
 
 V8 리브랜딩 직후 발견된 가독성/UX 이슈 4건을 정밀 보정. 기존 데이터(멤버 205명·공간 8개) 및 모든 이벤트 핸들러 100% 보존.
 

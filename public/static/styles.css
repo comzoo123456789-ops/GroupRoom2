@@ -4581,8 +4581,12 @@ a:hover { color: var(--primary-focus) !important; }
   height: 8px;
   pointer-events: auto;
 }
-/* V12 §4: 작은 예약 블록(높이 28px 이하)에서는 상단 핸들만 노출 — 하단은 충돌 방지 */
-.timeline-event { position: relative; }
+/* V13 §2-A FIX: V12에서 잘못 들어간 'position:relative' 오버라이드 제거.
+   이 한 줄이 모든 예약 블록의 position을 absolute → relative로 덮어써서
+   .timeline-event { top: NNNpx } 가 절대 좌표가 아닌 상대 오프셋으로 해석됨.
+   결과: 모든 예약이 col의 자연 흐름 끝(=24:00 라인 아래)으로 밀려 표시되는 버그 발생.
+   원본 .timeline-event 규칙 (라인 ~676) 의 position:absolute 가 정상 동작하도록 복구. */
+.timeline-event { position: absolute !important; }
 
 
 /* =============================================================================
@@ -4673,6 +4677,31 @@ a:hover { color: var(--primary-focus) !important; }
   background-color: var(--lush-korea-schedule-color) !important;
   border-radius: 4px !important;
   box-shadow: none !important;
+}
+
+/* V13 §NEW: 인사이트 내역 — 회의 목적 셀 (길이 제한 + 줄바꿈) */
+.history-purpose-cell {
+  max-width: 280px;
+  font-size: 13px;
+  color: #333;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+/* V13 §NEW: 크로스테넌트 시각 신호 — 다른 소속 일정은 흐리게 + not-allowed 커서
+   (관리자에게는 적용 안 됨 — JS에서 isAdmin이면 isCrossTenant=false 처리) */
+.timeline-event.is-cross-tenant {
+  opacity: 0.45;
+  cursor: not-allowed !important;
+  filter: saturate(0.6);
+}
+.timeline-event.is-cross-tenant:hover {
+  opacity: 0.55;
+}
+.timeline-event.is-cross-tenant .ev-resize-handle,
+.timeline-event.is-cross-tenant .ev-resize-handle-top {
+  display: none !important;
 }
 
 /* === §3 — 어드민 일반 탭 카드 그리드 (디바이스 제거 → 2분할) =================== */
@@ -4799,4 +4828,39 @@ a:hover { color: var(--primary-focus) !important; }
 }
 .btn-bulk-delete.is-active:hover {
   background: #ffe9e9;
+}
+
+/* =============================================================================
+   ███ V13 — [본인 외 전체 삭제] 위험 버튼 ███
+   ============================================================================= */
+.btn-purge-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #c00;
+  border: 1px solid #a00;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  margin-right: 8px;
+  box-shadow: 0 1px 2px rgba(192, 0, 0, 0.2);
+}
+.btn-purge-all:hover:not(:disabled) {
+  background: #a00;
+  border-color: #800;
+  box-shadow: 0 2px 6px rgba(160, 0, 0, 0.3);
+}
+.btn-purge-all:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-purge-all::before {
+  content: '⚠';
+  margin-right: 2px;
 }

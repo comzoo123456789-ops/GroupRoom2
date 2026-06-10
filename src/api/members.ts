@@ -161,27 +161,46 @@ members.delete('/:id', async (c) => {
     }
   }
 
-  // 관련 데이터 정리
-  await c.env.DB.prepare("UPDATE reservations SET status = 'cancelled' WHERE user_id = ?").bind(id).run();
-  await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
-  await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+  // V13 §1: 관련 데이터 정리 — FK 위반 차단을 위해 reservations 자체도 DELETE
+  // (V12까지는 status='cancelled' UPDATE만 했으나, NO ACTION FK 때문에 위반 발생)
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM reservation_attendees WHERE member_id = ?').bind(id),
+      c.env.DB.prepare('DELETE FROM reservations WHERE user_id = ?').bind(id),
+      c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+      c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id),
+    ]);
+  } catch (e: any) {
+    console.error('[delete-member] FAILED', e);
+    return c.json({ error: `삭제 실패: ${String(e?.message || e)}` }, 500);
+  }
   return c.json({ ok: true });
 });
 
 /**
- * V12 §3: 일반 멤버 일괄 삭제
- *  - 어드민 전용
- *  - admin 역할 계정은 백엔드 단에서도 무조건 제외 (이중 가드)
- *  - 본인(c.get('user').id)은 절대 삭제 불가
- *  - 같은 tenant 멤버만 삭제 가능
- *  - 관련 sessions / reservations(cancelled 처리)도 정리
- *  - 트랜잭션 형태(D1 batch)로 단일 요청 처리
+ * V13 §1: 일반 멤버 일괄 삭제 — FK 위반 완전 해결판
+ *
+ * 진단 (V12 실패 원인):
+ *  - reservations.user_id는 users(id)를 NO ACTION FK로 참조
+ *  - V12는 reservations를 status='cancelled'로 UPDATE만 했음 → FK가 살아있음
+ *  - D1 batch 안에서 DELETE FROM users 시도 → FOREIGN KEY constraint failed
+ *  - 결과: 전체 트랜잭션 롤백 → "일괄 삭제 실패" 토스트
+ *
+ * V13 해결:
+ *  - reservations 자체를 DELETE (cancelled 보존 안 함 — 삭제된 사용자의 예약은 의미 없음)
+ *  - reservation_attendees는 CASCADE라 자동 정리됨
+ *  - 본인 계정만 제외, admin 계정도 일괄 삭제 가능 (단, "본인은 절대 제외")
+ *    → 사용자 요구: "admin@wylie.co.kr을 제외한 모든 계정 삭제 (단, 러쉬 어드민은 삭제하지 않음)"
+ *    = 같은 tenant 안에서 본인만 제외하면 됨 (러쉬 admin은 다른 tenant이므로 자동 제외)
  */
 members.post('/bulk-delete', async (c) => {
   const user = c.get('user');
   if (user.role !== 'admin') return c.json({ error: '관리자만 접근할 수 있습니다.' }, 403);
 
-  const body = await c.req.json<{ member_ids?: number[] }>();
+  const body = await c.req.json<{
+    member_ids?: number[];
+    exclude_admin?: boolean; // V13: true면 다른 admin 계정도 제외 (안전 모드)
+  }>();
   const rawIds = Array.isArray(body?.member_ids) ? body.member_ids : [];
   // 정수 + 본인 제외 + 중복 제거
   const ids = Array.from(new Set(
@@ -189,35 +208,101 @@ members.post('/bulk-delete', async (c) => {
   ));
   if (!ids.length) return c.json({ error: '삭제할 대상이 없습니다.' }, 400);
 
-  // 같은 tenant + admin 아닌 대상만 선별 (백엔드 이중 가드)
+  // 같은 tenant 안에서만 (러쉬코리아 admin은 다른 tenant라 자동 제외됨)
   const placeholders = ids.map(() => '?').join(',');
   const eligible = await c.env.DB.prepare(
     `SELECT id, role FROM users WHERE tenant_id = ? AND id IN (${placeholders})`
   ).bind(user.tenant_id, ...ids).all<{ id: number; role: string }>();
 
-  const eligibleIds = (eligible.results || [])
-    .filter(r => r.role !== 'admin') // admin 역할은 일괄 삭제에서 영구 차단
-    .map(r => r.id);
+  let eligibleRows = eligible.results || [];
+  // V13: exclude_admin=true일 때만 admin role 제외 (체크박스 기반 일괄삭제는 true)
+  // 사용자가 명시적으로 "admin 포함 전체 삭제" 명령 시 false (관리자 본인 제외 자동)
+  if (body.exclude_admin !== false) {
+    eligibleRows = eligibleRows.filter(r => r.role !== 'admin');
+  }
+  const eligibleIds = eligibleRows.map(r => r.id);
 
   if (!eligibleIds.length) {
-    return c.json({ error: '삭제 가능한 일반 멤버가 없습니다. (관리자 계정은 일괄 삭제 대상에서 제외됩니다.)' }, 400);
+    return c.json({ error: '삭제 가능한 대상이 없습니다.' }, 400);
   }
 
   const skipped = ids.length - eligibleIds.length;
-  const ph = eligibleIds.map(() => '?').join(',');
 
-  // 관련 데이터 정리 → 멤버 삭제 (배치)
-  await c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE reservations SET status = 'cancelled' WHERE user_id IN (${ph})`).bind(...eligibleIds),
-    c.env.DB.prepare(`DELETE FROM sessions WHERE user_id IN (${ph})`).bind(...eligibleIds),
-    c.env.DB.prepare(`DELETE FROM users WHERE id IN (${ph})`).bind(...eligibleIds),
-  ]);
+  // V13 §1 핵심: reservations 자체를 DELETE (status update가 아니라!) → FK 위반 차단
+  // reservation_attendees는 CASCADE라 자동 삭제됨
+  // V13 §1-PATCH: SQLite 변수 ~100개 제한 차단을 위해 50개씩 청크 처리
+  const CHUNK = 50;
+  let deleted = 0;
+  try {
+    for (let i = 0; i < eligibleIds.length; i += CHUNK) {
+      const chunk = eligibleIds.slice(i, i + CHUNK);
+      const ph = chunk.map(() => '?').join(',');
+      await c.env.DB.batch([
+        c.env.DB.prepare(`DELETE FROM reservation_attendees WHERE member_id IN (${ph})`).bind(...chunk),
+        c.env.DB.prepare(`DELETE FROM reservations WHERE user_id IN (${ph})`).bind(...chunk),
+        c.env.DB.prepare(`DELETE FROM sessions WHERE user_id IN (${ph})`).bind(...chunk),
+        c.env.DB.prepare(`DELETE FROM users WHERE id IN (${ph})`).bind(...chunk),
+      ]);
+      deleted += chunk.length;
+    }
+  } catch (e: any) {
+    console.error('[bulk-delete] FAILED at chunk', deleted, e);
+    return c.json({ error: `일괄 삭제 실패 (${deleted}명 처리 후 중단): ${String(e?.message || e)}` }, 500);
+  }
 
   return c.json({
     ok: true,
-    deleted: eligibleIds.length,
-    skipped, // admin 계정 또는 다른 테넌트라서 거부된 건수
+    deleted,
+    skipped, // 다른 tenant / admin role(exclude_admin=true일 때) / 본인 등으로 거부된 건수
   });
+});
+
+/**
+ * V13 §1: admin@wylie.co.kr을 제외한 모든 멤버 일괄 삭제 (전체 비우기)
+ *  - 사용자 요청: "아예 그냥 admin@wylie.co.kr을 제외한 모든 계정 삭제"
+ *  - 본인(요청자) + 본인이 admin이고 본인 회사의 마지막 admin이라면 그것도 보호
+ *  - 같은 tenant 안에서만 작동 (러쉬 admin은 자동 제외)
+ */
+members.post('/purge-all-except-self', async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin') return c.json({ error: '관리자만 접근할 수 있습니다.' }, 403);
+
+  // 같은 tenant 안에서 본인(요청자)만 제외한 모든 사용자 ID 조회
+  const allUsers = await c.env.DB.prepare(
+    `SELECT id FROM users WHERE tenant_id = ? AND id != ?`
+  ).bind(user.tenant_id, user.id).all<{ id: number }>();
+
+  const targetIds = (allUsers.results || []).map(r => r.id);
+  if (!targetIds.length) {
+    return c.json({ ok: true, deleted: 0, message: '삭제할 멤버가 없습니다.' });
+  }
+
+  // V13 §1-PATCH: SQLite는 SQL 1개당 변수 ~100개 제한 → 청크 단위로 분할 처리
+  //   ── 와일리 195명 같은 대용량 케이스에서 "too many SQL variables" 에러 차단
+  const CHUNK = 50;
+  const chunks: number[][] = [];
+  for (let i = 0; i < targetIds.length; i += CHUNK) {
+    chunks.push(targetIds.slice(i, i + CHUNK));
+  }
+
+  let deleted = 0;
+  try {
+    for (const ids of chunks) {
+      const ph = ids.map(() => '?').join(',');
+      await c.env.DB.batch([
+        c.env.DB.prepare(`DELETE FROM reservation_attendees WHERE member_id IN (${ph})`).bind(...ids),
+        c.env.DB.prepare(`DELETE FROM reservations WHERE user_id IN (${ph})`).bind(...ids),
+        c.env.DB.prepare(`DELETE FROM sessions WHERE user_id IN (${ph})`).bind(...ids),
+        c.env.DB.prepare(`DELETE FROM users WHERE id IN (${ph})`).bind(...ids),
+      ]);
+      deleted += ids.length;
+    }
+  } catch (e: any) {
+    console.error('[purge-all] FAILED at chunk', deleted, e);
+    return c.json({ error: `전체 삭제 실패 (${deleted}명 처리 후 중단): ${String(e?.message || e)}` }, 500);
+  }
+
+  return c.json({ ok: true, deleted });
 });
 
 /** 모든 사용자 검색 (참석자 추가용) - 본인 회사 멤버만 */

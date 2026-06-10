@@ -186,6 +186,12 @@ reservations.get('/:id', async (c) => {
   `).bind(id).first<any>();
   if (!r) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
 
+  // V13: 테넌트 격리 — 다른 소속 예약 상세는 조회 불가 (단, admin은 모든 일정 컨트롤 가능)
+  //   사용자 요구: "러쉬 사람들이 와일리 일정을 상세보기 누르지못하게 / 와일리 사람들도 러쉬 일정 누르지 못하게"
+  if (user.role !== 'admin' && r.tenant_id !== user.tenant_id) {
+    return c.json({ error: '다른 소속의 일정은 조회할 수 없습니다.' }, 403);
+  }
+
   // 다대다 참석자 목록 (PENDING / ACCEPTED / DECLINED 모두)
   const attRes = await c.env.DB.prepare(`
     SELECT ra.id AS invitation_id, ra.status, ra.invited_at, ra.responded_at,
@@ -239,6 +245,7 @@ reservations.post('/', async (c) => {
   const body = await c.req.json<{
     space_id: number;
     title: string;
+    purpose?: string;              // V13: 회의 목적 (자유 텍스트)
     date: string;
     start_time: string;
     end_time: string;
@@ -253,7 +260,7 @@ reservations.post('/', async (c) => {
     force?: boolean; // 충돌 발생 시 충돌 일자 제외하고 진행
   }>();
 
-  const { space_id, title, date, start_time, end_time, attendees, attendee_ids, recurring, force } = body;
+  const { space_id, title, purpose, date, start_time, end_time, attendees, attendee_ids, recurring, force } = body;
 
   if (!space_id || !date || !start_time || !end_time) {
     return c.json({ error: '필수 정보가 누락되었습니다.' }, 400);
@@ -365,13 +372,17 @@ reservations.post('/', async (c) => {
     }
   }
 
+  // V13: purpose 값 별도 정규화 — 빈 문자열은 NULL로 저장
+  const purposeVal = (purpose && String(purpose).trim()) ? String(purpose).trim() : null;
+
   const createdIds: number[] = [];
   for (const d of insertDates) {
     const res = await c.env.DB.prepare(`
-      INSERT INTO reservations (tenant_id, user_id, space_id, title, date, start_time, end_time, attendees, recurring_rule_id, created_by_admin, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')
+      INSERT INTO reservations (tenant_id, user_id, space_id, title, purpose, date, start_time, end_time, attendees, recurring_rule_id, created_by_admin, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')
     `).bind(
       user.tenant_id, user.id, space_id, title || '새로운 일정',
+      purposeVal,
       d, start_time, end_time,
       attendees ? JSON.stringify(attendees) : null,
       recurringRuleId,
@@ -411,12 +422,16 @@ reservations.patch('/:id', async (c) => {
   const user = c.get('user');
   const id = Number(c.req.param('id'));
   const updateScope = c.req.query('update_scope') || 'single'; // 'single' | 'future'
-  const body = await c.req.json<{ title?: string; start_time?: string; end_time?: string; date?: string; space_id?: number }>();
+  const body = await c.req.json<{ title?: string; purpose?: string; start_time?: string; end_time?: string; date?: string; space_id?: number }>();
 
-  const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation>();
+  const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation & { purpose?: string | null }>();
   if (!existing) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
   if (user.role !== 'admin' && existing.user_id !== user.id) {
     return c.json({ error: '권한이 없습니다.' }, 403);
+  }
+  // V13: 테넌트 격리 — 관리자가 아닌 한 다른 소속 예약은 수정 불가 (이미 user_id 체크로 필터되지만 명시 가드)
+  if (user.role !== 'admin' && existing.tenant_id !== user.tenant_id) {
+    return c.json({ error: '다른 소속의 일정은 수정할 수 없습니다.' }, 403);
   }
 
   const newDate = body.date || existing.date;
@@ -448,10 +463,14 @@ reservations.patch('/:id', async (c) => {
       }
     }
 
+    // V13: purpose 값도 함께 갱신 (명시적 undefined면 기존 유지)
+    const newPurpose = body.purpose !== undefined
+      ? (String(body.purpose).trim() || null)
+      : (existing.purpose ?? null);
     await c.env.DB.prepare(`
-      UPDATE reservations SET title = ?, date = ?, start_time = ?, end_time = ?, space_id = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE reservations SET title = ?, purpose = ?, date = ?, start_time = ?, end_time = ?, space_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).bind(body.title ?? existing.title, newDate, newStart, newEnd, newSpaceId, id).run();
+    `).bind(body.title ?? existing.title, newPurpose, newDate, newStart, newEnd, newSpaceId, id).run();
 
     return c.json({ ok: true, updated: 1 });
   }

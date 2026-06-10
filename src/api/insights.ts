@@ -112,7 +112,7 @@ insights.get('/history', async (c) => {
   const onlyTenant = c.req.query('tenant') === 'mine';
 
   let q = `
-    SELECT r.id, r.date, r.start_time, r.end_time, r.title, r.status, r.created_by_admin,
+    SELECT r.id, r.date, r.start_time, r.end_time, r.title, r.purpose, r.status, r.created_by_admin,
            u.name as user_name, u.avatar_color, u.tenant_id, t.name as tenant_name,
            s.name as space_name, s.color as space_color
     FROM reservations r

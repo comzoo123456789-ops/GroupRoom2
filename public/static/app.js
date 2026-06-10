@@ -674,8 +674,10 @@ function buildMonthView() {
       el('div', { class: 'month-cell-events' },
         ...dayEvents.slice(0, 4).map(r =>
           el('div', {
-            class: 'month-event',
-            style: `background:${r.tenant_id === 'WYLIE' ? '#0066cc' : '#1d1d1f'};`,
+            // V13 §3: 인라인 background 제거 — CSS 변수(--wylie/lush-schedule-color)가 실시간 반영되도록
+            // 테넌트 클래스(tenant-wylie/tenant-lush) + data-tenant-id 모두 부여하여 styles.css 매칭 보장
+            class: 'month-event tenant-' + (r.tenant_id === 'WYLIE' ? 'wylie' : 'lush'),
+            'data-tenant-id': r.tenant_id,
             title: `${r.start_time}-${r.end_time} · ${r.title} · ${r.space_name}`
           },
             el('span', { class: 'me-time' }, r.start_time),
@@ -777,26 +779,46 @@ function buildTimelineGrid() {
 
 function buildEventEl(r) {
   const [sh, sm] = r.start_time.split(':').map(Number);
-  const [eh, em] = r.end_time.split(':').map(Number);
-  const top = (sh * 60 + sm) * (40 / 60); // 40px per hour
-  const height = Math.max(20, ((eh * 60 + em) - (sh * 60 + sm)) * (40 / 60));
-  const bg = r.tenant_id === 'WYLIE' ? '#0066cc' : '#1d1d1f';
-  const isOwner = r.user_id === State.user.id || State.user.role === 'admin';
+  let [eh, em] = r.end_time.split(':').map(Number);
+  // V13 §2-A: '24:00' 같은 잘못된 종료시간 방어 (24:00 → 23:30으로 안전 클램프)
+  //   ── 과거 onDragUp 버그로 DB에 들어간 end_time='24:00' 예약이
+  //      Math.max로 인해 화면 맨 아래에 거대 블록으로 노출되는 문제 차단
+  if (eh >= 24) { eh = 23; em = 30; }
+  const startTotal = sh * 60 + sm;
+  let endTotal = eh * 60 + em;
+  if (endTotal <= startTotal) endTotal = startTotal + 30; // 최소 30분 보장
+  const top = startTotal * (40 / 60); // 40px per hour
+  const height = Math.max(20, (endTotal - startTotal) * (40 / 60));
+  // V13 §NEW: 크로스테넌트 격리 — 본인 소속이 아닌 일정은 상세보기 차단(관리자는 예외)
+  const isAdmin = State.user.role === 'admin';
+  const isCrossTenant = !isAdmin && r.tenant_id !== State.user.tenant_id;
+  const canViewDetail = isAdmin || r.tenant_id === State.user.tenant_id;
+  // 크로스테넌트일 경우 리사이즈/드래그도 불가
+  const isOwner = !isCrossTenant && (r.user_id === State.user.id || isAdmin);
 
   // 내 일정 필터에서 강조
   const highlight = State.mineOnly && r.user_id === State.user.id ? ' is-mine' : '';
 
   const node = el('div', {
     // V11 §3-3: 테넌트 클래스 추가 — CSS 변수(--wylie/lush-schedule-color)를 통한 격리 컬러 적용
-    class: 'timeline-event' + highlight + ' tenant-' + (r.tenant_id === 'WYLIE' ? 'wylie' : 'lush'),
-    style: `top:${top}px;height:${height}px;background:${bg};`,
+    // V13 §3: 인라인 background 제거 — CSS 변수(styles.css :root)가 실시간 반영되도록 권한 양도
+    // V13 §NEW: is-cross-tenant 클래스로 시각 신호(투명도/커서) — 클릭은 onclick에서 차단
+    class: 'timeline-event' + highlight + ' tenant-' + (r.tenant_id === 'WYLIE' ? 'wylie' : 'lush') + (isCrossTenant ? ' is-cross-tenant' : ''),
+    style: `top:${top}px;height:${height}px;` + (isCrossTenant ? 'cursor:not-allowed;' : ''),
     'data-id': r.id,
     'data-tenant-id': r.tenant_id,
+    title: isCrossTenant ? '다른 소속의 일정은 상세를 볼 수 없습니다' : undefined,
     // V8: 더블클릭 → 원클릭 단일 트리거. 드래그(빈 셀 새 예약)와는 트리거 영역이 다르므로 충돌 없음.
     // V10 §7: 리사이즈 핸들(상/하단) 클릭은 모달을 열지 않도록 차단
+    // V13 §NEW: 크로스테넌트 차단 — 관리자만 모든 일정 컨트롤 가능
     onclick: (e) => {
       if (e.target.closest('.ev-resize-handle') || e.target.closest('.ev-resize-handle-top')) return;
-      e.stopPropagation(); openReservationDetail(r);
+      e.stopPropagation();
+      if (!canViewDetail) {
+        toast('다른 소속의 일정은 열람할 수 없습니다', 'error');
+        return;
+      }
+      openReservationDetail(r);
     },
   },
     el('div', { class: 'ev-title' }, r.title || '새로운 일정'),
@@ -880,10 +902,15 @@ function onDragUp(e) {
   const top = Math.min(startY, currentY);
   const bottom = Math.max(startY, currentY);
   // snap to 30-min slots
-  const startMin = Math.round((top / 40) * 60 / 30) * 30;
+  let startMin = Math.round((top / 40) * 60 / 30) * 30;
   let endMin = Math.round((bottom / 40) * 60 / 30) * 30;
+  // V13 §2-A: end_time이 절대 24:00이 되지 않도록 23:30(=1410)이 최대 상한
+  //   ── minutesToTime(1440) === '24:00' 은 HH:mm 규격 위반 → DB에 들어가면 buildEventEl이 eh=24를 만들어
+  //      거대한 보라색 블록이 화면 맨 아래에 노출됨
+  const MAX_END_MIN = 23 * 60 + 30; // 1410
+  if (endMin > MAX_END_MIN) endMin = MAX_END_MIN;
+  if (startMin >= MAX_END_MIN) startMin = MAX_END_MIN - 30;
   if (endMin <= startMin) endMin = startMin + 30;
-  if (endMin > 24 * 60) endMin = 24 * 60;
   dragState = null;
   if (endMin - startMin < 30) return;
   openReservationModal({
@@ -952,7 +979,9 @@ async function onResizeUp(e) {
   const startMin = rs.originalTop / 40 * 60;
   let endMin = Math.round((rs.originalTop + newHeight) / 40 * 60 / 30) * 30;
   if (endMin <= startMin) endMin = startMin + 30;
-  if (endMin > 24 * 60) endMin = 24 * 60;
+  // V13 §2-A: end_time 24:00 차단 — 23:30(=1410)이 절대 상한
+  const MAX_END_MIN = 23 * 60 + 30;
+  if (endMin > MAX_END_MIN) endMin = MAX_END_MIN;
   const newEnd = minutesToTime(endMin);
   if (newEnd === rs.reservation.end_time) return; // 변경 없음
 
@@ -1013,22 +1042,32 @@ function attachResizeTopHandlers() {
 
     const minStartMin = Math.max(predecessorEnd, nowMinFloor); // 둘 중 더 큰 값이 하한
 
-    // V11 §4: 종료 시간 절대 동결 — bottom 좌표를 미리 캡쳐
-    const originalTop = eventEl.offsetTop;
-    const originalHeight = eventEl.offsetHeight;
-    const frozenBottom = originalTop + originalHeight; // 이 값은 절대 변하지 않음
+    // V13 §2-B: col 컨테이너의 BoundingClientRect 기준 좌표 사용 — offsetTop은 부모 padding/margin 변화에 흔들림
+    //   ── 실제 버그: r.start_time(예 09:00) 기준 분 좌표를 직접 사용해야 어떤 grid 변화에도 흔들리지 않음
+    const colEl = eventEl.parentElement; // .timeline-space-col
+    const [sh0, sm0] = r.start_time.split(':').map(Number);
+    const [eh0, em0] = r.end_time.split(':').map(Number);
+    const startMinFromTime = sh0 * 60 + sm0;
+    const endMinFromTime   = eh0 * 60 + em0;
+    // 픽셀 환산 (1분=40/60 px) — 'time → px' 단방향이므로 좌표가 절대 흔들리지 않음
+    const originalTop = startMinFromTime * (40 / 60);
+    const originalHeight = (endMinFromTime - startMinFromTime) * (40 / 60);
+    const frozenBottom = endMinFromTime * (40 / 60); // 종료 시간 좌표는 분 단위로 고정
 
     resizeTopState = {
       reservation: r,
       eventEl,
+      colEl, // V13 §2-B: col getBoundingClientRect 비교용
       direction: 'top', // V11 §4: 방향성 명시 — 'top' 핸들이 활성화됨
       startClientY: e.clientY,
       originalHeight,
       originalTop,
       frozenBottom, // V11 §4: 종료 시간 동결 좌표
       minStartMin, // 시작 시간이 이 분(min) 미만으로 내려갈 수 없음
+      // V13 §2-B: 시작 시점의 col 절대 좌표 캡쳐 — 절대 좌표계 기반 연산으로 흔들림 차단
+      colTopAtStart: colEl.getBoundingClientRect().top,
     };
-    console.log('[v12] resize TOP activated', { id, originalTop, originalHeight, frozenBottom, minStartMin });
+    console.log('[v13] resize TOP activated', { id, originalTop, originalHeight, frozenBottom, minStartMin, startMinFromTime, endMinFromTime });
   }, true); // V12 §4: useCapture=true — 캡처 단계에서 가장 먼저 실행되도록
 
   // V12 §1: document 리스너는 bindGlobalTimelineListeners()에서 단일 등록
@@ -1125,9 +1164,12 @@ function updateDragPreview() {
 }
 
 function minutesToTime(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  // V13 §2-A: HH:mm 규격 보장 — 1440(=24:00) 같은 잘못된 값이 절대 생성되지 않도록 클램프
+  //   ── '24:00'은 HH:mm 형식 위반이며 buildEventEl에서 거대 블록을 만드는 근본 원인이었음
+  let m = Math.max(0, Math.min(min, 23 * 60 + 30)); // 0 ~ 1410(23:30)
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
 function drawNowLine() {
@@ -1180,6 +1222,8 @@ function openReservationModal(initial = {}) {
     attendeeQuery: '',       // 자동완성 입력 텍스트
     attendeeSuggestions: [], // 드롭다운 후보
     attendeeDropdownOpen: false,
+    // V13 §NEW: 회의 목적 — 신규 자유 텍스트 필드
+    purpose: '',
   };
   renderModal();
 }
@@ -1237,6 +1281,19 @@ function renderModal() {
             el('option', { value: s.id, selected: s.id === modalState.space_id ? 'selected' : null }, s.name)
           )
         )
+      ),
+
+      /* V13 §NEW: 회의 목적 (자유 텍스트) — 인사이트/엑셀에서 함께 노출됨 */
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'modal-section-title' }, '회의 목적'),
+        el('textarea', {
+          class: 'field-input purpose-textarea',
+          id: 'reservation-purpose-input',
+          placeholder: '어떤 목적으로 회의하시나요? (예: Q3 OKR 점검 / 디자인 리뷰 / 1:1 면담 등)',
+          rows: 3,
+          style: 'width:100%;padding:12px 14px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;font-family:inherit;line-height:1.5;resize:vertical;min-height:64px;box-sizing:border-box;',
+          oninput: (e) => { modalState.purpose = e.target.value; },
+        }, modalState.purpose || '')
       ),
 
       /* [V7 고도화 §2] 참석자 초대 — 자동완성 + 멀티셀렉트 태그 */
@@ -1518,6 +1575,8 @@ async function submitReservation(force = false) {
     recurring: modalState.recurring,
     // V7 고도화 §2: 참석자 다대다 — 백엔드가 PENDING 상태로 reservation_attendees에 bulk insert
     attendee_ids: (modalState.attendees || []).map(a => a.id),
+    // V13 §NEW: 회의 목적 — 인사이트/엑셀에서 노출
+    purpose: (modalState.purpose || '').trim(),
     force,
   };
   const res = await api('/api/reservations', { method: 'POST', body: JSON.stringify(body) });
@@ -1559,12 +1618,21 @@ async function openReservationDetail(r) {
   let attendees = [];
   let myInvitationStatus = null;
   let myRole = State.user.id === r.user_id ? 'OWNER' : 'NONE';
+  // V13 §NEW: detail API에서 purpose 등 최신 풀필드를 다시 가져옴
+  let purposeFromServer = r.purpose || '';
   try {
     const detail = await api(`/api/reservations/${r.id}`);
     if (detail.ok) {
       attendees = detail.data?.attendees || [];
       myInvitationStatus = detail.data?.my_invitation_status || null;
       myRole = detail.data?.my_role || myRole;
+      if (detail.data?.reservation) {
+        purposeFromServer = detail.data.reservation.purpose || '';
+      }
+    } else if (detail.status === 403) {
+      // 크로스테넌트 차단 — 모달 즉시 닫고 안내
+      toast(detail.data?.error || '다른 소속의 일정은 조회할 수 없습니다.', 'error');
+      return;
     }
   } catch (_) { /* 상세 실패 시 기본값으로 폴백 */ }
 
@@ -1574,6 +1642,8 @@ async function openReservationDetail(r) {
     start_time: r.start_time,
     end_time: r.end_time,
     date: r.date,
+    // V13 §NEW: 회의 목적 — 상세 조회 시 r.purpose 가 내려오면 prefill, 편집 가능
+    purpose: purposeFromServer,
   };
 
   const buildTimeSelectInline = (key, value) => {
@@ -1626,6 +1696,18 @@ async function openReservationDetail(r) {
           el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};display:inline-block;margin-right:8px;` }),
           r.space_name
         )
+      ),
+      /* V13 §NEW: 회의 목적 — 읽기/편집 모두 가능. 빈 값이면 회색 placeholder 안내 */
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'modal-section-title' }, '회의 목적'),
+        el('textarea', {
+          class: 'field-input purpose-textarea',
+          placeholder: canEdit ? '어떤 목적으로 회의하시나요? (예: Q3 OKR 점검 / 디자인 리뷰)' : '등록된 회의 목적이 없습니다',
+          rows: 3,
+          style: 'width:100%;padding:12px 14px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;font-family:inherit;line-height:1.5;resize:vertical;min-height:64px;box-sizing:border-box;' + (!canEdit ? 'background:#f7f7f7;color:#444;' : ''),
+          oninput: (e) => { edit.purpose = e.target.value; },
+          disabled: !canEdit ? 'disabled' : null,
+        }, edit.purpose || '')
       ),
       /* [V7 고도화 §3a] 예약자(owner) — 단독 섹션, 굵게 강조 */
       el('div', { class: 'modal-section' },
@@ -2045,19 +2127,21 @@ function exportInsightToExcel() {
     const wsHeat = XLSX.utils.aoa_to_sheet(heatRows);
     XLSX.utils.book_append_sheet(wb, wsHeat, '시간대 히트맵');
   } else if (InsightState.tab === 'history') {
-    const header = ['날짜', '시작', '종료', '공간', '제목', '예약자', '소속', '상태'];
+    // V13 §NEW: 회의 목적(purpose) 컬럼 추가 — 상태 앞에 배치
+    const header = ['날짜', '시작', '종료', '공간', '제목', '회의 목적', '예약자', '소속', '상태'];
     const rows = (data.history || []).map(r => [
       r.date,
       (r.start_time || '').slice(0,5),
       (r.end_time || '').slice(0,5),
       r.space_name || '',
       r.title || '',
+      r.purpose || '',
       r.user_name || '',
       r.tenant_name || '',
       r.status === 'confirmed' ? '확정' : (r.status === 'cancelled' ? '취소' : r.status),
     ]);
     const wsHist = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    wsHist['!cols'] = [{wch:12},{wch:7},{wch:7},{wch:20},{wch:30},{wch:14},{wch:14},{wch:8}];
+    wsHist['!cols'] = [{wch:12},{wch:7},{wch:7},{wch:20},{wch:30},{wch:36},{wch:14},{wch:14},{wch:8}];
     XLSX.utils.book_append_sheet(wb, wsHist, '예약 내역');
   } else if (InsightState.tab === 'stats') {
     const metricLabel = data.metric === 'time' ? '시간(분)' : '건수';
@@ -2289,6 +2373,7 @@ async function renderInsightHistory(body) {
         el('th', null, '시간'),
         el('th', null, '공간'),
         el('th', null, '제목'),
+        el('th', null, '회의 목적'), // V13 §NEW
         el('th', null, '예약자'),
         el('th', null, '소속'),
         el('th', null, '상태'),
@@ -2296,7 +2381,7 @@ async function renderInsightHistory(body) {
     ),
     el('tbody', null,
       ...(rows.length === 0
-        ? [el('tr', null, el('td', { colspan: '7', class: 'org-empty' }, '해당 기간에 예약 내역이 없습니다'))]
+        ? [el('tr', null, el('td', { colspan: '8', class: 'org-empty' }, '해당 기간에 예약 내역이 없습니다'))]
         : rows.map(r =>
             el('tr', null,
               el('td', null, r.date),
@@ -2306,6 +2391,12 @@ async function renderInsightHistory(body) {
                 el('span', null, ' ' + (r.space_name || '-'))
               ),
               el('td', null, r.title || '(제목 없음)'),
+              // V13 §NEW: 회의 목적 — 길면 잘림(...) 처리, hover 시 전체 표시
+              el('td', { class: 'history-purpose-cell', title: r.purpose || '' },
+                r.purpose
+                  ? (r.purpose.length > 40 ? r.purpose.slice(0, 40) + '…' : r.purpose)
+                  : el('span', { style: 'color:#bbb;' }, '-')
+              ),
               el('td', null,
                 el('span', {
                   class: 'avatar-mini',
@@ -2570,8 +2661,19 @@ async function renderAdminMembers() {
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '멤버'),
             el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '관리자가 직접 직원 계정을 생성하고 정보를 관리합니다.')
           ),
-          // V12 §3: [선택 일괄 삭제] 버튼 + [생성하기] 버튼 (선택된 행 0건일 때 비활성)
-          el('div', { style: 'display:flex;gap:8px;align-items:center;' },
+          // V13 §1: [선택 일괄 삭제] + [본인 외 전체 삭제] + [생성하기]
+          el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;' },
+            // 본인 외 전체 삭제 — 위험 버튼 (admin 본인 빼고 다 날림)
+            el('button', {
+              class: 'btn-purge-all',
+              id: 'purge-all-btn',
+              title: '본인(' + State.user.email + ')을 제외한 같은 회사의 모든 멤버 삭제',
+              onclick: purgeAllMembersExceptSelf,
+            },
+              el('i', { class: 'fa-solid fa-triangle-exclamation', style: 'margin-right:6px;font-size:12px;' }),
+              '본인 외 전체 삭제'
+            ),
+            // 선택 일괄 삭제 — 일반 일괄 삭제
             el('button', {
               class: 'btn-bulk-delete',
               id: 'bulk-delete-btn',
@@ -2629,27 +2731,27 @@ function buildMemberTable(members) {
   // V7-3: 데스크톱(테이블) + 모바일(카드) 듀얼 렌더링 — CSS @media로 토글
   const tbody = el('tbody', { id: 'member-tbody' });
   for (const m of members) {
-    // V12 §3: admin 계정은 체크박스 disabled 처리 (이중 가드 — 백엔드도 admin 거부)
-    const isAdminRow = m.role === 'admin';
+    // V13 §1: admin도 일괄 삭제 가능 (본인만 disabled)
+    //   - 사용자 요청: "admin@wylie.co.kr을 제외한 모든 계정 삭제"
+    //   - 즉 본인(요청자)만 보호하고, 다른 admin은 체크 가능해야 함
     const isSelf = m.id === State.user.id;
-    const cbDisabled = isAdminRow || isSelf;
 
     const tr = el('tr', {
       'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase(),
       'data-member-id': String(m.id),
       'data-role': m.role || 'member',
     },
-      // V12 §3: 좌측 체크박스 — admin 계정은 disabled
+      // V13 §1: 체크박스 — 본인만 disabled (admin 포함 모두 체크 가능)
       el('td', { class: 'col-bulk-check', style: 'width:40px;text-align:center;' },
         el('input', {
           type: 'checkbox',
           class: 'bulk-member-check',
           'data-id': String(m.id),
           'data-role': m.role || 'member',
-          disabled: cbDisabled ? true : false,
-          title: cbDisabled
-            ? (isAdminRow ? '관리자 계정은 일괄 삭제 대상에서 제외됩니다.' : '본인 계정은 삭제할 수 없습니다.')
-            : '선택',
+          disabled: isSelf ? true : false,
+          title: isSelf
+            ? '본인 계정은 삭제할 수 없습니다.'
+            : (m.role === 'admin' ? '관리자 계정 — 선택 시 함께 삭제됩니다.' : '선택'),
           onchange: updateBulkDeleteState,
         })
       ),
@@ -2812,24 +2914,28 @@ function updateBulkDeleteState() {
   }
 }
 
-/** 일괄 삭제 실행 — 어드민 계정은 프론트/백 양쪽에서 절대 포함되지 않음 */
+/** V13 §1: 일괄 삭제 실행 — admin도 체크되어 있으면 삭제 (본인만 보호) */
 async function bulkDeleteMembers() {
   const checks = $$('.bulk-member-check:not(:disabled):checked');
-  // V12 §3: admin role 행은 프론트 단에서도 한 번 더 거름
   const member_ids = checks
-    .map(cb => ({ id: Number(cb.dataset.id), role: cb.dataset.role }))
-    .filter(o => o.role !== 'admin' && Number.isInteger(o.id) && o.id > 0)
-    .map(o => o.id);
+    .map(cb => Number(cb.dataset.id))
+    .filter(id => Number.isInteger(id) && id > 0 && id !== State.user.id);
 
   if (!member_ids.length) {
     toast('삭제할 대상이 없습니다.', 'error');
     return;
   }
-  if (!confirm(`선택된 일반 멤버 ${member_ids.length}명을 일괄 삭제합니다.\n계속하시겠습니까?\n\n※ 관리자 계정 및 본인은 자동으로 제외됩니다.`)) return;
+  // 선택된 admin 수를 별도 표기
+  const adminCount = checks.filter(cb => cb.dataset.role === 'admin').length;
+  const warning = adminCount > 0
+    ? `\n\n⚠️ 선택 항목에 관리자 ${adminCount}명이 포함되어 있습니다. 함께 삭제됩니다.`
+    : '';
+  if (!confirm(`선택된 멤버 ${member_ids.length}명을 일괄 삭제합니다.${warning}\n\n계속하시겠습니까?`)) return;
 
   const res = await api('/api/members/bulk-delete', {
     method: 'POST',
-    body: JSON.stringify({ member_ids }),
+    // V13: exclude_admin=false → admin도 함께 삭제 (사용자가 명시적으로 체크함)
+    body: JSON.stringify({ member_ids, exclude_admin: false }),
   });
 
   if (!res.ok) {
@@ -2838,9 +2944,25 @@ async function bulkDeleteMembers() {
   }
   const { deleted = 0, skipped = 0 } = res.data || {};
   const msg = skipped > 0
-    ? `${deleted}명을 삭제했습니다. (보호 대상 ${skipped}명 제외)`
+    ? `${deleted}명을 삭제했습니다. (다른 회사 멤버 등 ${skipped}명 제외)`
     : `${deleted}명을 삭제했습니다.`;
   toast(msg, 'success');
+  renderAdminMembers();
+}
+
+/** V13 §1: 본인 외 전체 삭제 — 위험 작업, 2단계 confirm */
+async function purgeAllMembersExceptSelf() {
+  const selfEmail = State.user.email;
+  if (!confirm(`⚠️ 위험: 본인(${selfEmail})을 제외한 같은 회사의 모든 멤버를 삭제합니다.\n\n관련된 모든 예약과 세션도 함께 삭제됩니다.\n\n계속하시겠습니까?`)) return;
+  if (!confirm(`⚠️ 최종 확인\n\n정말 본인(${selfEmail}) 외 모든 멤버를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+  const res = await api('/api/members/purge-all-except-self', { method: 'POST' });
+  if (!res.ok) {
+    toast(res.data?.error || '전체 삭제 실패', 'error');
+    return;
+  }
+  const { deleted = 0 } = res.data || {};
+  toast(`본인 외 ${deleted}명을 전부 삭제했습니다.`, 'success');
   renderAdminMembers();
 }
 
