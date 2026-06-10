@@ -9,19 +9,20 @@ INSERT INTO d1_migrations VALUES(1,'0001_initial_schema.sql','2026-06-09 08:27:3
 INSERT INTO d1_migrations VALUES(2,'0002_v4_departments_positions.sql','2026-06-09 09:37:41');
 INSERT INTO d1_migrations VALUES(3,'0003_v5_tenant_scope_and_first_login.sql','2026-06-09 12:58:05');
 INSERT INTO d1_migrations VALUES(4,'0004_v7_reservation_attendees.sql','2026-06-10 05:02:21');
+INSERT INTO d1_migrations VALUES(5,'0005_v11_tenant_schedule_color.sql','2026-06-10 08:39:18');
 CREATE TABLE _cf_METADATA (
         key INTEGER PRIMARY KEY,
         value BLOB
       );
-INSERT INTO _cf_METADATA VALUES(2,12007);
+INSERT INTO _cf_METADATA VALUES(2,13006);
 CREATE TABLE tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT '#0066cc',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-INSERT INTO tenants VALUES('WYLIE','와일리','#0066cc','2026-06-09 08:27:38');
-INSERT INTO tenants VALUES('LUSH','러쉬코리아','#1d1d1f','2026-06-09 08:27:38');
+, schedule_color TEXT NOT NULL DEFAULT '#0066cc');
+INSERT INTO tenants VALUES('WYLIE','와일리','#0066cc','2026-06-09 08:27:38','#0066cc');
+INSERT INTO tenants VALUES('LUSH','러쉬코리아','#1d1d1f','2026-06-09 08:27:38','#1d1d1f');
 CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -244,7 +245,6 @@ INSERT INTO users VALUES(221,'WYLIE','jwkim3@wylie.co.kr','831c237928e6212bedaa4
 INSERT INTO users VALUES(222,'WYLIE','dnbaek@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','백다나','플랫폼운영본부','GA',NULL,'member','active','#ef4444','2026-06-10 04:42:08',1);
 INSERT INTO users VALUES(223,'WYLIE','hryang@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','양혜림','마케팅캠페인본부','GL',NULL,'member','active','#f97316','2026-06-10 04:42:08',1);
 INSERT INTO users VALUES(224,'WYLIE','jwchoi@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','최정원','마케팅캠페인본부','GM',NULL,'member','active','#8b5cf6','2026-06-10 04:42:08',1);
-INSERT INTO users VALUES(9999,'WYLIE','v10test@wylie.co.kr','937e8d5fbb48bd4949536cd65b8d35c426b80d2f830c5c308e2cdec422ae2244','V10테스트멤버',NULL,NULL,NULL,'member','active','#888','2026-06-10 07:23:30',0);
 CREATE TABLE spaces (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -304,8 +304,8 @@ INSERT INTO reservations VALUES(11,'WYLIE',1,4,'전사 회의','2026-06-09','16:
 INSERT INTO reservations VALUES(13,'WYLIE',1,5,'주간보고','2026-06-16','09:00','10:00',NULL,1,1,'cancelled','2026-06-09 08:28:35','2026-06-09 08:28:35');
 INSERT INTO reservations VALUES(14,'WYLIE',1,5,'주간보고','2026-06-23','09:00','10:00',NULL,1,1,'cancelled','2026-06-09 08:28:35','2026-06-09 08:28:35');
 INSERT INTO reservations VALUES(15,'WYLIE',1,5,'주간보고','2026-06-30','09:00','10:00',NULL,1,1,'cancelled','2026-06-09 08:28:35','2026-06-09 08:28:35');
-INSERT INTO reservations VALUES(16,'WYLIE',1,5,'주간보고','2026-07-07','09:00','10:00',NULL,1,1,'confirmed','2026-06-09 08:28:35','2026-06-09 08:28:35');
-INSERT INTO reservations VALUES(17,'WYLIE',1,5,'주간보고','2026-07-14','09:00','10:00',NULL,1,1,'confirmed','2026-06-09 08:28:35','2026-06-09 08:28:35');
+INSERT INTO reservations VALUES(16,'WYLIE',1,5,'주간보고','2026-07-07','09:00','10:00',NULL,1,1,'cancelled','2026-06-09 08:28:35','2026-06-09 08:28:35');
+INSERT INTO reservations VALUES(17,'WYLIE',1,5,'주간보고','2026-07-14','09:00','10:00',NULL,1,1,'cancelled','2026-06-09 08:28:35','2026-06-09 08:28:35');
 INSERT INTO reservations VALUES(18,'WYLIE',1,2,'새로운 일정','2026-06-09','09:30','10:30',NULL,2,1,'cancelled','2026-06-09 09:13:56','2026-06-09 09:13:56');
 INSERT INTO reservations VALUES(19,'WYLIE',1,2,'새로운 일정','2026-06-16','09:30','10:30',NULL,2,1,'cancelled','2026-06-09 09:13:56','2026-06-09 09:13:56');
 INSERT INTO reservations VALUES(20,'WYLIE',1,2,'새로운 일정','2026-06-23','09:30','10:30',NULL,2,1,'cancelled','2026-06-09 09:13:56','2026-06-09 09:13:56');
@@ -333,12 +333,12 @@ INSERT INTO reservations VALUES(42,'LUSH',15,4,'새로운 일정','2026-06-09','
 INSERT INTO reservations VALUES(43,'LUSH',15,3,'새로운 일정','2026-06-09','07:00','07:30',NULL,NULL,1,'confirmed','2026-06-09 13:24:48','2026-06-09 13:24:48');
 INSERT INTO reservations VALUES(44,'LUSH',15,5,'새로운 일정','2026-06-09','06:00','06:30',NULL,NULL,1,'confirmed','2026-06-09 13:24:51','2026-06-09 13:24:51');
 INSERT INTO reservations VALUES(45,'LUSH',15,9,'새로운 일정','2026-06-09','11:30','12:00',NULL,NULL,1,'confirmed','2026-06-09 13:25:46','2026-06-09 13:25:46');
-INSERT INTO reservations VALUES(46,'WYLIE',1,2,'새로운 일정','2026-06-10','02:00','08:00',NULL,NULL,1,'confirmed','2026-06-10 00:37:44','2026-06-10 00:37:44');
+INSERT INTO reservations VALUES(46,'WYLIE',1,2,'새로운 일정','2026-06-10','07:30','08:00',NULL,NULL,1,'cancelled','2026-06-10 00:37:44','2026-06-10 07:31:22');
 INSERT INTO reservations VALUES(47,'WYLIE',1,1,'V6-4 라우팅 테스트','2026-06-20','14:00','15:00',NULL,NULL,1,'confirmed','2026-06-10 01:08:23','2026-06-10 01:08:23');
 INSERT INTO reservations VALUES(48,'WYLIE',1,8,'새로운 일정','2026-06-10','10:00','10:30',NULL,3,1,'cancelled','2026-06-10 01:39:03','2026-06-10 01:39:03');
 INSERT INTO reservations VALUES(49,'WYLIE',1,8,'새로운 일정','2026-06-17','10:00','10:30',NULL,3,1,'cancelled','2026-06-10 01:39:03','2026-06-10 01:39:03');
-INSERT INTO reservations VALUES(50,'WYLIE',1,3,'새로운 일정','2026-06-10','10:30','11:00',NULL,4,1,'confirmed','2026-06-10 01:43:45','2026-06-10 01:43:53');
-INSERT INTO reservations VALUES(51,'WYLIE',1,3,'새로운 일정','2026-06-17','10:30','11:00',NULL,4,1,'confirmed','2026-06-10 01:43:45','2026-06-10 01:43:45');
+INSERT INTO reservations VALUES(50,'WYLIE',1,3,'새로운 일정','2026-06-10','10:30','11:00',NULL,4,1,'cancelled','2026-06-10 01:43:45','2026-06-10 01:43:53');
+INSERT INTO reservations VALUES(51,'WYLIE',1,3,'새로운 일정','2026-06-17','10:30','11:00',NULL,4,1,'cancelled','2026-06-10 01:43:45','2026-06-10 01:43:45');
 INSERT INTO reservations VALUES(52,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-15','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
 INSERT INTO reservations VALUES(53,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-16','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
 INSERT INTO reservations VALUES(54,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-17','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
@@ -350,9 +350,9 @@ INSERT INTO reservations VALUES(59,'WYLIE',18,3,'새로운 일정','2026-06-10',
 INSERT INTO reservations VALUES(60,'WYLIE',18,6,'새로운 일정','2026-06-10','02:30','16:30',NULL,NULL,0,'cancelled','2026-06-10 02:19:59','2026-06-10 02:19:59');
 INSERT INTO reservations VALUES(61,'WYLIE',18,7,'새로운 일정','2026-06-10','02:30','16:30',NULL,NULL,0,'cancelled','2026-06-10 02:20:02','2026-06-10 02:20:02');
 INSERT INTO reservations VALUES(62,'LUSH',15,4,'새로운 일정','2026-06-10','08:00','11:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:42','2026-06-10 02:22:42');
-INSERT INTO reservations VALUES(63,'LUSH',15,2,'새로운 일정','2026-06-10','09:30','14:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:44','2026-06-10 02:22:44');
-INSERT INTO reservations VALUES(64,'LUSH',15,3,'새로운 일정','2026-06-10','11:30','16:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:50','2026-06-10 02:22:50');
-INSERT INTO reservations VALUES(65,'LUSH',15,4,'새로운 일정','2026-06-10','12:00','17:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:52','2026-06-10 02:22:52');
+INSERT INTO reservations VALUES(63,'LUSH',15,2,'새로운 일정','2026-06-10','09:30','14:30',NULL,NULL,1,'cancelled','2026-06-10 02:22:44','2026-06-10 02:22:44');
+INSERT INTO reservations VALUES(64,'LUSH',15,3,'새로운 일정','2026-06-10','11:30','16:30',NULL,NULL,1,'cancelled','2026-06-10 02:22:50','2026-06-10 02:22:50');
+INSERT INTO reservations VALUES(65,'LUSH',15,4,'새로운 일정','2026-06-10','12:00','17:30',NULL,NULL,1,'cancelled','2026-06-10 02:22:52','2026-06-10 02:22:52');
 INSERT INTO reservations VALUES(66,'LUSH',15,5,'새로운 일정','2026-06-10','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
 INSERT INTO reservations VALUES(67,'LUSH',15,5,'새로운 일정','2026-06-17','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
 INSERT INTO reservations VALUES(68,'LUSH',15,5,'새로운 일정','2026-06-24','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
@@ -362,17 +362,18 @@ INSERT INTO reservations VALUES(71,'WYLIE',17,3,'새로운 일정','2026-06-10',
 INSERT INTO reservations VALUES(72,'WYLIE',17,4,'새로운 일정','2026-06-10','02:30','08:00',NULL,NULL,0,'cancelled','2026-06-10 04:50:08','2026-06-10 04:50:08');
 INSERT INTO reservations VALUES(73,'WYLIE',17,8,'새로운 일정','2026-06-10','02:00','09:00',NULL,NULL,0,'cancelled','2026-06-10 04:50:14','2026-06-10 04:50:14');
 INSERT INTO reservations VALUES(74,'WYLIE',17,6,'새로운 일정','2026-06-10','02:00','10:00',NULL,NULL,0,'cancelled','2026-06-10 04:50:17','2026-06-10 04:50:17');
-INSERT INTO reservations VALUES(75,'WYLIE',1,4,'새로운 일정','2026-06-10','02:30','07:00',NULL,NULL,1,'confirmed','2026-06-10 04:53:21','2026-06-10 04:53:21');
-INSERT INTO reservations VALUES(76,'WYLIE',17,5,'새로운 일정','2026-06-10','03:00','07:30',NULL,NULL,0,'confirmed','2026-06-10 04:53:47','2026-06-10 04:53:47');
-INSERT INTO reservations VALUES(77,'WYLIE',17,5,'새로운 일정','2026-06-10','12:30','19:00',NULL,NULL,0,'confirmed','2026-06-10 04:53:49','2026-06-10 04:53:49');
-INSERT INTO reservations VALUES(78,'WYLIE',17,2,'새로운 일정','2026-06-10','17:00','22:00',NULL,NULL,0,'confirmed','2026-06-10 04:53:50','2026-06-10 04:53:50');
+INSERT INTO reservations VALUES(75,'WYLIE',1,4,'새로운 일정','2026-06-10','02:30','08:00',NULL,NULL,1,'cancelled','2026-06-10 04:53:21','2026-06-10 07:29:05');
+INSERT INTO reservations VALUES(76,'WYLIE',17,5,'새로운 일정','2026-06-10','07:00','07:30',NULL,NULL,0,'cancelled','2026-06-10 04:53:47','2026-06-10 07:28:49');
+INSERT INTO reservations VALUES(77,'WYLIE',17,5,'새로운 일정','2026-06-10','12:30','19:00',NULL,NULL,0,'cancelled','2026-06-10 04:53:49','2026-06-10 04:53:49');
+INSERT INTO reservations VALUES(78,'WYLIE',17,2,'새로운 일정','2026-06-10','17:00','22:00',NULL,NULL,0,'cancelled','2026-06-10 04:53:50','2026-06-10 04:53:50');
 INSERT INTO reservations VALUES(79,'WYLIE',17,3,'새로운 일정','2026-06-10','19:30','22:30',NULL,NULL,0,'cancelled','2026-06-10 04:53:51','2026-06-10 04:53:51');
-INSERT INTO reservations VALUES(80,'WYLIE',17,4,'새로운 일정','2026-06-10','19:00','23:30',NULL,NULL,0,'confirmed','2026-06-10 04:53:53','2026-06-10 04:54:18');
+INSERT INTO reservations VALUES(80,'WYLIE',17,4,'새로운 일정','2026-06-10','19:00','23:30',NULL,NULL,0,'cancelled','2026-06-10 04:53:53','2026-06-10 04:54:18');
 INSERT INTO reservations VALUES(81,'WYLIE',17,3,'새로운 일정','2026-06-10','17:00','19:00',NULL,NULL,0,'confirmed','2026-06-10 04:53:54','2026-06-10 04:53:54');
-INSERT INTO reservations VALUES(82,'WYLIE',17,3,'새로운 일정','2026-06-10','08:30','09:30',NULL,NULL,0,'confirmed','2026-06-10 04:54:45','2026-06-10 04:54:45');
-INSERT INTO reservations VALUES(83,'WYLIE',17,1,'새로운 일정','2026-06-10','10:00','12:30',NULL,NULL,0,'confirmed','2026-06-10 04:54:51','2026-06-10 04:54:51');
-INSERT INTO reservations VALUES(85,'WYLIE',17,2,'새로운 일정','2026-06-10','00:00','00:30',NULL,NULL,0,'confirmed','2026-06-10 06:10:15','2026-06-10 06:10:15');
+INSERT INTO reservations VALUES(82,'WYLIE',17,3,'새로운 일정','2026-06-10','08:30','09:30',NULL,NULL,0,'cancelled','2026-06-10 04:54:45','2026-06-10 04:54:45');
+INSERT INTO reservations VALUES(83,'WYLIE',17,1,'새로운 일정','2026-06-10','10:00','12:30',NULL,NULL,0,'cancelled','2026-06-10 04:54:51','2026-06-10 04:54:51');
+INSERT INTO reservations VALUES(85,'WYLIE',17,2,'새로운 일정','2026-06-10','00:00','01:00',NULL,NULL,0,'cancelled','2026-06-10 06:10:15','2026-06-10 07:31:16');
 INSERT INTO reservations VALUES(86,'WYLIE',1,5,'V10§7테스트','2026-06-10','19:30','21:00',NULL,NULL,1,'cancelled','2026-06-10 07:24:26','2026-06-10 07:24:36');
+INSERT INTO reservations VALUES(87,'WYLIE',1,5,'새로운 일정','2026-06-10','09:30','11:30',NULL,NULL,1,'cancelled','2026-06-10 07:29:01','2026-06-10 07:29:20');
 CREATE TABLE sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -423,9 +424,10 @@ INSERT INTO sessions VALUES('53af4b26420dcb1027a0455203fb58d1fb7a435efc404a6ed39
 INSERT INTO sessions VALUES('390fe7e10f38b1f55ef1137b8245031888d77507903ac0bc47a1875a557b5208',127,'2026-06-17T04:46:38.315Z','2026-06-10 04:46:38');
 INSERT INTO sessions VALUES('2e5e16000d6fe00fbd22af35650597d2738e96391be4780d4ed1b710e893b6bf',1,'2026-06-17T05:53:06.644Z','2026-06-10 05:53:06');
 INSERT INTO sessions VALUES('d3c32d787454571782603c7a845a11bb092680dfcd1ea8a75b529f08eb587cda',48,'2026-06-17T05:57:05.307Z','2026-06-10 05:57:05');
-INSERT INTO sessions VALUES('88277568de0582e64e26978b31f9dee63a411da1ef2ca202baedee53cbfe09ea',1,'2026-06-17T06:44:32.204Z','2026-06-10 06:44:32');
 INSERT INTO sessions VALUES('dc919648d393951f6380ca1e0043e65456f6cb1c4fdbe9b1027fb5773cea6aee',1,'2026-06-17T07:22:38.686Z','2026-06-10 07:22:38');
-INSERT INTO sessions VALUES('ee2b20b86ebcf3480f0f46df815bb7d13d29be27d8847ecba650a50efee492c3',9999,'2026-06-17T07:23:38.818Z','2026-06-10 07:23:38');
+INSERT INTO sessions VALUES('fc3c4bfd63265df3634cbcdb10bf8fdd4e248d29027f59d24a07353c03aaae6a',1,'2026-06-17T07:34:45.100Z','2026-06-10 07:34:45');
+INSERT INTO sessions VALUES('2070d26a214694d39b253fa4f9a501f985b70cb1fb92525f199d736bd512473f',1,'2026-06-17T08:40:37.932Z','2026-06-10 08:40:37');
+INSERT INTO sessions VALUES('68c49ed8b6139a9d09d7d6b891ea1cfb617e853d5894c9fda1852a06f3b7803e',9999,'2026-06-17T08:40:53.757Z','2026-06-10 08:40:53');
 CREATE TABLE departments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -475,10 +477,10 @@ INSERT INTO reservation_attendees VALUES(3,85,127,'PENDING','2026-06-10 06:10:15
 INSERT INTO reservation_attendees VALUES(4,85,74,'PENDING','2026-06-10 06:10:15',NULL);
 INSERT INTO reservation_attendees VALUES(5,85,77,'PENDING','2026-06-10 06:10:15',NULL);
 DELETE FROM sqlite_sequence;
-INSERT INTO sqlite_sequence VALUES('d1_migrations',4);
+INSERT INTO sqlite_sequence VALUES('d1_migrations',5);
 INSERT INTO sqlite_sequence VALUES('spaces',9);
 INSERT INTO sqlite_sequence VALUES('users',9999);
-INSERT INTO sqlite_sequence VALUES('reservations',86);
+INSERT INTO sqlite_sequence VALUES('reservations',87);
 INSERT INTO sqlite_sequence VALUES('recurring_rules',6);
 INSERT INTO sqlite_sequence VALUES('departments',17);
 INSERT INTO sqlite_sequence VALUES('positions',7);

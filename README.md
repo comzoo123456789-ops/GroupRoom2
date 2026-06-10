@@ -593,3 +593,90 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 | §6 admin → PATCH /api/spaces/1 {color:"#ff8800"} | `{ok:true}` + 재조회 시 색 반영 ✅ |
 | §7 admin → PATCH /api/reservations/86 {start_time:"19:30"} | `{ok:true,updated:1}` + DB에 19:30 반영 ✅ |
 | 데이터 보존 (users 208 / spaces 9 / reservations 33) | ✅ |
+
+---
+
+## 🆕 V11 통합 패치 (2026-06-10) — 메이트리빌딩 디자인 개편 (회사 정보 소거 반영)
+
+### §1 [원형 보존 절대 원칙]
+- DB 구조 100% 유지 (users / spaces / reservations / tenants 테이블 스키마 무손상, 신규 컬럼 1개만 추가)
+- 기존 click/submit/change 핸들러 전수 보존 — 모든 변경은 **추가** 또는 **시그니처 호환 교체**
+
+### §2 [GNB 글자 흐림 완전 차단] 🚨 사용자 긴급 제보 대응
+- **사용자 제보**: "홈, 공간, 인사이트, 관리를 누르면 흐릿하게 보이는 문제"
+- **원인**: V8/V10 누적 패치층에서 `.is-active { color:#0f2647 }` 딥 네이비가 흐림으로 인지됨
+- **해결**: `styles.css` 4580~4728줄에 **최종 오버라이드 블록** 추가
+  - `.global-nav .nav-link` + `.is-active`/`.active`/`.selected`/`:hover`/`:focus`/`:focus-visible` + `href*=` 셀렉터 **모든 상태**에서 `color:#fff !important; opacity:1 !important; font-weight:700 !important;` 강제
+  - 자식 요소(`i`, `span`)까지 화이트 강제
+  - 시각 피드백은 **`::after` 가상 요소 하단 인디케이터**로 이동 (호버: 반투명 화이트, active: 솔리드 화이트)
+- 결과: 어떤 상태(클릭/포커스/호버/활성)에서도 메뉴 텍스트가 흐려지지 않음
+
+### §3-1 [회사 정보 카드 완전 소거]
+- 어드민 > 일반 페이지에서 [회사 정보] 카드 마크업 영구 삭제
+- 잔존 검증: `grep -i "회사 정보"` → V11 주석 2건 + admin-members 서브타이틀 1건(무관)만 남음
+
+### §3-2 [디바이스 카드 제거 + 멤버/공간 2분할 그리드]
+- [디바이스] 요약 카드 영구 삭제
+- `.summary-card-grid-container { grid-template-columns: repeat(2, 1fr); gap:16px; }` 적용
+- [멤버] [공간] 두 카드가 1:1 균등 2열로 정렬
+
+### §3-3 [테넌트별 일정 컬러 팔레트 신설] 🆕
+- **위치**: 기존 [공간 색상 팔레트] 바로 윗단에 [일정 컬러 팔레트] 섹션 신설
+- **마이그레이션**: `migrations/0005_v11_tenant_schedule_color.sql`
+  - `ALTER TABLE tenants ADD COLUMN schedule_color TEXT NOT NULL DEFAULT '#0066cc';`
+  - WYLIE 시드값 `#0066cc`, LUSH 시드값 `#1d1d1f`
+- **백엔드**: `src/api/tenants.ts` 신설 (75줄)
+  - `GET /api/tenants` — 인증된 사용자 누구나 (CSS 변수 동기화 목적)
+  - `PATCH /api/tenants/:id` — 관리자 전용, 화이트리스트 `['WYLIE','LUSH']`, HEX 정규식 검증, **단일 행 UPDATE로 격리 보장**
+- **프론트엔드 격리 설계**:
+  - `buildSchedulePaletteCard(tenants)` — [와일리 전용 picker] / [러쉬코리아 전용 picker] 마크업 수준 분리
+  - `onChangeWylie` 핸들러는 `PATCH /api/tenants/WYLIE`만 호출, `onChangeLush`는 `PATCH /api/tenants/LUSH`만 호출 — 데이터 바인딩 완전 격리
+  - 실시간 반영: `document.documentElement.style.setProperty('--wylie-schedule-color', color)` 즉시 적용
+- **CSS 변수 시스템**:
+  - `:root { --wylie-schedule-color: #0066cc; --lush-korea-schedule-color: #1d1d1f; }`
+  - `.timeline-event[data-tenant-id="WYLIE"]` / `.tenant-wylie` → `background-color: var(--wylie-schedule-color) !important`
+  - `.timeline-event[data-tenant-id="LUSH"]` / `.tenant-lush` → `background-color: var(--lush-korea-schedule-color) !important`
+- **부팅 시 동기화**: `boot()` 진입 시 `GET /api/tenants` 1회 호출 → `applyTenantColorVars(tenants)`로 CSS 변수 갱신
+- **이벤트 마크업**: `buildEventEl()`이 `data-tenant-id`와 `tenant-wylie/lush` 클래스를 모든 예약 블록에 부착
+
+### §4 [상단 리사이즈 핸들 — 방향성 가드 강화]
+- **사용자 제보**: "09:00 일정을 08:30으로 앞당기려고 윗부분 드래그 → 종료 시간이 줄어들며 블록 찌그러짐"
+- **근본 해결**: `direction: 'top' | 'bottom'` 명시적 파라미터 바인딩
+  - `resizeState.direction = 'bottom'` / `resizeTopState.direction = 'top'` 명시
+  - 각 move 핸들러에서 `direction !== 'top'` / `'bottom'` 가드로 핸들 혼선 차단
+- **종료 시간 좌표 동결(frozenBottom)**: mousedown 시점에 `originalTop + originalHeight`를 캡처하여 `resizeTopState.frozenBottom`에 저장
+  - `onResizeTopMove`에서 `newHeight = frozenBottom - newTop` 공식 사용 → **end_time 좌표 수학적 불변 보장**
+- **셀렉터 격리**: 하단 핸들 캡처 시 `closest('.ev-resize-handle:not(.ev-resize-handle-top)')` 사용 → 상단 핸들 클릭이 하단 로직으로 새지 않음
+- **3중 가드 유지**:
+  - 가드 1 (겹침): 같은 공간 이전 예약 `endMin` 이하 진입 금지
+  - 가드 2 (과거): 오늘 날짜 시 현재 시각 이전 진입 금지
+  - 가드 3 (최소): `end_time - 30분` 이상 금지
+
+### V11 빌드/검증 산출물
+| 항목 | 값 |
+|---|---|
+| `dist/_worker.js` | 88.03 kB (V10 대비 +1.05 kB) |
+| `public/static/styles.css` | 4,728 lines (V10 대비 +148 lines) |
+| `public/static/app.js` | 8개 위치 수정 + 2개 신규 함수 (buildSchedulePaletteCard, applyTenantColorVars) |
+| `src/api/tenants.ts` | 75 lines (신규) |
+| `src/index.tsx` | 70 lines (tenantsApi 라우트 등록) |
+| `migrations/0005_v11_tenant_schedule_color.sql` | 신규 (ALTER + 2 UPDATE) |
+| `db/database_dump.sql` | 501 lines (schedule_color 컬럼 포함) |
+| Vite 빌드 시간 | 922ms ✅ |
+| TypeScript 컴파일 오류 | 0건 ✅ |
+| Playwright `/login` 콘솔 메시지 | 0건 ✅ |
+
+### V11 E2E 검증 매트릭스
+| 시나리오 | 결과 |
+|---|---|
+| §2 GNB nav-link 모든 상태에서 #fff + opacity 1 + 700 강제 | CSS 라인 4580+ 확인 ✅ |
+| §3-1 회사 정보 카드 잔존 검사 (`grep`) | 마크업 0건 (주석/무관 서브타이틀만) ✅ |
+| §3-2 디바이스 카드 잔존 검사 + 2열 그리드 적용 | ✅ |
+| §3-3 admin → PATCH /api/tenants/WYLIE {schedule_color:"#7c3aed"} | `{ok:true, id:"WYLIE", schedule_color:"#7c3aed"}` ✅ |
+| §3-3 격리 검증: WYLIE 변경 후 LUSH 미변동 (#1d1d1f 유지) | ✅ |
+| §3-3 member → GET /api/tenants | HTTP 200 (CSS 동기화 허용) ✅ |
+| §3-3 member → PATCH /api/tenants/WYLIE | HTTP 403 `관리자만 접근할 수 있습니다.` ✅ |
+| §4 direction 파라미터 바인딩 + frozenBottom 캡처 | 코드 검증 완료 ✅ |
+| §4 `:not(.ev-resize-handle-top)` 셀렉터로 핸들 격리 | ✅ |
+| 데이터 보존 (users 207 active / spaces 9 / reservations 17 / tenants 2) | ✅ |
+

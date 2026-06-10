@@ -15,6 +15,7 @@ const State = {
   user: null,
   spaces: [],
   reservations: [],
+  tenants: [], // V11 §3-3: 테넌트별 일정 색상 캐시
   // V6-4: 홈 → 공간 이동 시 sessionStorage에 저장된 jumpDate를 우선 적용
   date: (() => {
     try {
@@ -784,9 +785,11 @@ function buildEventEl(r) {
   const highlight = State.mineOnly && r.user_id === State.user.id ? ' is-mine' : '';
 
   const node = el('div', {
-    class: 'timeline-event' + highlight,
+    // V11 §3-3: 테넌트 클래스 추가 — CSS 변수(--wylie/lush-schedule-color)를 통한 격리 컬러 적용
+    class: 'timeline-event' + highlight + ' tenant-' + (r.tenant_id === 'WYLIE' ? 'wylie' : 'lush'),
     style: `top:${top}px;height:${height}px;background:${bg};`,
     'data-id': r.id,
+    'data-tenant-id': r.tenant_id,
     // V8: 더블클릭 → 원클릭 단일 트리거. 드래그(빈 셀 새 예약)와는 트리거 영역이 다르므로 충돌 없음.
     // V10 §7: 리사이즈 핸들(상/하단) 클릭은 모달을 열지 않도록 차단
     onclick: (e) => {
@@ -881,8 +884,11 @@ function attachResizeHandlers() {
   if (!grid) return;
 
   grid.addEventListener('mousedown', (e) => {
-    const handle = e.target.closest('.ev-resize-handle');
+    // V11 §4: 정확한 클래스 매칭 — '.ev-resize-handle-top'은 절대 매칭되면 안 됨
+    const handle = e.target.closest('.ev-resize-handle:not(.ev-resize-handle-top)');
     if (!handle) return;
+    // 안전 가드: 클래스명이 정확히 'ev-resize-handle'인지 한 번 더 확인
+    if (handle.classList.contains('ev-resize-handle-top')) return;
     e.preventDefault();
     e.stopPropagation();
     const id = Number(handle.dataset.id);
@@ -892,6 +898,7 @@ function attachResizeHandlers() {
     resizeState = {
       reservation: r,
       eventEl,
+      direction: 'bottom', // V11 §4: 방향성 명시
       startClientY: e.clientY,
       originalHeight: eventEl.offsetHeight,
       originalTop: eventEl.offsetTop,
@@ -904,6 +911,7 @@ function attachResizeHandlers() {
 
 function onResizeMove(e) {
   if (!resizeState) return;
+  if (resizeState.direction !== 'bottom') return; // V11 §4: 방향성 가드
   const dy = e.clientY - resizeState.startClientY;
   let newHeight = Math.max(20, resizeState.originalHeight + dy);
   // 24시 경계 제한
@@ -983,12 +991,19 @@ function attachResizeTopHandlers() {
 
     const minStartMin = Math.max(predecessorEnd, nowMinFloor); // 둘 중 더 큰 값이 하한
 
+    // V11 §4: 종료 시간 절대 동결 — bottom 좌표를 미리 캡쳐
+    const originalTop = eventEl.offsetTop;
+    const originalHeight = eventEl.offsetHeight;
+    const frozenBottom = originalTop + originalHeight; // 이 값은 절대 변하지 않음
+
     resizeTopState = {
       reservation: r,
       eventEl,
+      direction: 'top', // V11 §4: 방향성 명시 — 'top' 핸들이 활성화됨
       startClientY: e.clientY,
-      originalHeight: eventEl.offsetHeight,
-      originalTop: eventEl.offsetTop,
+      originalHeight,
+      originalTop,
+      frozenBottom, // V11 §4: 종료 시간 동결 좌표
       minStartMin, // 시작 시간이 이 분(min) 미만으로 내려갈 수 없음
     };
   });
@@ -999,21 +1014,25 @@ function attachResizeTopHandlers() {
 
 function onResizeTopMove(e) {
   if (!resizeTopState) return;
+  // V11 §4: 방향성 가드 — 상단 핸들이 아닐 경우 절대 동작 금지
+  if (resizeTopState.direction !== 'top') return;
+
   const dy = e.clientY - resizeTopState.startClientY;
   // 상단 핸들 드래그: dy가 음수면 위로 이동 → top 감소, height 증가
   let newTop = resizeTopState.originalTop + dy;
   // 하한(min start) 적용
   const minTop = resizeTopState.minStartMin * (40 / 60);
   if (newTop < minTop) newTop = minTop;
-  // end_time은 고정 — newTop이 originalTop+originalHeight 이상이면 안됨 (최소 20px 높이)
-  const maxTop = resizeTopState.originalTop + resizeTopState.originalHeight - 20;
+  // V11 §4: end_time 절대 동결 — newTop이 frozenBottom - 20px 이상으로 가지 못함
+  const maxTop = resizeTopState.frozenBottom - 20;
   if (newTop > maxTop) newTop = maxTop;
 
-  const newHeight = (resizeTopState.originalTop + resizeTopState.originalHeight) - newTop;
+  // V11 §4: height는 항상 (frozenBottom - newTop)으로 산정 → 종료 시간 좌표 100% 고정
+  const newHeight = resizeTopState.frozenBottom - newTop;
   resizeTopState.eventEl.style.top = newTop + 'px';
   resizeTopState.eventEl.style.height = newHeight + 'px';
 
-  // 시간 표시 갱신
+  // 시간 표시 갱신 — 시작 시간만 변경, 종료 시간은 원본 그대로
   const startMin = Math.round(newTop / 40 * 60 / 30) * 30;
   const startStr = minutesToTime(startMin);
   const timeLabel = resizeTopState.eventEl.querySelector('.ev-time');
@@ -3021,70 +3040,149 @@ async function renderAdminGeneral() {
     renderShell(el('main', { class: 'page-wrap' }, el('h1', null, '권한이 없습니다.')));
     return;
   }
-  const [membersRes, spacesRes] = await Promise.all([api('/api/members'), api('/api/spaces')]);
+  // V11 §3: 회사정보/디바이스 카드 소거. 멤버/공간 + 일정/공간 팔레트만 표시.
+  const [membersRes, spacesRes, tenantsRes] = await Promise.all([
+    api('/api/members'),
+    api('/api/spaces'),
+    api('/api/tenants'), // V11 §3-3: 테넌트별 일정 색상 조회
+  ]);
   const memberCount = (membersRes?.data?.members || []).length;
   const spaceCount = (spacesRes?.data?.spaces || []).length;
-  const spaces = spacesRes?.data?.spaces || []; // V10 §6: 색상 팔레트 편집용
+  const spaces = spacesRes?.data?.spaces || [];
+  const tenants = tenantsRes?.data?.tenants || [];
+
+  // V11 §3-3: CSS 변수에 즉시 적용 (다른 페이지 이동 시 일정 블록 색 즉시 반영)
+  applyTenantColorVars(tenants);
 
   const main = el('main', { class: 'page-wrap' },
     el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
-        el('p', null, '회사 정보를 입력하고 서비스 기본 환경을 설정하세요.')
-        // V7 통합본 §1: 부모 div.page-header 에 is-admin-header 클래스 적용됨
+        el('p', null, '서비스 기본 환경과 색상 팔레트를 설정합니다.')
       )
     ),
     el('div', { class: 'admin-layout' },
       buildAdminSidebar('general'),
       el('div', { class: 'admin-content' },
         el('h2', { style: 'margin:0 0 24px;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '일반'),
-        el('div', { class: 'summary-cards' },
-          el('div', { class: 'summary-card' },
+
+        // V11 §3-2: 멤버/공간 2분할 그리드 (디바이스 카드 영구 삭제)
+        el('div', { class: 'summary-card-grid-container' },
+          el('div', { class: 'summary-card summary-card-item' },
             el('div', { class: 'summary-card-icon' }, el('i', { class: 'fa-solid fa-users' })),
             el('div', { class: 'summary-card-text' },
-              el('div', { class: 'label' }, '멤버'),
-              el('div', { class: 'value' }, `${memberCount}명`)
+              el('div', { class: 'label card-title' }, '멤버'),
+              el('div', { class: 'value card-value' }, `${memberCount}명`)
             )
           ),
-          el('div', { class: 'summary-card' },
+          el('div', { class: 'summary-card summary-card-item' },
             el('div', { class: 'summary-card-icon' }, el('i', { class: 'fa-solid fa-cube' })),
             el('div', { class: 'summary-card-text' },
-              el('div', { class: 'label' }, '공간'),
-              el('div', { class: 'value' }, `${spaceCount}개`)
-            )
-          ),
-          el('div', { class: 'summary-card' },
-            el('div', { class: 'summary-card-icon' }, el('i', { class: 'fa-solid fa-mobile-screen' })),
-            el('div', { class: 'summary-card-text' },
-              el('div', { class: 'label' }, '디바이스'),
-              el('div', { class: 'value' }, '-')
+              el('div', { class: 'label card-title' }, '공간'),
+              el('div', { class: 'value card-value' }, `${spaceCount}개`)
             )
           ),
         ),
-        el('div', { style: 'background:#fafafc;padding:24px;border-radius:11px;' },
-          el('h3', { style: 'margin:0 0 16px;font-size:17px;font-weight:600;' }, '회사 정보'),
-          el('div', { style: 'display:grid;grid-template-columns:120px 1fr;gap:12px 16px;align-items:center;font-size:14px;' },
-            el('div', { style: 'color:#7a7a7a;' }, '회사명'),
-            el('div', null, '메이트리그라운드'),
-            el('div', { style: 'color:#7a7a7a;' }, '회사 주소'),
-            el('div', null, '서울 강남구 학동로 336 (논현동) 1F'),
-            el('div', { style: 'color:#7a7a7a;' }, '예약 가능 시간'),
-            el('div', null, '00:00 → 24:00'),
-            el('div', { style: 'color:#7a7a7a;' }, '소속 테넌트'),
-            el('div', null,
-              State.user.tenant_id === 'WYLIE'
-                ? el('span', { class: 'tag tag-blue' }, '와일리 (WYLIE)')
-                : el('span', { class: 'tag tag-dark' }, '러쉬코리아 (LUSH)')
-            ),
-          )
-        ),
-        // V10 §6: 색상 팔레트 — 공간별 색상을 한 번에 편집 + 실시간 동기화
-        buildColorPaletteCard(spaces)
+
+        // V11 §3-1: 회사정보 카드 완전 소거 — 이 위치에 있던 마크업은 영구 삭제
+
+        // V11 §3-3: 팔레트 관리 래퍼 — 일정 팔레트(상단) + 공간 팔레트(하단)
+        el('div', { class: 'palette-management-wrapper' },
+          buildSchedulePaletteCard(tenants), // V11 §3-3: 테넌트별 일정 컬러 팔레트 (신규)
+          buildColorPaletteCard(spaces)        // V10 §6: 공간 색상 팔레트 (유지)
+        )
       )
     )
   );
 
   renderShell(main);
+}
+
+/** V11 §3-3: 테넌트별 일정 컬러 팔레트 — WYLIE / LUSH 완전 격리 */
+function buildSchedulePaletteCard(tenants) {
+  const wylie = tenants.find(t => t.id === 'WYLIE') || { id: 'WYLIE', name: '와일리', schedule_color: '#0066cc' };
+  const lush  = tenants.find(t => t.id === 'LUSH')  || { id: 'LUSH',  name: '러쉬코리아', schedule_color: '#1d1d1f' };
+
+  // 격리 핸들러: 한 쪽이 다른 쪽을 절대 건드리지 않음
+  const onChangeWylie = async (e) => {
+    const color = e.target.value;
+    document.getElementById('wylieTenantColorHex').textContent = color;
+    document.documentElement.style.setProperty('--wylie-schedule-color', color);
+    const r = await api(`/api/tenants/WYLIE`, {
+      method: 'PATCH',
+      body: JSON.stringify({ schedule_color: color }),
+    });
+    if (!r.ok) {
+      toast('와일리 일정 색상 저장에 실패했습니다.', 'error');
+    } else {
+      toast(`와일리 일정 색상을 ${color}로 변경했습니다.`, 'success');
+    }
+  };
+  const onChangeLush = async (e) => {
+    const color = e.target.value;
+    document.getElementById('lushTenantColorHex').textContent = color;
+    document.documentElement.style.setProperty('--lush-korea-schedule-color', color);
+    const r = await api(`/api/tenants/LUSH`, {
+      method: 'PATCH',
+      body: JSON.stringify({ schedule_color: color }),
+    });
+    if (!r.ok) {
+      toast('러쉬코리아 일정 색상 저장에 실패했습니다.', 'error');
+    } else {
+      toast(`러쉬코리아 일정 색상을 ${color}로 변경했습니다.`, 'success');
+    }
+  };
+
+  return el('div', { class: 'setting-section-box schedule-palette-box' },
+    el('h3', null,
+      el('i', { class: 'fa-solid fa-palette', style: 'margin-right:8px;color:#0066cc;' }),
+      '일정 컬러 팔레트'
+    ),
+    el('p', { class: 'section-desc' },
+      '각 회사별 독립된 팔레트입니다. 변경 시 해당 소속의 예약 블록 색상만 실시간으로 분리되어 반영됩니다.'
+    ),
+    el('div', { class: 'picker-row' },
+      // 와일리 (WYLIE) 셀
+      el('div', { class: 'picker-cell' },
+        el('label', { for: 'wylieTenantColorPicker' }, '와일리 (WYLIE) 일정 색상'),
+        el('input', {
+          type: 'color',
+          id: 'wylieTenantColorPicker',
+          class: 'tenant-color-picker',
+          value: wylie.schedule_color || '#0066cc',
+          'data-tenant': 'WYLIE',
+          onchange: onChangeWylie,
+        }),
+        el('div', { id: 'wylieTenantColorHex', class: 'tenant-color-hex' }, wylie.schedule_color || '#0066cc')
+      ),
+      // 러쉬코리아 (LUSH) 셀
+      el('div', { class: 'picker-cell' },
+        el('label', { for: 'lushTenantColorPicker' }, '러쉬코리아 (LUSH) 일정 색상'),
+        el('input', {
+          type: 'color',
+          id: 'lushTenantColorPicker',
+          class: 'tenant-color-picker',
+          value: lush.schedule_color || '#1d1d1f',
+          'data-tenant': 'LUSH',
+          onchange: onChangeLush,
+        }),
+        el('div', { id: 'lushTenantColorHex', class: 'tenant-color-hex' }, lush.schedule_color || '#1d1d1f')
+      ),
+    )
+  );
+}
+
+/** V11 §3-3: 테넌트 색상을 CSS 변수에 적용 (페이지 전체에 즉시 반영) */
+function applyTenantColorVars(tenants) {
+  const root = document.documentElement;
+  const wylie = tenants.find(t => t.id === 'WYLIE');
+  const lush = tenants.find(t => t.id === 'LUSH');
+  if (wylie?.schedule_color) {
+    root.style.setProperty('--wylie-schedule-color', wylie.schedule_color);
+  }
+  if (lush?.schedule_color) {
+    root.style.setProperty('--lush-korea-schedule-color', lush.schedule_color);
+  }
 }
 
 /** V10 §6: 색상 팔레트 카드 — 공간별 색상을 동시에 편집 → DB 저장 → 캘린더 실시간 재렌더 */
@@ -3667,6 +3765,17 @@ async function boot() {
     if (State.user.is_first_login) {
       openForcePasswordChangeModal();
       return;
+    }
+
+    // V11 §3-3: 테넌트별 일정 색상 한 번 로드 → CSS 변수 적용 (모든 페이지에서 사용)
+    try {
+      const tRes = await api('/api/tenants');
+      State.tenants = tRes?.data?.tenants || [];
+      if (typeof applyTenantColorVars === 'function') {
+        applyTenantColorVars(State.tenants);
+      }
+    } catch (e) {
+      console.warn('[app] tenants load failed (will use defaults):', e?.message);
     }
 
     switch (State.page) {

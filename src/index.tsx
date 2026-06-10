@@ -7,6 +7,7 @@ import reservationsApi from './api/reservations';
 import membersApi from './api/members';
 import insightsApi from './api/insights';
 import orgApi from './api/org';
+import tenantsApi from './api/tenants'; // V11 §3-3
 import type { Bindings, User } from './types';
 
 import { LoginPage } from './pages/login';
@@ -40,6 +41,9 @@ app.use('/api/insights/*', authMiddleware, requireAdmin);
 app.route('/api/insights', insightsApi);
 app.use('/api/org/*', authMiddleware);
 app.route('/api/org', orgApi);
+// V11 §3-3: 테넌트 API — GET은 모든 인증 사용자, PATCH는 admin (라우터 내부에서 추가 검증)
+app.use('/api/tenants/*', authMiddleware);
+app.route('/api/tenants', tenantsApi);
 
 // ============================================
 // PAGES
