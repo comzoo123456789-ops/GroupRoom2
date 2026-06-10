@@ -1,12 +1,59 @@
-# 메이트리그라운드 (Mateground) — V7
+# 메이트리그라운드 (Mateground) — V7 통합본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
 ## 프로젝트 개요
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
-- **주요 기능**: 공간 예약, 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI (V7 모바일 UX 전면 고도화)
+- **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
 
-## 🆕 V7 신규 기능 (모바일 UX 전면 고도화)
+## 🆕 V7 통합본 신규 사항 (PC/모바일 동시 고도화)
+
+### §1 — 관리 페이지 상단 타이틀/설명 모바일 전면 숨김
+- 모바일(≤768px)에서 `.page-header.is-admin-header { display: none }` 강제 → 화면 30%를 차지하던 "관리 / 회사 정보를 입력하고…" 영역 사라짐
+- 결과: 사용자가 관리 모드 진입 즉시 [일반/멤버/부서·직책/공간] 서브탭이 최상단에 노출
+- 적용 페이지: 멤버, 공간, 부서/직책, 일반(4개 admin 페이지 모두)
+
+### §2 — 멤버 리스트 빌딩 식별자 아바타 모바일 숨김 + 좌측 정렬 강화
+- 멤버 카드의 `.member-card-avatar`(아바타 동그라미)를 모바일에서 `display: none`
+- 이름/이메일을 카드의 맨 좌측 끝으로 밀착 (`padding-left: 0`)
+- 이름·이메일에 `text-overflow: ellipsis` 적용 — 좁은 폭에서도 한 줄 유지
+
+### §3 — 관리 서브 메뉴 탭 gap/padding 컴팩트화
+- 탭 버튼 간격 `gap: 4px`, 내부 패딩 `7px 12px`, 폰트 `13px`
+- 아이콘-텍스트 간격 `gap: 5px` → 한 줄에 [일반/멤버/부서·직책/공간] 4개 모두 노출
+- 가로 스크롤은 여전히 가능(`overflow-x: auto`)하되 일반적으로 드래그 불필요
+
+### §4 — +생성하기/+공간 추가 버튼 nowrap + 공간 페이지 카드 UI
+- `btn-compact-mobile` 클래스 신설: 모바일에서 `padding: 8px 12px`, `font-size: 13px`, **`white-space: nowrap`**, `flex-shrink: 0` 강제 → 글자 깨짐 방지
+- 공간 페이지에도 듀얼 렌더링(`.space-table-desktop` + `.space-cards-mobile`) 도입
+  - 모바일 카드: [색상칩 + 공간명 + 유형·인원 + 권한 뱃지] / [3개 제한·색상 메타] / [수정·삭제 액션]
+- 관리 메뉴 sticky/fixed는 모바일에서 `position: relative !important; top: auto !important` 강제 해제 → 본문과 함께 스크롤
+
+### §5 — 반복 예약 제어 시스템 고도화 (UI 문구 + 일괄 로직)
+- **취소 분기 모달** `openRecurringDeleteScopeModal()`:
+  - `[해당 일정 취소]` → `DELETE /api/reservations/:id?scope=single` (단건)
+  - `[이후 반복 일정 삭제]` → `DELETE /api/reservations/:id?scope=future` (선택 일자 포함 이후 일괄)
+  - `[전체 반복 일정 삭제]` → `DELETE /api/reservations/:id?scope=all` (과거+미래 전체) — 적색 강조
+- **수정 분기 모달** `openRecurringEditScopeModal()`:
+  - `[해당 일정만 수정]` → `PATCH /api/reservations/:id` (기존)
+  - `[이후 모든 반복 일정에 적용]` → `PATCH /api/reservations/:id?update_scope=future` (시간·장소·제목 일괄 갱신, 사전 충돌 검증 트랜잭션)
+- 일반(단건) 예약일 때는 모달 생략, 기존 confirm 흐름 유지
+
+### §6 — 전역 모달 width 92%, max-width 480px 통일
+- 모바일에서 모든 `.modal`이 `width: 92% !important; max-width: 480px !important; max-height: 92vh` 강제
+- 푸터 버튼은 `flex: 1 1 auto; white-space: nowrap` → 좁은 화면에서도 텍스트 잘리지 않음
+
+### V7 통합본 E2E 검증 (모두 통과)
+| 검증 | 방법 | 결과 |
+|---|---|---|
+| 빌드 | `npm run build` | ✅ `_worker.js 80.81 kB` |
+| 정적 자산 식별자 | 서빙된 `/static/app.js`·`/static/styles.css` grep | ✅ V7 통합본 식별자 19종 모두 노출 |
+| 로그인 페이지 | Playwright Console | ✅ 0 error |
+| 반복 예약 PATCH `?update_scope=future` | API E2E (3건 일괄 갱신) | ✅ `{"ok":true,"updated":3,"scope":"future"}` |
+| 반복 예약 DELETE `?scope=future` | API E2E (3건 일괄 취소) | ✅ `{"ok":true,"cancelled":3,"scope":"future"}` |
+| 반복 예약 DELETE `?scope=all` | API E2E (전체 취소) | ✅ 백엔드 라우트 정상 라우팅 |
+
+## V7 누적 기능 (1차 — 이전 턴 적용)
 
 ### V7-1 — 상단 헤더 양 끝 정렬 (좌 로고 / 우 아바타+이름+햄버거)
 - 모바일(≤768px) `.global-nav-inner`에 `justify-content: space-between` 적용

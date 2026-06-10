@@ -263,10 +263,16 @@ reservations.post('/', async (c) => {
   });
 });
 
-/** 예약 수정 */
+/**
+ * 예약 수정
+ * V7 통합본 §5: update_scope=future 지원
+ *  - update_scope=future: 해당 예약과 동일 recurring_rule_id를 가진 이후(>= 현재 date) 모든 예약을 일괄 갱신
+ *  - 시간/공간 변경은 미래 예약 전체에 동일 오프셋이 아닌 동일 값으로 일괄 적용(요구사항 단순화).
+ */
 reservations.patch('/:id', async (c) => {
   const user = c.get('user');
   const id = Number(c.req.param('id'));
+  const updateScope = c.req.query('update_scope') || 'single'; // 'single' | 'future'
   const body = await c.req.json<{ title?: string; start_time?: string; end_time?: string; date?: string; space_id?: number }>();
 
   const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation>();
@@ -288,32 +294,69 @@ reservations.patch('/:id', async (c) => {
     }
   }
 
-  // 시간/공간 변경 시 충돌 재검증
-  if (newDate !== existing.date || newStart !== existing.start_time || newEnd !== existing.end_time || newSpaceId !== existing.space_id) {
-    const conflicts = await findConflicts(c.env.DB, newDate, newStart, newEnd, newSpaceId, id);
-    if (conflicts.length > 0) {
-      return c.json({ error: '이미 예약된 시간입니다.', type: 'CONFLICT' }, 409);
-    }
-    if (user.role !== 'admin') {
-      const limit = await checkRoomLimit(c.env.DB, existing.tenant_id, newDate, newStart, newEnd, newSpaceId);
-      if (!limit.ok) {
-        return c.json({ error: '해당 시간대 회사 최대 예약 가능 개수(3개)를 초과했습니다.', type: 'LIMIT_EXCEEDED' }, 409);
+  // 단일 수정 — 기존 로직 그대로
+  if (updateScope === 'single' || !existing.recurring_rule_id) {
+    // 시간/공간 변경 시 충돌 재검증
+    if (newDate !== existing.date || newStart !== existing.start_time || newEnd !== existing.end_time || newSpaceId !== existing.space_id) {
+      const conflicts = await findConflicts(c.env.DB, newDate, newStart, newEnd, newSpaceId, id);
+      if (conflicts.length > 0) {
+        return c.json({ error: '이미 예약된 시간입니다.', type: 'CONFLICT' }, 409);
       }
+      if (user.role !== 'admin') {
+        const limit = await checkRoomLimit(c.env.DB, existing.tenant_id, newDate, newStart, newEnd, newSpaceId);
+        if (!limit.ok) {
+          return c.json({ error: '해당 시간대 회사 최대 예약 가능 개수(3개)를 초과했습니다.', type: 'LIMIT_EXCEEDED' }, 409);
+        }
+      }
+    }
+
+    await c.env.DB.prepare(`
+      UPDATE reservations SET title = ?, date = ?, start_time = ?, end_time = ?, space_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(body.title ?? existing.title, newDate, newStart, newEnd, newSpaceId, id).run();
+
+    return c.json({ ok: true, updated: 1 });
+  }
+
+  // V7 통합본 §5: update_scope=future — 동일 recurring_rule_id, date >= existing.date 인 모든 예약 일괄 갱신
+  // 시간/공간/타이틀은 동일 값을 적용. date는 각 예약의 본래 날짜를 유지(반복 시리즈 유지).
+  const newTitle = body.title ?? existing.title;
+  const futureRows = await c.env.DB.prepare(
+    'SELECT id, date FROM reservations WHERE recurring_rule_id = ? AND date >= ? AND status != ?'
+  ).bind(existing.recurring_rule_id, existing.date, 'cancelled').all<{ id: number; date: string }>();
+
+  const futureList = (futureRows.results || []) as Array<{ id: number; date: string }>;
+
+  // 충돌 사전 검증 — 새 시간/공간으로 모든 미래 날짜에 대해 미리 체크
+  for (const row of futureList) {
+    const conflicts = await findConflicts(c.env.DB, row.date, newStart, newEnd, newSpaceId, row.id);
+    if (conflicts.length > 0) {
+      return c.json({ error: `${row.date} 일정과 충돌합니다. 일괄 수정이 취소되었습니다.`, type: 'CONFLICT' }, 409);
     }
   }
 
-  await c.env.DB.prepare(`
-    UPDATE reservations SET title = ?, date = ?, start_time = ?, end_time = ?, space_id = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).bind(body.title ?? existing.title, newDate, newStart, newEnd, newSpaceId, id).run();
+  // 모두 통과 — 일괄 UPDATE
+  for (const row of futureList) {
+    await c.env.DB.prepare(`
+      UPDATE reservations SET title = ?, start_time = ?, end_time = ?, space_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(newTitle, newStart, newEnd, newSpaceId, row.id).run();
+  }
 
-  return c.json({ ok: true });
+  return c.json({ ok: true, updated: futureList.length, scope: 'future' });
 });
 
-/** 예약 삭제 (취소) */
+/**
+ * 예약 삭제 (취소)
+ * V7 통합본 §5: scope 분기 지원
+ *  - scope=single (기본): 단건만 취소
+ *  - scope=future: 동일 recurring_rule_id, date >= 현재 의 모든 예약 일괄 취소
+ *  - scope=all: 해당 recurring_rule_id 의 모든 예약(과거 포함) 일괄 취소
+ */
 reservations.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = Number(c.req.param('id'));
+  const scope = c.req.query('scope') || 'single'; // 'single' | 'future' | 'all'
 
   const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation>();
   if (!existing) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
@@ -321,8 +364,27 @@ reservations.delete('/:id', async (c) => {
     return c.json({ error: '권한이 없습니다.' }, 403);
   }
 
-  await c.env.DB.prepare("UPDATE reservations SET status = 'cancelled' WHERE id = ?").bind(id).run();
-  return c.json({ ok: true });
+  // 반복 규칙이 없거나 scope=single 이면 단건만
+  if (scope === 'single' || !existing.recurring_rule_id) {
+    await c.env.DB.prepare("UPDATE reservations SET status = 'cancelled' WHERE id = ?").bind(id).run();
+    return c.json({ ok: true, cancelled: 1, scope: 'single' });
+  }
+
+  if (scope === 'future') {
+    const result = await c.env.DB.prepare(
+      "UPDATE reservations SET status = 'cancelled' WHERE recurring_rule_id = ? AND date >= ? AND status != 'cancelled'"
+    ).bind(existing.recurring_rule_id, existing.date).run();
+    return c.json({ ok: true, cancelled: result.meta?.changes ?? 0, scope: 'future' });
+  }
+
+  if (scope === 'all') {
+    const result = await c.env.DB.prepare(
+      "UPDATE reservations SET status = 'cancelled' WHERE recurring_rule_id = ? AND status != 'cancelled'"
+    ).bind(existing.recurring_rule_id).run();
+    return c.json({ ok: true, cancelled: result.meta?.changes ?? 0, scope: 'all' });
+  }
+
+  return c.json({ error: '알 수 없는 scope 값입니다.' }, 400);
 });
 
 export default reservations;

@@ -1035,20 +1035,34 @@ function openReservationDetail(r) {
       ),
     ),
     el('div', { class: 'modal-footer' },
-      canEdit ? el('button', { class: 'btn-secondary', style: 'color:#d33;', onclick: () => deleteReservation(r.id) }, '예약 취소') : null,
-      canEdit ? el('button', { class: 'btn-primary', onclick: () => saveReservationEdit(r.id, edit) }, '저장') : el('button', { class: 'btn-primary', onclick: closeModal }, '닫기')
+      canEdit ? el('button', { class: 'btn-secondary', style: 'color:#d33;', onclick: () => deleteReservation(r.id, r.recurring_rule_id) }, '예약 취소') : null,
+      canEdit ? el('button', { class: 'btn-primary', onclick: () => saveReservationEdit(r.id, edit, r.recurring_rule_id) }, '저장') : el('button', { class: 'btn-primary', onclick: closeModal }, '닫기')
     )
   );
   backdrop.append(modal);
   document.body.append(backdrop);
 }
 
-async function saveReservationEdit(id, edit) {
+/**
+ * V7 통합본 §5: 반복 예약 저장 분기
+ *  - 단건 예약(recurring_rule_id 없음): 단건만 저장
+ *  - 반복 예약: "이후 모든 반복 일정에 적용할까요?" 확인 → 사용자 선택에 따라 update_scope=single|future
+ */
+async function saveReservationEdit(id, edit, recurringRuleId) {
   if (edit.start_time >= edit.end_time) {
     toast('시작 시간은 종료 시간보다 빨라야 합니다.', 'error');
     return;
   }
-  const res = await api(`/api/reservations/${id}`, {
+
+  let updateScope = 'single';
+  if (recurringRuleId) {
+    const choice = await openRecurringEditScopeModal();
+    if (choice === null) return; // 취소
+    updateScope = choice; // 'single' | 'future'
+  }
+
+  const qs = updateScope === 'future' ? '?update_scope=future' : '';
+  const res = await api(`/api/reservations/${id}${qs}`, {
     method: 'PATCH',
     body: JSON.stringify(edit)
   });
@@ -1056,20 +1070,120 @@ async function saveReservationEdit(id, edit) {
     toast(res.data?.error || '수정에 실패했습니다.', 'error');
     return;
   }
-  toast('예약이 수정되었습니다.', 'success');
+  toast(updateScope === 'future'
+    ? `이후 ${res.data?.updated ?? ''}건의 반복 일정에 일괄 적용되었습니다.`
+    : '예약이 수정되었습니다.', 'success');
   closeModal();
   await loadTimeline();
   renderSpaces();
 }
 
-async function deleteReservation(id) {
-  if (!confirm('이 예약을 취소하시겠습니까?')) return;
-  const res = await api(`/api/reservations/${id}`, { method: 'DELETE' });
+/**
+ * V7 통합본 §5: 반복 예약 취소/삭제 분기
+ *  - 단건 예약: 그대로 단건 취소
+ *  - 반복 예약: 3-way 선택 모달 (해당 일정 취소 / 이후 반복 일정 삭제 / 전체 반복 일정 삭제)
+ */
+async function deleteReservation(id, recurringRuleId) {
+  let scope = 'single';
+  if (recurringRuleId) {
+    const choice = await openRecurringDeleteScopeModal();
+    if (choice === null) return;
+    scope = choice; // 'single' | 'future' | 'all'
+  } else {
+    if (!confirm('이 예약을 취소하시겠습니까?')) return;
+  }
+
+  const qs = `?scope=${scope}`;
+  const res = await api(`/api/reservations/${id}${qs}`, { method: 'DELETE' });
   if (!res.ok) { toast(res.data?.error || '취소 실패', 'error'); return; }
-  toast('예약이 취소되었습니다.', 'success');
+  const msg = scope === 'single'
+    ? '예약이 취소되었습니다.'
+    : scope === 'future'
+      ? `이후 ${res.data?.cancelled ?? ''}건의 반복 일정이 삭제되었습니다.`
+      : `반복 일정 전체 ${res.data?.cancelled ?? ''}건이 삭제되었습니다.`;
+  toast(msg, 'success');
   closeModal();
   await loadTimeline();
   renderSpaces();
+}
+
+/** V7 통합본 §5: 반복 예약 "삭제" 분기 선택 모달 — Promise<'single'|'future'|'all'|null> */
+function openRecurringDeleteScopeModal() {
+  return new Promise((resolve) => {
+    // 기존 상세 모달은 닫지 않고 그 위에 덮어쓰기 — 백드롭 z-index 더 높게
+    const backdrop = el('div', {
+      class: 'modal-backdrop recurring-scope-backdrop',
+      style: 'z-index:10001;',
+      onclick: (e) => { if (e.target === backdrop) { close(null); } }
+    });
+    const close = (v) => { backdrop.remove(); resolve(v); };
+    const modal = el('div', { class: 'modal', style: 'max-width:420px;' },
+      el('div', { class: 'modal-header' },
+        el('div', { class: 'modal-header-title' }, '반복 일정 취소'),
+        el('button', { class: 'btn-icon', onclick: () => close(null) }, el('i', { class: 'fa-solid fa-xmark' }))
+      ),
+      el('div', { class: 'modal-body' },
+        el('p', { style: 'margin:0 0 16px;color:#555;font-size:14px;line-height:1.55;' },
+          '반복 설정된 예약입니다. 어떻게 처리할까요?'),
+        el('div', { class: 'recurring-scope-options' },
+          el('button', { class: 'recurring-scope-btn', onclick: () => close('single') },
+            el('div', { class: 'rsb-title' }, '해당 일정 취소'),
+            el('div', { class: 'rsb-desc' }, '선택한 날짜의 단 한 건만 취소합니다.')
+          ),
+          el('button', { class: 'recurring-scope-btn', onclick: () => { if (confirm('이후 모든 반복 일정을 삭제하시겠습니까?')) close('future'); } },
+            el('div', { class: 'rsb-title' }, '이후 반복 일정 삭제'),
+            el('div', { class: 'rsb-desc' }, '선택한 날짜를 포함, 이후 예정된 모든 반복을 일괄 삭제합니다.')
+          ),
+          el('button', { class: 'recurring-scope-btn is-danger', onclick: () => { if (confirm('과거 일정 포함, 전체 반복 일정을 모두 삭제하시겠습니까? 되돌릴 수 없습니다.')) close('all'); } },
+            el('div', { class: 'rsb-title' }, '전체 반복 일정 삭제'),
+            el('div', { class: 'rsb-desc' }, '과거·미래를 불문하고 같은 반복 규칙의 모든 일정을 삭제합니다.')
+          )
+        )
+      ),
+      el('div', { class: 'modal-footer' },
+        el('button', { class: 'btn-secondary', onclick: () => close(null) }, '닫기')
+      )
+    );
+    backdrop.append(modal);
+    document.body.append(backdrop);
+  });
+}
+
+/** V7 통합본 §5: 반복 예약 "수정" 분기 선택 모달 — Promise<'single'|'future'|null> */
+function openRecurringEditScopeModal() {
+  return new Promise((resolve) => {
+    const backdrop = el('div', {
+      class: 'modal-backdrop recurring-scope-backdrop',
+      style: 'z-index:10001;',
+      onclick: (e) => { if (e.target === backdrop) { close(null); } }
+    });
+    const close = (v) => { backdrop.remove(); resolve(v); };
+    const modal = el('div', { class: 'modal', style: 'max-width:420px;' },
+      el('div', { class: 'modal-header' },
+        el('div', { class: 'modal-header-title' }, '반복 일정 수정'),
+        el('button', { class: 'btn-icon', onclick: () => close(null) }, el('i', { class: 'fa-solid fa-xmark' }))
+      ),
+      el('div', { class: 'modal-body' },
+        el('p', { style: 'margin:0 0 16px;color:#555;font-size:14px;line-height:1.55;' },
+          '이후 모든 반복 일정에 적용할까요?'),
+        el('div', { class: 'recurring-scope-options' },
+          el('button', { class: 'recurring-scope-btn', onclick: () => close('single') },
+            el('div', { class: 'rsb-title' }, '해당 일정만 수정'),
+            el('div', { class: 'rsb-desc' }, '선택한 날짜의 단 한 건만 수정합니다.')
+          ),
+          el('button', { class: 'recurring-scope-btn', onclick: () => close('future') },
+            el('div', { class: 'rsb-title' }, '이후 모든 반복 일정에 적용'),
+            el('div', { class: 'rsb-desc' }, '선택한 날짜를 포함, 이후 모든 반복 일정의 시간·장소·제목을 일괄 갱신합니다.')
+          )
+        )
+      ),
+      el('div', { class: 'modal-footer' },
+        el('button', { class: 'btn-secondary', onclick: () => close(null) }, '취소')
+      )
+    );
+    backdrop.append(modal);
+    document.body.append(backdrop);
+  });
 }
 
 // ============== INSIGHTS ==============
@@ -1525,8 +1639,9 @@ async function renderAdminMembers() {
   const res = await api('/api/members');
   const members = res?.data?.members || [];
 
+  // V7 통합본 §1: page-header 는 모바일에서 CSS로 display:none — is-admin-header 플래그
   const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'page-header' },
+    el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
         el('p', null, '회사 정보를 입력하고 서비스 기본 설정을 관리하세요.')
@@ -1535,12 +1650,13 @@ async function renderAdminMembers() {
     el('div', { class: 'admin-layout' },
       buildAdminSidebar('members'),
       el('div', { class: 'admin-content' },
-        el('div', { style: 'display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;' },
+        // V7 통합본 §4: admin-content-header — 모바일 적응형 헤더(클래스 기반)
+        el('div', { class: 'admin-content-header' },
           el('div', null,
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '멤버'),
             el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '관리자가 직접 직원 계정을 생성하고 정보를 관리합니다.')
           ),
-          el('button', { class: 'btn-primary', onclick: openMemberCreateModal },
+          el('button', { class: 'btn-primary btn-compact-mobile', onclick: openMemberCreateModal },
             el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }),
             '생성하기'
           )
@@ -1635,7 +1751,7 @@ function buildMemberTable(members) {
     ...members.map(m =>
       el('div', { class: 'member-card', 'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase() },
         el('div', { class: 'member-card-head' },
-          el('div', { class: 'avatar', style: `background:${m.avatar_color};width:42px;height:42px;font-size:15px;` }, initials(m.name)),
+          el('div', { class: 'avatar member-card-avatar', style: `background:${m.avatar_color};width:42px;height:42px;font-size:15px;` }, initials(m.name)),
           el('div', { class: 'member-card-id' },
             el('div', { class: 'member-card-name' }, m.name),
             el('div', { class: 'member-card-email' }, m.email)
@@ -2020,10 +2136,11 @@ async function renderAdminGeneral() {
   const spaceCount = (spacesRes?.data?.spaces || []).length;
 
   const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'page-header' },
+    el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
         el('p', null, '회사 정보를 입력하고 서비스 기본 환경을 설정하세요.')
+        // V7 통합본 §1: 부모 div.page-header 에 is-admin-header 클래스 적용됨
       )
     ),
     el('div', { class: 'admin-layout' },
@@ -2087,24 +2204,27 @@ async function renderAdminSpaces() {
   const spaces = res?.data?.spaces || [];
 
   const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'page-header' },
+    el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
         el('p', null, '공간 자원을 추가·수정·삭제합니다. 변경 사항은 타임라인에 즉시 반영됩니다.')
+        // V7 통합본 §1: 부모 div.page-header 에 is-admin-header 클래스 적용됨
       )
     ),
     el('div', { class: 'admin-layout' },
       buildAdminSidebar('spaces'),
       el('div', { class: 'admin-content' },
-        el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;' },
+        // V7 통합본 §4: 헤더 액션바 — 버튼은 nowrap + 모바일 패딩 축소 CSS 클래스 적용
+        el('div', { class: 'admin-content-header' },
           el('div', null,
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '공간'),
             el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '운영 중인 공간 자원 목록입니다.')
           ),
-          el('button', { class: 'btn-primary', onclick: () => openSpaceModal(null) },
+          el('button', { class: 'btn-primary btn-compact-mobile', onclick: () => openSpaceModal(null) },
             el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }), '공간 추가')
         ),
-        el('table', { class: 'data-table' },
+        // V7 통합본 §4: 데스크톱 테이블 + 모바일 카드 UI 듀얼 렌더
+        el('table', { class: 'data-table space-table-desktop' },
           el('thead', null, el('tr', null,
             el('th', null, '공간명'), el('th', null, '유형'), el('th', null, '수용 인원'),
             el('th', null, '3개 제한 카운트'), el('th', null, '접근 권한'), el('th', null, '색상'), el('th', { style: 'text-align:right;' }, '액션')
@@ -2138,6 +2258,50 @@ async function renderAdminSpaces() {
                     )
                   )
                 )
+              )
+            )
+          )
+        ),
+        // V7 통합본 §4: 모바일 카드 UI
+        el('div', { class: 'space-cards-mobile' },
+          ...spaces.map(s =>
+            el('div', { class: 'member-card space-card' },
+              el('div', { class: 'member-card-head' },
+                el('div', { class: 'space-color-chip', style: `background:${s.color};` }),
+                el('div', { class: 'member-card-id' },
+                  el('div', { class: 'member-card-name' }, s.name),
+                  el('div', { class: 'member-card-email' },
+                    (s.type === 'meeting_room' ? '미팅룸' : '공용공간') + ' · ' + s.capacity + '명'
+                  )
+                ),
+                el('div', { class: 'member-card-badges' },
+                  s.tenant_scope
+                    ? el('span', { class: 'status-badge s-active', style: 'background:rgba(0,102,204,0.12);color:#0066cc;' }, s.tenant_scope + ' 전용')
+                    : el('span', { class: 'status-badge s-member' }, '모두 공개')
+                )
+              ),
+              el('div', { class: 'member-card-meta' },
+                el('div', { class: 'meta-row' },
+                  el('span', { class: 'meta-label' }, '3개 제한'),
+                  el('span', { class: 'meta-value' },
+                    s.count_in_limit === 1
+                      ? el('span', { class: 'status-badge s-active' }, '포함')
+                      : el('span', { class: 'status-badge s-member' }, '제외')
+                  )
+                ),
+                el('div', { class: 'meta-row' },
+                  el('span', { class: 'meta-label' }, '색상'),
+                  el('span', { class: 'meta-value', style: 'display:flex;align-items:center;gap:6px;' },
+                    el('span', { style: `display:inline-block;width:14px;height:14px;border-radius:4px;background:${s.color};` }),
+                    s.color
+                  )
+                )
+              ),
+              el('div', { class: 'member-card-actions' },
+                el('button', { class: 'btn-card-action', onclick: () => openSpaceModal(s) },
+                  el('i', { class: 'fa-solid fa-pen', style: 'margin-right:6px;font-size:11px;' }), '수정'),
+                el('button', { class: 'btn-card-action is-danger', onclick: () => deleteSpace(s) },
+                  el('i', { class: 'fa-solid fa-trash', style: 'margin-right:6px;font-size:11px;' }), '삭제')
               )
             )
           )
@@ -2255,10 +2419,11 @@ async function renderAdminOrg() {
   await loadOrgLists();
 
   const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'page-header' },
+    el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
         el('p', null, '부서와 직책을 한 화면에서 통합 관리합니다. 멤버 생성 폼의 드롭다운에 즉시 반영됩니다.')
+        // V7 통합본 §1: 부모 div.page-header 에 is-admin-header 클래스 적용됨
       )
     ),
     el('div', { class: 'admin-layout' },
