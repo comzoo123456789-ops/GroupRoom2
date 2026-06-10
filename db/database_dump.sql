@@ -12,7 +12,7 @@ CREATE TABLE _cf_METADATA (
         key INTEGER PRIMARY KEY,
         value BLOB
       );
-INSERT INTO _cf_METADATA VALUES(2,6139);
+INSERT INTO _cf_METADATA VALUES(2,8266);
 CREATE TABLE tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -40,6 +40,10 @@ INSERT INTO users VALUES(1,'WYLIE','admin@wylie.co.kr','ac9689e2272427085e35b9d3
 INSERT INTO users VALUES(15,'LUSH','admin@lush.co.kr','ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270','관리자 (LUSH)',NULL,NULL,NULL,'admin','active','#1d1d1f','2026-06-09 12:58:14',0);
 INSERT INTO users VALUES(16,'WYLIE','test@wylie.co.kr','ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270','테스트 사원',NULL,NULL,NULL,'member','active','#facc15','2026-06-09 13:01:38',1);
 INSERT INTO users VALUES(17,'WYLIE','bhmoon@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','Moon',NULL,NULL,NULL,'member','active','#06b6d4','2026-06-09 13:22:22',0);
+INSERT INTO users VALUES(18,'WYLIE','2@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','2@wylie.co.kr',NULL,NULL,NULL,'member','active','#06b6d4','2026-06-10 02:18:16',0);
+INSERT INTO users VALUES(20,'WYLIE','bmim@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','임보미','컨버전스1본부','GM',NULL,'member','active','#ef4444','2026-06-10 02:49:06',1);
+INSERT INTO users VALUES(21,'WYLIE','jpark@wylie.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','박준','컨버전스1본부','GL',NULL,'admin','active','#0066cc','2026-06-10 02:49:35',1);
+INSERT INTO users VALUES(22,'LUSH','2@lush.co.kr','831c237928e6212bedaa4451a514ace3174562f6761f6a157a2fe5082b36e2fb','2',NULL,NULL,NULL,'member','active','#8b5cf6','2026-06-10 04:01:28',0);
 CREATE TABLE spaces (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -58,7 +62,7 @@ INSERT INTO spaces VALUES(5,'Meeting Room E','meeting_room',8,'#8b5cf6',1,5,'202
 INSERT INTO spaces VALUES(6,'Lounge','common_space',80,'#7a7a7a',0,6,'2026-06-09 08:27:38',NULL);
 INSERT INTO spaces VALUES(7,'Recharging Zone','common_space',1,'#7a7a7a',0,7,'2026-06-09 08:27:38',NULL);
 INSERT INTO spaces VALUES(8,'5층 회의실','meeting_room',18,'#ec4899',0,8,'2026-06-09 12:34:49','WYLIE');
-INSERT INTO spaces VALUES(9,'와일리빌딩 파라다이스룸','meeting_room',4,'#0066cc',0,9,'2026-06-09 13:25:31','LUSH');
+INSERT INTO spaces VALUES(9,'파라다이스룸','meeting_room',4,'#0066cc',0,9,'2026-06-09 13:25:31','LUSH');
 CREATE TABLE recurring_rules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   frequency TEXT NOT NULL, 
@@ -72,6 +76,7 @@ INSERT INTO recurring_rules VALUES(2,'weekly','date','2026-07-09',10,'2026-06-09
 INSERT INTO recurring_rules VALUES(3,'weekly','count','2026-07-10',2,'2026-06-10 01:39:03');
 INSERT INTO recurring_rules VALUES(4,'weekly','count','2026-07-10',2,'2026-06-10 01:43:45');
 INSERT INTO recurring_rules VALUES(5,'daily','count',NULL,3,'2026-06-10 02:05:20');
+INSERT INTO recurring_rules VALUES(6,'weekly','count','2026-07-10',3,'2026-06-10 02:29:09');
 CREATE TABLE reservations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -136,6 +141,20 @@ INSERT INTO reservations VALUES(51,'WYLIE',1,3,'새로운 일정','2026-06-17','
 INSERT INTO reservations VALUES(52,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-15','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
 INSERT INTO reservations VALUES(53,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-16','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
 INSERT INTO reservations VALUES(54,'WYLIE',1,1,'V7 일괄 적용 완료','2026-06-17','11:00','12:00',NULL,5,1,'cancelled','2026-06-10 02:05:20','2026-06-10 02:05:20');
+INSERT INTO reservations VALUES(55,'WYLIE',18,3,'새로운 일정','2026-06-10','02:00','08:00',NULL,NULL,0,'confirmed','2026-06-10 02:18:55','2026-06-10 02:18:55');
+INSERT INTO reservations VALUES(56,'WYLIE',18,4,'새로운 일정','2026-06-10','02:00','08:00',NULL,NULL,0,'confirmed','2026-06-10 02:18:58','2026-06-10 02:18:58');
+INSERT INTO reservations VALUES(57,'WYLIE',18,1,'새로운 일정','2026-06-10','08:00','09:00',NULL,NULL,0,'confirmed','2026-06-10 02:19:43','2026-06-10 02:19:43');
+INSERT INTO reservations VALUES(58,'WYLIE',18,2,'새로운 일정','2026-06-10','08:00','09:00',NULL,NULL,0,'confirmed','2026-06-10 02:19:45','2026-06-10 02:19:45');
+INSERT INTO reservations VALUES(59,'WYLIE',18,3,'새로운 일정','2026-06-10','08:00','09:00',NULL,NULL,0,'confirmed','2026-06-10 02:19:47','2026-06-10 02:20:14');
+INSERT INTO reservations VALUES(60,'WYLIE',18,6,'새로운 일정','2026-06-10','02:30','16:30',NULL,NULL,0,'confirmed','2026-06-10 02:19:59','2026-06-10 02:19:59');
+INSERT INTO reservations VALUES(61,'WYLIE',18,7,'새로운 일정','2026-06-10','02:30','16:30',NULL,NULL,0,'confirmed','2026-06-10 02:20:02','2026-06-10 02:20:02');
+INSERT INTO reservations VALUES(62,'LUSH',15,4,'새로운 일정','2026-06-10','08:00','11:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:42','2026-06-10 02:22:42');
+INSERT INTO reservations VALUES(63,'LUSH',15,2,'새로운 일정','2026-06-10','09:30','14:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:44','2026-06-10 02:22:44');
+INSERT INTO reservations VALUES(64,'LUSH',15,3,'새로운 일정','2026-06-10','11:30','16:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:50','2026-06-10 02:22:50');
+INSERT INTO reservations VALUES(65,'LUSH',15,4,'새로운 일정','2026-06-10','12:00','17:30',NULL,NULL,1,'confirmed','2026-06-10 02:22:52','2026-06-10 02:22:52');
+INSERT INTO reservations VALUES(66,'LUSH',15,5,'새로운 일정','2026-06-10','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
+INSERT INTO reservations VALUES(67,'LUSH',15,5,'새로운 일정','2026-06-17','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
+INSERT INTO reservations VALUES(68,'LUSH',15,5,'새로운 일정','2026-06-24','02:30','10:30',NULL,6,1,'cancelled','2026-06-10 02:29:09','2026-06-10 02:29:09');
 CREATE TABLE sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -167,7 +186,6 @@ INSERT INTO sessions VALUES('007548e439c81175a2245ced5317a32b9a4445d9a3138446eca
 INSERT INTO sessions VALUES('9ee516526b73e1cf481613facb0d7057080591c6a5a36b3dd0d0bcda15b10199',16,'2026-06-16T13:02:30.857Z','2026-06-09 13:02:30');
 INSERT INTO sessions VALUES('0479baba84922aa9e76148d9f59baa42f6d9d9be7f310e54f155509a2ae9b1c9',1,'2026-06-16T13:02:30.935Z','2026-06-09 13:02:30');
 INSERT INTO sessions VALUES('1615a49a985e921ded3a3617fc963277c1c52afb20c1962f6e4186cee8be7e1b',15,'2026-06-16T13:02:33.014Z','2026-06-09 13:02:33');
-INSERT INTO sessions VALUES('5d47c26e07866aa30c995903d8b32e3770212c2fd748ec4964cc75a1147279c1',1,'2026-06-17T00:28:06.055Z','2026-06-10 00:28:06');
 INSERT INTO sessions VALUES('84d327175be5666584d9aabced4420cb51837b2a91b11381227ec5cd962fc95e',1,'2026-06-17T00:33:21.655Z','2026-06-10 00:33:21');
 INSERT INTO sessions VALUES('0639cdcf2bd0dfcf263522522d25c26b16d0b81b12516df873198f1e74610cb4',1,'2026-06-17T00:36:40.315Z','2026-06-10 00:36:40');
 INSERT INTO sessions VALUES('0b071299760edb15de7a026f2341c71c92549dea09bee479a02e5d4ccebaf832',1,'2026-06-17T00:57:34.971Z','2026-06-10 00:57:35');
@@ -183,8 +201,11 @@ INSERT INTO sessions VALUES('516900c176dddc072aa87bd1958e9b54220ec6ff826d53c3400
 INSERT INTO sessions VALUES('0bdf2f05d1c60dcaf17ea03654bb9f6a04fe516fa2bd0662a8c7d94e9a0a6cb1',1,'2026-06-17T01:26:39.173Z','2026-06-10 01:26:39');
 INSERT INTO sessions VALUES('fd0a793164bca4bfaa8f6226cdece5bb1a80005260cfe75d1da195174e76ccd5',1,'2026-06-17T01:26:39.949Z','2026-06-10 01:26:39');
 INSERT INTO sessions VALUES('c288254b9b97d3796963f455faab7ac80db2f82923e120fea54708a0db3ad744',1,'2026-06-17T01:26:40.079Z','2026-06-10 01:26:40');
-INSERT INTO sessions VALUES('3314486e21eab33bf3c7e1cbc466131e12b03941b3c377a1b240025b99d3d82b',15,'2026-06-17T02:01:01.330Z','2026-06-10 02:01:01');
 INSERT INTO sessions VALUES('f857bd1acedade5ab660e019a384618a6b74c4b122609ebcc525093580232f99',1,'2026-06-17T02:04:24.039Z','2026-06-10 02:04:24');
+INSERT INTO sessions VALUES('4990e27b1ddede019ec977897ca98ba4b022cc7e1f284f2f87d72b14499088ad',1,'2026-06-17T02:47:59.296Z','2026-06-10 02:47:59');
+INSERT INTO sessions VALUES('1a742949023abea5b47a14beb242a5158f0f8468cfeecf9de06b5e302fa5cd21',1,'2026-06-17T03:46:30.815Z','2026-06-10 03:46:30');
+INSERT INTO sessions VALUES('53af4b26420dcb1027a0455203fb58d1fb7a435efc404a6ed398e0f16a3eb81d',1,'2026-06-17T04:02:24.023Z','2026-06-10 04:02:24');
+INSERT INTO sessions VALUES('0b7294e2543adb8a17218ff471da59bed70b1fef10c133764aa712d8f7c3a5d3',15,'2026-06-17T04:02:58.163Z','2026-06-10 04:02:58');
 CREATE TABLE departments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -194,6 +215,7 @@ CREATE TABLE departments (
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   UNIQUE(tenant_id, name)
 );
+INSERT INTO departments VALUES(6,'WYLIE','컨버전스1본부',1,'2026-06-10 03:36:02');
 CREATE TABLE positions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id TEXT NOT NULL,
@@ -203,14 +225,17 @@ CREATE TABLE positions (
   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   UNIQUE(tenant_id, name)
 );
+INSERT INTO positions VALUES(2,'WYLIE','GM',1,'2026-06-10 03:36:06');
+INSERT INTO positions VALUES(3,'WYLIE','GL',2,'2026-06-10 03:36:11');
+INSERT INTO positions VALUES(4,'WYLIE','그룹잘',3,'2026-06-10 03:36:22');
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence VALUES('d1_migrations',3);
 INSERT INTO sqlite_sequence VALUES('spaces',9);
-INSERT INTO sqlite_sequence VALUES('users',17);
-INSERT INTO sqlite_sequence VALUES('reservations',54);
-INSERT INTO sqlite_sequence VALUES('recurring_rules',5);
-INSERT INTO sqlite_sequence VALUES('departments',5);
-INSERT INTO sqlite_sequence VALUES('positions',1);
+INSERT INTO sqlite_sequence VALUES('users',22);
+INSERT INTO sqlite_sequence VALUES('reservations',68);
+INSERT INTO sqlite_sequence VALUES('recurring_rules',6);
+INSERT INTO sqlite_sequence VALUES('departments',6);
+INSERT INTO sqlite_sequence VALUES('positions',4);
 CREATE INDEX idx_users_tenant_id ON users(tenant_id);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_reservations_date_space ON reservations(date, space_id);

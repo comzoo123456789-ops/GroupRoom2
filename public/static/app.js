@@ -128,12 +128,16 @@ function renderShell(content) {
         el('div', { class: 'nav-actions' },
           // V7-1: 사용자 이름 텍스트 (모바일 전용 노출 — CSS로 데스크톱에서는 숨김)
           el('span', { class: 'nav-user-name', title: tenantName }, State.user?.name || ''),
-          el('div', {
-            class: 'nav-avatar',
-            style: `background:${State.user?.avatar_color || '#7a7a7a'};`,
-            title: `${State.user?.name} · ${tenantName}`,
-            onclick: handleLogout,
-          }, initials(State.user?.name)),
+          // V7 최종본 §2: 아바타 클릭 즉시 로그아웃 버그 수정
+          // → 드롭다운 메뉴(마이페이지 / 비밀번호 변경 / 로그아웃) 노출
+          el('div', { class: 'nav-avatar-wrap', style: 'position:relative;' },
+            el('div', {
+              class: 'nav-avatar',
+              style: `background:${State.user?.avatar_color || '#7a7a7a'};`,
+              title: `${State.user?.name} · ${tenantName}`,
+              onclick: (e) => { e.stopPropagation(); toggleUserDropdown(); },
+            }, initials(State.user?.name))
+          ),
           hamburgerBtn
         )
       )
@@ -221,6 +225,144 @@ function openMobileNavDrawer() {
   requestAnimationFrame(() => overlay.classList.add('is-open'));
 }
 
+/**
+ * V7 최종본 §2: 아바타 클릭 시 드롭다운 메뉴
+ *  - 마이페이지 (현재 단계: 사용자 정보 패널)
+ *  - 비밀번호 변경
+ *  - 로그아웃 (여기서만 confirm 실행)
+ */
+function toggleUserDropdown() {
+  const existing = document.querySelector('.user-dropdown-menu');
+  if (existing) { existing.remove(); return; }
+
+  const wrap = document.querySelector('.nav-avatar-wrap');
+  if (!wrap) return;
+
+  const tenantName = State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아';
+
+  const menu = el('div', { class: 'user-dropdown-menu' },
+    // 사용자 정보 헤더
+    el('div', { class: 'udm-head' },
+      el('div', { class: 'udm-name' }, State.user?.name || ''),
+      el('div', { class: 'udm-sub' }, (State.user?.email || '') + ' · ' + tenantName)
+    ),
+    el('div', { class: 'udm-divider' }),
+    // 메뉴 항목
+    el('button', {
+      class: 'udm-item',
+      onclick: () => { closeUserDropdown(); openMyPageModal(); },
+    }, el('i', { class: 'fa-solid fa-user' }), '내 정보'),
+    el('button', {
+      class: 'udm-item',
+      onclick: () => { closeUserDropdown(); openChangePasswordModal(); },
+    }, el('i', { class: 'fa-solid fa-key' }), '비밀번호 변경'),
+    el('div', { class: 'udm-divider' }),
+    el('button', {
+      class: 'udm-item is-danger',
+      onclick: () => { closeUserDropdown(); handleLogout(); },
+    }, el('i', { class: 'fa-solid fa-arrow-right-from-bracket' }), '로그아웃')
+  );
+
+  wrap.append(menu);
+
+  // 바깥 클릭 시 닫힘 (다음 tick에 등록 — 현재 click 이벤트 흡수 방지)
+  setTimeout(() => {
+    document.addEventListener('click', onceCloseUserDropdown, { once: true });
+  }, 0);
+}
+
+function onceCloseUserDropdown(e) {
+  const menu = document.querySelector('.user-dropdown-menu');
+  if (!menu) return;
+  if (menu.contains(e.target)) {
+    // 메뉴 안 클릭은 무시 — 다시 등록
+    document.addEventListener('click', onceCloseUserDropdown, { once: true });
+    return;
+  }
+  menu.remove();
+}
+
+function closeUserDropdown() {
+  document.querySelector('.user-dropdown-menu')?.remove();
+}
+
+/** V7 최종본 §2: 내 정보(마이페이지) 미니 모달 */
+function openMyPageModal() {
+  closeModal();
+  const tenantName = State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아';
+  const backdrop = el('div', {
+    class: 'modal-backdrop',
+    id: 'reservation-modal',
+    onclick: (e) => { if (e.target === backdrop) closeModal(); }
+  });
+  const modal = el('div', { class: 'modal', style: 'max-width:420px;' },
+    el('div', { class: 'modal-header' },
+      el('div', { class: 'modal-header-title' }, '내 정보'),
+      el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
+    ),
+    el('div', { class: 'modal-body' },
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '이름'), el('span', { class: 'mr-value' }, State.user?.name || '-')),
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '이메일'), el('span', { class: 'mr-value' }, State.user?.email || '-')),
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '소속'), el('span', { class: 'mr-value' }, tenantName)),
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '부서'), el('span', { class: 'mr-value' }, State.user?.department || '-')),
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '직책'), el('span', { class: 'mr-value' }, State.user?.position || '-')),
+        el('div', { class: 'mypage-row' }, el('span', { class: 'mr-label' }, '권한'), el('span', { class: 'mr-value' }, State.user?.role === 'admin' ? '관리자(Admin)' : '일반 멤버'))
+      )
+    ),
+    el('div', { class: 'modal-footer' },
+      el('button', { class: 'btn-secondary', onclick: closeModal }, '닫기')
+    )
+  );
+  backdrop.append(modal);
+  document.body.append(backdrop);
+}
+
+/** V7 최종본 §2: 비밀번호 변경 모달 */
+function openChangePasswordModal() {
+  closeModal();
+  const state = { cur: '', next: '', confirm: '' };
+  const backdrop = el('div', {
+    class: 'modal-backdrop',
+    id: 'reservation-modal',
+    onclick: (e) => { if (e.target === backdrop) closeModal(); }
+  });
+  const modal = el('div', { class: 'modal', style: 'max-width:420px;' },
+    el('div', { class: 'modal-header' },
+      el('div', { class: 'modal-header-title' }, '비밀번호 변경'),
+      el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
+    ),
+    el('div', { class: 'modal-body' },
+      el('div', { class: 'modal-section' },
+        el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
+          el('input', { type: 'password', placeholder: '현재 비밀번호', style: inputStyle(), oninput: e => state.cur = e.target.value }),
+          el('input', { type: 'password', placeholder: '새 비밀번호 (8자 이상)', style: inputStyle(), oninput: e => state.next = e.target.value }),
+          el('input', { type: 'password', placeholder: '새 비밀번호 확인', style: inputStyle(), oninput: e => state.confirm = e.target.value })
+        )
+      )
+    ),
+    el('div', { class: 'modal-footer' },
+      el('button', { class: 'btn-secondary', onclick: closeModal }, '취소'),
+      el('button', { class: 'btn-primary', onclick: submit }, '변경')
+    )
+  );
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  async function submit() {
+    if (!state.cur || !state.next || !state.confirm) { toast('모든 항목을 입력해 주세요.', 'error'); return; }
+    if (state.next.length < 8) { toast('새 비밀번호는 8자 이상이어야 합니다.', 'error'); return; }
+    if (state.next !== state.confirm) { toast('새 비밀번호가 일치하지 않습니다.', 'error'); return; }
+    const res = await api('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: state.cur, new_password: state.next })
+    });
+    if (!res.ok) { toast(res.data?.error || '변경에 실패했습니다.', 'error'); return; }
+    toast('비밀번호가 변경되었습니다.', 'success');
+    closeModal();
+  }
+}
+
 async function handleLogout() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
   await api('/api/auth/logout', { method: 'POST' });
@@ -282,9 +424,15 @@ async function renderHome() {
     );
   });
 
+  // [V7 완결본 §1] 홈 배너 미니 캘린더 위젯 — 'JUL 17' 이모지 하드코딩 제거 후
+  //   실시간 dayjs() 데이터로 월(M월) / 일(D)을 동적 바인딩
+  const today = dayjs();
   const main = el('main', { class: 'page-wrap' },
     el('div', { class: 'home-hero' },
-      el('div', { class: 'home-hero-icon' }, '📅'),
+      el('div', { class: 'home-hero-icon home-cal-badge' },
+        el('div', { class: 'cal-badge-month' }, today.locale('ko').format('M월')),
+        el('div', { class: 'cal-badge-day' }, today.format('D'))
+      ),
       el('div', { class: 'home-hero-text' },
         el('h2', null, `${State.user.name}님,`),
         el('p', null, '오늘도 좋은 하루 되세요!')
@@ -481,16 +629,23 @@ function buildMonthView() {
 }
 
 function buildTimelineGrid() {
-  // V6-1: spaces 개수에 동적으로 대응하는 그리드 컬럼 정의
-  //  - 데스크톱(viewport >= 1280px): 시간컬럼(56px) + spaces균등분할(1fr)
-  //  - 모바일/좁은 화면: 각 컬럼 최소 너비(min 130px) 보장 → 가로 스크롤 (timeline-scroll로 감쌈)
+  // V6-1 + V7 최종본 §1: spaces 개수에 동적으로 대응하는 그리드 컬럼 정의
+  //  - 모든 화면에서 컬럼 최소 너비(min 160px) 강제 → 'Recharging Zone', '와일리빌딩 파라다이스룸' 등
+  //    긴 영문/한글 공간명이 줄바꿈 없이 한 줄로 노출되도록 보장
+  //  - 데스크톱(>=1280px): 8개 컬럼 = 56 + 8*160 = 1336px → 일반 화면에선 1fr 신축
+  //  - 좁은 화면(<1280px): min 130px 강제 + 가로 스크롤
   const spaceCount = State.spaces.length || 1;
   const isNarrow = window.innerWidth < 1280;
+  const DESKTOP_MIN_COL = 160; // V7 최종본 §1: 'Recharging Zone' 한 줄 노출 보장
+  const MOBILE_MIN_COL = 130;
   const colTemplate = isNarrow
-    ? `50px repeat(${spaceCount}, minmax(130px, 1fr))`
-    : `56px repeat(${spaceCount}, minmax(0, 1fr))`;
+    ? `50px repeat(${spaceCount}, minmax(${MOBILE_MIN_COL}px, 1fr))`
+    : `56px repeat(${spaceCount}, minmax(${DESKTOP_MIN_COL}px, 1fr))`;
   // 좁은 화면에서는 최소 너비를 확보해 가로 스크롤이 작동하도록 함
-  const minWidth = isNarrow ? (50 + spaceCount * 130) : 0;
+  // 데스크톱에서도 spaceCount가 많아 min-width 합이 viewport를 넘으면 timeline-scroll로 가로 스크롤
+  const minWidth = isNarrow
+    ? (50 + spaceCount * MOBILE_MIN_COL)
+    : (56 + spaceCount * DESKTOP_MIN_COL);
   const grid = el('div', {
     class: 'timeline-grid',
     id: 'timeline-grid',
@@ -501,11 +656,32 @@ function buildTimelineGrid() {
   grid.append(el('div', { class: 'timeline-header-cell', style: 'background:#fff;' }));
 
   // Headers - spaces
+  // [V7 완결본 §2] 모바일에서도 알파벳/마지막 식별자가 가려지지 않도록 공간명을 두 토큰으로 분리
+  //   예: "Meeting Room A" → prefix="Meeting Room" + suffix="A"
+  //       "Recharging Zone" → prefix="Recharging" + suffix="Zone"
+  //       "Lounge" / "5층 회의실" → suffix만 (prefix=null)
+  //   영문 표기는 100% 그대로 유지 (한글화 금지)
+  const splitSpaceName = (raw) => {
+    const name = String(raw || '').trim();
+    if (!name) return { prefix: '', suffix: '' };
+    const idx = name.lastIndexOf(' ');
+    if (idx <= 0) return { prefix: '', suffix: name };
+    return { prefix: name.slice(0, idx), suffix: name.slice(idx + 1) };
+  };
+
   for (const s of State.spaces) {
+    const { prefix, suffix } = splitSpaceName(s.name);
     grid.append(el('div', { class: 'timeline-header-cell' },
       el('div', { class: 'space-name' },
         el('span', { class: 'space-dot', style: `background:${s.color}; width:8px; height:8px;` }),
-        s.name
+        prefix
+          ? el('span', { class: 'space-name-text' },
+              el('span', { class: 'space-name-prefix' }, prefix),
+              el('span', { class: 'space-name-suffix' }, suffix)
+            )
+          : el('span', { class: 'space-name-text' },
+              el('span', { class: 'space-name-suffix' }, suffix)
+            )
       ),
       el('div', { class: 'space-meta' }, `${s.capacity}명 · ${s.type === 'meeting_room' ? '미팅룸' : '공용공간'}`)
     ));
@@ -1830,15 +2006,21 @@ async function openMemberCreateModal() {
   await loadOrgLists();
   let mode = 'single';
   const state = {
-    name: '', email: '', password: '', department: '', position: '', role: 'member',
+    name: '', email: '', department: '', position: '', role: 'member',
     bulkRows: Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })),
     bulkSource: '',  // V6-3: 업로드한 파일명 표시
   };
 
   const render = () => {
     closeModal();
-    const backdrop = el('div', { class: 'modal-backdrop', id: 'reservation-modal', onclick: (e) => { if (e.target === backdrop) closeModal(); } });
-    const modal = el('div', { class: 'modal', style: 'max-width:640px;' },
+    // V7 최종본 §3: 백드랍 클릭 시 닫힘 방지 — 실수로 작성 데이터 유실 방지
+    // X 버튼이나 [취소] 버튼만 닫기 트리거
+    const backdrop = el('div', {
+      class: 'modal-backdrop',
+      id: 'reservation-modal',
+      // onclick 핸들러를 의도적으로 등록하지 않음 (백드랍 click no-op)
+    });
+    const modal = el('div', { class: 'modal', style: 'max-width:560px;' },
       el('div', { class: 'modal-header' },
         el('div', { style: 'display:flex;gap:0;background:#f0f0f3;border-radius:11px;padding:3px;flex:1;max-width:360px;' },
           el('button', {
@@ -1879,25 +2061,37 @@ async function openMemberCreateModal() {
     )
   );
 
+  // V7 최종본 §3: 폼 재구성
+  //   ① 이름 (전체 너비) → ② 이메일 (전체 너비, 로그인 ID 겸용)
+  //   → ③ 부서/직책 한 줄 50:50 → ④ 권한 (전체 너비)
+  //   [로그인 정보 섹션] 및 [비밀번호 입력란] 전면 삭제
+  //   초기 비밀번호는 백엔드에서 user1234 자동 할당 (§3 명세)
   const renderSingle = () => el('div', null,
     el('div', { class: 'modal-section' },
       el('div', { class: 'modal-section-title' }, '기본 정보'),
       el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
+        // ① 이름
         el('input', { placeholder: '이름 *', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
-        deptSelect(state.department, v => state.department = v),
-        posSelect(state.position, v => state.position = v),
-      )
-    ),
-    el('div', { class: 'modal-section' },
-      el('div', { class: 'modal-section-title' }, '로그인 정보'),
-      el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
-        el('input', { placeholder: '이메일 주소 *', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
-        el('input', { type: 'password', placeholder: '패스워드 (미입력 시 user1234)', value: state.password, oninput: e => state.password = e.target.value, style: inputStyle() }),
+        // ② 이메일 (로그인 계정 ID 겸용)
+        el('input', { type: 'email', placeholder: '이메일 주소 * (로그인 ID 겸용)', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
+        // ③ 부서 / 직책 — 한 줄 50:50
+        el('div', { class: 'form-row-2col', style: 'display:flex;gap:8px;' },
+          el('div', { style: 'flex:1 1 50%;min-width:0;' }, deptSelect(state.department, v => state.department = v)),
+          el('div', { style: 'flex:1 1 50%;min-width:0;' }, posSelect(state.position, v => state.position = v))
+        ),
+        // ④ 권한 설정
         el('select', { style: inputStyle(), onchange: e => state.role = e.target.value },
           el('option', { value: 'member', selected: state.role === 'member' ? 'selected' : null }, '일반 멤버'),
           el('option', { value: 'admin', selected: state.role === 'admin' ? 'selected' : null }, '관리자(Admin)')
         )
-      ),
+      )
+    ),
+    // 안내: 초기 비밀번호 자동 할당
+    el('div', { style: 'margin-top:-8px;padding:10px 12px;background:#f5f7fa;border-radius:10px;font-size:12px;color:#555;line-height:1.5;' },
+      el('i', { class: 'fa-solid fa-circle-info', style: 'margin-right:6px;color:#0066cc;' }),
+      '신규 계정의 초기 비밀번호는 ',
+      el('strong', { style: 'color:#0066cc;font-weight:700;' }, 'user1234'),
+      ' 로 자동 설정됩니다. 멤버는 최초 로그인 시 변경하게 됩니다.'
     )
   );
 
@@ -2037,15 +2231,15 @@ async function openMemberCreateModal() {
   const submit = async () => {
     if (mode === 'single') {
       if (!state.name || !state.email) { toast('이름과 이메일은 필수입니다.', 'error'); return; }
+      // V7 최종본 §3: 초기 비밀번호는 백엔드에서 user1234 로 자동 할당
       const payload = {
         name: state.name, email: state.email,
         department: state.department || null, position: state.position || null,
         role: state.role,
       };
-      if (state.password) payload.password = state.password;
       const res = await api('/api/members', { method: 'POST', body: JSON.stringify(payload) });
       if (!res.ok) { toast(res.data?.error || '생성 실패', 'error'); return; }
-      toast('멤버 계정이 생성되었습니다.', 'success');
+      toast('멤버 계정이 생성되었습니다. (초기 비밀번호: user1234)', 'success');
     } else {
       const members = state.bulkRows.filter(r => r.name && r.email);
       if (members.length === 0) { toast('생성할 멤버를 입력해 주세요.', 'error'); return; }
@@ -2641,10 +2835,18 @@ async function boot() {
 }
 
 // dayjs 로드 확인 후 부팅
+// V7 최종본 §6: 진입점에서 Global locale을 한국어(ko)로 강제 설정
+//   → 모든 dayjs(date).format(...) 호출이 한글 월/요일을 자동 사용
+//   → 'JUL 17' 등의 영문 월 표기 오노출 차단
 function waitAndBoot() {
   if (typeof dayjs === 'undefined') {
     setTimeout(waitAndBoot, 50);
     return;
+  }
+  try {
+    dayjs.locale('ko'); // ko locale 스크립트가 로드되어 있다면 글로벌 적용
+  } catch (e) {
+    console.warn('[app] dayjs locale(ko) 설정 실패:', e);
   }
   boot();
 }

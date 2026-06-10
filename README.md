@@ -1,4 +1,4 @@
-# 메이트리그라운드 (Mateground) — V7 통합본
+# 메이트리그라운드 (Mateground) — V7 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
@@ -6,7 +6,59 @@ WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
 - **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
 
-## 🆕 V7 통합본 신규 사항 (PC/모바일 동시 고도화)
+## 🆕 V7 완결본 (최신 — 핵심 UX 마감)
+
+### §1 — 홈 배너 'JUL 17' 고정 캘린더 아이콘 → 동적 미니 캘린더 위젯
+- **문제**: 홈 화면 hero 영역의 `📅` 이모지가 OS에 따라 'JUL 17'이 박힌 모양으로 렌더되어 6월 10일에도 'JUL 17'로 표시
+- **해결**: 이모지 자체를 제거하고 `dayjs().format('M월') / format('D')` 데이터로 동적 캘린더 위젯 생성
+- **마크업**: `.home-cal-badge > .cal-badge-month(상단 빨간 헤더) + .cal-badge-day(중앙 큰 숫자)`
+- **결과**: 시스템 날짜에 따라 실시간 갱신 (예: "6월 / 10")
+
+### §2 — 모바일 공간 타임라인 헤더 'Meeting Room A/B/C' 두 줄 분리
+- **문제**: 모바일(≤768px)에서 "Meeting Room A" 헤더의 알파벳 식별자가 ellipsis로 잘려 사용자가 어느 룸인지 식별 불가
+- **해결**: 공간명을 마지막 공백 기준으로 **prefix(Meeting Room) + suffix(A)** 두 토큰으로 분할 렌더
+  - 데스크톱: 한 줄로 `prefix suffix` 표기
+  - 모바일: 줄1=prefix(11px·회색·축소), 줄2=suffix(14px·진한 네이비·bold)
+- **영문 표기 유지**: `Lounge`, `Recharging Zone`, `Meeting Room A~E` 등 백엔드 DB의 영문을 100% 그대로 사용 (한글화 금지 규정 준수)
+- **단일 토큰 케이스**(`Lounge`, `5층 회의실`)는 suffix만 강조 표시
+
+### §3 — 헤더 네비 Pretendard 전역 서체 + 라벤더 블루(#dfe7f7) 배경
+- **Pretendard 전역 적용**: `pretendardvariable-dynamic-subset.min.css` CDN 로드 + `:root --font-pretendard` 변수로 `html/body/button/input/select/textarea`에 강제 바인딩
+- **메뉴 컴포넌트 배경**: `.global-nav .nav-links .nav-link { background-color: #dfe7f7 }` — 활성 탭은 `#b9c9eb`, hover는 `#cfdaf0`
+- **텍스트/아이콘 색상은 변경 금지**: 다크 톤 그대로 유지하여 고대비 확보 (요구사항 명시)
+- **폰트 스펙**: `font-size: 15px / font-weight: 600 / letter-spacing: -0.02em` — 자간 좁혀 시인성↑
+- **아바타**: 36×36 / 13px / 700 — 살짝 확대 + 굵게
+
+---
+
+## V7 최종본 (직전 라운드 — 모달·드롭다운 마감)
+
+### §1 — 공간 타임라인 PC 레이아웃 + 자동 정렬 알고리즘
+- **`white-space: nowrap` + `min-width 160px(데스크톱) / 130px(모바일)`** — 공간명 한 줄 출력 보장
+- **백엔드 자동 정렬**(`src/api/spaces.ts`):
+  - `PRIMARY_ORDER = ['Meeting Room A', 'B', 'C', 'D', 'E']` — 알파벳 순 전면 배치
+  - `PINNED_TAIL = ['Lounge', 'Recharging Zone']` — 항상 맨 우측 고정
+  - 신규 룸(예: `5층 회의실`)은 PRIMARY와 PINNED_TAIL 사이에 자동 삽입
+- **검증(WYLIE)**: `Meeting Room A → B → C → D → E → 5층 회의실 → Lounge → Recharging Zone` ✅
+
+### §2 — 아바타 클릭 즉시 로그아웃 버그 수정 → 드롭다운 메뉴
+- `onclick: handleLogout` 직접 바인딩 제거 → `toggleUserDropdown()`로 컨텍스트 메뉴 노출
+- 메뉴 구성: **내 정보 · 비밀번호 변경 · 로그아웃** (3 항목)
+- 외부 클릭 시 자동 닫힘: `document.addEventListener('click', onceCloseUserDropdown, { once: true })`
+- 신규 함수: `toggleUserDropdown / closeUserDropdown / onceCloseUserDropdown / openMyPageModal / openChangePasswordModal`
+
+### §3 — 멤버 등록 모달 전면 개편
+- **백드롭 클릭 닫힘 비활성화** — 실수로 닫는 사고 방지
+- **비밀번호 입력란 삭제** — 백엔드가 `user1234` 자동 할당 (`is_first_login=1`로 강제 변경 유도)
+- **폼 구조 재배치**: 이름 → 이메일 → (부서 50% : 직책 50% = `.form-row-2col`) → 권한
+- 안내 배너: "초기 비밀번호는 `user1234`로 자동 설정됩니다"
+
+### §6 — `dayjs.locale('ko')` 진입점 강제
+- `waitAndBoot()`에서 앱 부팅 직전에 글로벌 로케일 한국어로 고정 → 'JUL/AUG' 같은 영문 월 오노출 차단
+
+---
+
+## V7 통합본 (PC/모바일 동시 고도화)
 
 ### §1 — 관리 페이지 상단 타이틀/설명 모바일 전면 숨김
 - 모바일(≤768px)에서 `.page-header.is-admin-header { display: none }` 강제 → 화면 30%를 차지하던 "관리 / 회사 정보를 입력하고…" 영역 사라짐
@@ -257,4 +309,17 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 - **Platform**: Cloudflare Pages
 - **Status**: 로컬 개발 환경 (PM2 + wrangler pages dev)
 - **Tech Stack**: Hono + TypeScript + Vanilla JS SPA + D1 + Tailwind(인라인 CSS 변수) + Font Awesome
-- **Last Updated**: 2026-06-10 (V7)
+- **Last Updated**: 2026-06-10 (V7 완결본 — 홈 캘린더 동적화 + 모바일 공간헤더 두 줄 분리 + Pretendard/#dfe7f7)
+
+## 검증 결과 (V7 완결본 E2E)
+| 시나리오 | 결과 |
+|---|---|
+| **§1** `home-cal-badge` 마크업 + `today.locale('ko').format('M월')` 동적 바인딩 | ✅ |
+| **§1** 📅 이모지 완전 제거 (renderHome에서 string '📅' 부재 확인) | ✅ |
+| **§2** `splitSpaceName()` 함수로 마지막 공백 기준 prefix/suffix 분리 | ✅ |
+| **§2** `.space-name-prefix` / `.space-name-suffix` 듀얼 마크업 + 미디어 쿼리 두 줄 전환 | ✅ |
+| **§3** Pretendard CDN 로드(renderer.tsx) + `--font-pretendard` 전역 변수 | ✅ |
+| **§3** `.nav-link { background-color: #dfe7f7 }`, active/hover 톤 분리 | ✅ |
+| 빌드 `dist/_worker.js 81.30 kB` | ✅ |
+| 식별자 검증: app.js 6종(cal-badge-month/day, space-name-prefix/suffix, home-cal-badge, today.locale), styles.css 6종 | ✅ |
+| Playwright /login 콘솔 에러 0건 | ✅ |

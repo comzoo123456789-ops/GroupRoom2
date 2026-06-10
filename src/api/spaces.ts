@@ -4,10 +4,15 @@ import type { Bindings, User, Space } from '../types';
 const spaces = new Hono<{ Bindings: Bindings, Variables: { user: User } }>();
 
 /**
- * 공간 목록 (V5 — REQ-AUTH-01)
+ * 공간 목록 (V5 — REQ-AUTH-01 / V7 최종본 §1 — 자동 정렬 알고리즘)
+ *
+ * 정렬 우선순위:
+ *  1. 'Meeting Room A'~'Meeting Room E' (정확 매칭) — 알파벳 순
+ *  2. 그 외 모든 회의실(type='meeting_room', 신규 생성 회의실 포함) — display_order 순
+ *  3. 'Lounge', 'Recharging Zone' (정확 매칭) — 항상 맨 마지막에 고정
+ *
  * - tenant_scope IS NULL: 모든 테넌트 공개
  * - tenant_scope = '<사용자의 테넌트>': 해당 테넌트만 조회 가능
- * - 다른 테넌트의 전용 공간은 응답에서 제외 (5층 회의실은 WYLIE 전용)
  */
 spaces.get('/', async (c) => {
   const user = c.get('user');
@@ -16,7 +21,25 @@ spaces.get('/', async (c) => {
      WHERE tenant_scope IS NULL OR tenant_scope = ?
      ORDER BY display_order ASC`
   ).bind(user.tenant_id).all<Space>();
-  return c.json({ spaces: result.results });
+
+  // V7 최종본 §1: 자동 정렬 규칙 적용 (백엔드 응답 시점에 정렬)
+  const PINNED_TAIL = ['Lounge', 'Recharging Zone']; // 항상 맨 뒤 고정
+  const PRIMARY_ORDER = ['Meeting Room A', 'Meeting Room B', 'Meeting Room C', 'Meeting Room D', 'Meeting Room E'];
+
+  const all = (result.results || []) as Space[];
+  const primary = PRIMARY_ORDER
+    .map(name => all.find(s => s.name === name))
+    .filter((s): s is Space => !!s);
+  const pinnedTail = PINNED_TAIL
+    .map(name => all.find(s => s.name === name))
+    .filter((s): s is Space => !!s);
+  const rest = all.filter(s =>
+    !PRIMARY_ORDER.includes(s.name) && !PINNED_TAIL.includes(s.name)
+  ); // 신규 회의실/공용공간 — 기존 display_order 유지
+
+  const sorted = [...primary, ...rest, ...pinnedTail];
+
+  return c.json({ spaces: sorted });
 });
 
 /** 공간 생성 (관리자) — V5: tenant_scope 옵션 지원 */
