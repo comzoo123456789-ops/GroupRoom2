@@ -513,6 +513,8 @@ let dragState = null;
 let resizeState = null;
 let resizeTopState = null; // V10 §7: 상단 핸들 드래그 (시작 시간 조정)
 let pollingInterval = null;
+// V12 §1: document 레벨 리스너 누적 방지 — 앱 부팅 시 단 1회만 등록
+let _docListenersBound = false;
 // State.view: 'day' | 'month', State.mineOnly: boolean
 if (!State.view) State.view = 'day';
 if (typeof State.mineOnly !== 'boolean') State.mineOnly = false;
@@ -847,8 +849,21 @@ function attachDragHandlers() {
     updateDragPreview();
   });
 
+  // V12 §1: document 리스너는 앱 부팅 시 단 1회만 등록 (renderSpaces 재호출 누적 차단)
+  bindGlobalTimelineListeners();
+}
+
+// V12 §1: 누적 등록 차단 — 모든 document 레벨 리스너를 한 곳에서 단일 등록
+function bindGlobalTimelineListeners() {
+  if (_docListenersBound) return;
+  _docListenersBound = true;
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragUp);
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeUp);
+  document.addEventListener('mousemove', onResizeTopMove);
+  document.addEventListener('mouseup', onResizeTopUp);
+  console.log('[v12] global timeline listeners bound (one-shot)');
 }
 
 function onDragMove(e) {
@@ -884,6 +899,8 @@ function attachResizeHandlers() {
   if (!grid) return;
 
   grid.addEventListener('mousedown', (e) => {
+    // V12 §4: 상단 핸들이 이미 활성화되어 있다면 즉시 차단
+    if (resizeTopState) return;
     // V11 §4: 정확한 클래스 매칭 — '.ev-resize-handle-top'은 절대 매칭되면 안 됨
     const handle = e.target.closest('.ev-resize-handle:not(.ev-resize-handle-top)');
     if (!handle) return;
@@ -903,10 +920,11 @@ function attachResizeHandlers() {
       originalHeight: eventEl.offsetHeight,
       originalTop: eventEl.offsetTop,
     };
+    console.log('[v12] resize BOTTOM activated', { id, originalTop: eventEl.offsetTop, originalHeight: eventEl.offsetHeight });
   });
 
-  document.addEventListener('mousemove', onResizeMove);
-  document.addEventListener('mouseup', onResizeUp);
+  // V12 §1: document 리스너는 bindGlobalTimelineListeners()에서 단일 등록
+  bindGlobalTimelineListeners();
 }
 
 function onResizeMove(e) {
@@ -957,11 +975,15 @@ function attachResizeTopHandlers() {
   const grid = $('#timeline-grid');
   if (!grid) return;
 
+  // V12 §4: capture phase로 등록 — 다른 핸들러들보다 먼저 실행되어 상단 핸들 우선권 확보
   grid.addEventListener('mousedown', (e) => {
     const handle = e.target.closest('.ev-resize-handle-top');
     if (!handle) return;
     e.preventDefault();
     e.stopPropagation();
+    // V12 §4: 양방향 가드 — 다른 모든 상태를 강제 초기화
+    resizeState = null;
+    dragState = null;
     const id = Number(handle.dataset.id);
     const r = State.reservations.find(x => x.id === id);
     if (!r) return;
@@ -1006,10 +1028,11 @@ function attachResizeTopHandlers() {
       frozenBottom, // V11 §4: 종료 시간 동결 좌표
       minStartMin, // 시작 시간이 이 분(min) 미만으로 내려갈 수 없음
     };
-  });
+    console.log('[v12] resize TOP activated', { id, originalTop, originalHeight, frozenBottom, minStartMin });
+  }, true); // V12 §4: useCapture=true — 캡처 단계에서 가장 먼저 실행되도록
 
-  document.addEventListener('mousemove', onResizeTopMove);
-  document.addEventListener('mouseup', onResizeTopUp);
+  // V12 §1: document 리스너는 bindGlobalTimelineListeners()에서 단일 등록
+  bindGlobalTimelineListeners();
 }
 
 function onResizeTopMove(e) {
@@ -2547,9 +2570,21 @@ async function renderAdminMembers() {
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '멤버'),
             el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '관리자가 직접 직원 계정을 생성하고 정보를 관리합니다.')
           ),
-          el('button', { class: 'btn-primary btn-compact-mobile', onclick: openMemberCreateModal },
-            el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }),
-            '생성하기'
+          // V12 §3: [선택 일괄 삭제] 버튼 + [생성하기] 버튼 (선택된 행 0건일 때 비활성)
+          el('div', { style: 'display:flex;gap:8px;align-items:center;' },
+            el('button', {
+              class: 'btn-bulk-delete',
+              id: 'bulk-delete-btn',
+              disabled: true,
+              onclick: bulkDeleteMembers,
+            },
+              el('i', { class: 'fa-solid fa-trash-can', style: 'margin-right:6px;font-size:12px;' }),
+              el('span', { id: 'bulk-delete-label' }, '선택 일괄 삭제')
+            ),
+            el('button', { class: 'btn-primary btn-compact-mobile', onclick: openMemberCreateModal },
+              el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }),
+              '생성하기'
+            )
           )
         ),
         el('div', { class: 'tabs' },
@@ -2594,7 +2629,30 @@ function buildMemberTable(members) {
   // V7-3: 데스크톱(테이블) + 모바일(카드) 듀얼 렌더링 — CSS @media로 토글
   const tbody = el('tbody', { id: 'member-tbody' });
   for (const m of members) {
-    const tr = el('tr', { 'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase() },
+    // V12 §3: admin 계정은 체크박스 disabled 처리 (이중 가드 — 백엔드도 admin 거부)
+    const isAdminRow = m.role === 'admin';
+    const isSelf = m.id === State.user.id;
+    const cbDisabled = isAdminRow || isSelf;
+
+    const tr = el('tr', {
+      'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase(),
+      'data-member-id': String(m.id),
+      'data-role': m.role || 'member',
+    },
+      // V12 §3: 좌측 체크박스 — admin 계정은 disabled
+      el('td', { class: 'col-bulk-check', style: 'width:40px;text-align:center;' },
+        el('input', {
+          type: 'checkbox',
+          class: 'bulk-member-check',
+          'data-id': String(m.id),
+          'data-role': m.role || 'member',
+          disabled: cbDisabled ? true : false,
+          title: cbDisabled
+            ? (isAdminRow ? '관리자 계정은 일괄 삭제 대상에서 제외됩니다.' : '본인 계정은 삭제할 수 없습니다.')
+            : '선택',
+          onchange: updateBulkDeleteState,
+        })
+      ),
       el('td', null,
         el('div', { class: 'user-cell' },
           el('div', { class: 'avatar', style: `background:${m.avatar_color};` }, initials(m.name)),
@@ -2626,6 +2684,15 @@ function buildMemberTable(members) {
   const table = el('table', { class: 'data-table member-table-desktop' },
     el('thead', null,
       el('tr', null,
+        // V12 §3: 헤더 전체 선택 체크박스
+        el('th', { class: 'col-bulk-check', style: 'width:40px;text-align:center;' },
+          el('input', {
+            type: 'checkbox',
+            id: 'bulk-select-all',
+            title: '전체 선택 (관리자 계정 제외)',
+            onchange: toggleSelectAllMembers,
+          })
+        ),
         el('th', null, '이름'),
         el('th', null, '부서'),
         el('th', null, '직책'),
@@ -2702,6 +2769,78 @@ async function deleteMember(id) {
   const res = await api(`/api/members/${id}`, { method: 'DELETE' });
   if (!res.ok) { toast(res.data?.error || '삭제 실패', 'error'); return; }
   toast('멤버가 삭제되었습니다.', 'success');
+  renderAdminMembers();
+}
+
+/* =====================================================
+   V12 §3: 일반 멤버 일괄 삭제 (어드민 계정 보호 가드 포함)
+   ===================================================== */
+
+/** 헤더 [전체 선택] 토글 — admin/본인 row 체크박스는 disabled라 강제로 false 유지 */
+function toggleSelectAllMembers(e) {
+  const checked = !!e.target.checked;
+  $$('.bulk-member-check').forEach(cb => {
+    if (cb.disabled) {
+      // 관리자/본인 계정 — 어떤 경우에도 체크되지 않음
+      cb.checked = false;
+      return;
+    }
+    cb.checked = checked;
+  });
+  updateBulkDeleteState();
+}
+
+/** 선택 상태가 변경될 때마다 호출 — 버튼 활성/카운트 갱신 */
+function updateBulkDeleteState() {
+  const checks = $$('.bulk-member-check:not(:disabled):checked');
+  const count = checks.length;
+  const btn = document.getElementById('bulk-delete-btn');
+  const label = document.getElementById('bulk-delete-label');
+  if (btn) {
+    btn.disabled = count === 0;
+    btn.classList.toggle('is-active', count > 0);
+  }
+  if (label) {
+    label.textContent = count > 0 ? `선택 일괄 삭제 (${count})` : '선택 일괄 삭제';
+  }
+  // 전체 선택 체크박스 상태 동기화
+  const all = document.getElementById('bulk-select-all');
+  const allEligible = $$('.bulk-member-check:not(:disabled)');
+  if (all) {
+    all.checked = allEligible.length > 0 && count === allEligible.length;
+    all.indeterminate = count > 0 && count < allEligible.length;
+  }
+}
+
+/** 일괄 삭제 실행 — 어드민 계정은 프론트/백 양쪽에서 절대 포함되지 않음 */
+async function bulkDeleteMembers() {
+  const checks = $$('.bulk-member-check:not(:disabled):checked');
+  // V12 §3: admin role 행은 프론트 단에서도 한 번 더 거름
+  const member_ids = checks
+    .map(cb => ({ id: Number(cb.dataset.id), role: cb.dataset.role }))
+    .filter(o => o.role !== 'admin' && Number.isInteger(o.id) && o.id > 0)
+    .map(o => o.id);
+
+  if (!member_ids.length) {
+    toast('삭제할 대상이 없습니다.', 'error');
+    return;
+  }
+  if (!confirm(`선택된 일반 멤버 ${member_ids.length}명을 일괄 삭제합니다.\n계속하시겠습니까?\n\n※ 관리자 계정 및 본인은 자동으로 제외됩니다.`)) return;
+
+  const res = await api('/api/members/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ member_ids }),
+  });
+
+  if (!res.ok) {
+    toast(res.data?.error || '일괄 삭제 실패', 'error');
+    return;
+  }
+  const { deleted = 0, skipped = 0 } = res.data || {};
+  const msg = skipped > 0
+    ? `${deleted}명을 삭제했습니다. (보호 대상 ${skipped}명 제외)`
+    : `${deleted}명을 삭제했습니다.`;
+  toast(msg, 'success');
   renderAdminMembers();
 }
 

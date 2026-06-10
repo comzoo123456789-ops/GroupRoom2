@@ -168,6 +168,58 @@ members.delete('/:id', async (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * V12 §3: 일반 멤버 일괄 삭제
+ *  - 어드민 전용
+ *  - admin 역할 계정은 백엔드 단에서도 무조건 제외 (이중 가드)
+ *  - 본인(c.get('user').id)은 절대 삭제 불가
+ *  - 같은 tenant 멤버만 삭제 가능
+ *  - 관련 sessions / reservations(cancelled 처리)도 정리
+ *  - 트랜잭션 형태(D1 batch)로 단일 요청 처리
+ */
+members.post('/bulk-delete', async (c) => {
+  const user = c.get('user');
+  if (user.role !== 'admin') return c.json({ error: '관리자만 접근할 수 있습니다.' }, 403);
+
+  const body = await c.req.json<{ member_ids?: number[] }>();
+  const rawIds = Array.isArray(body?.member_ids) ? body.member_ids : [];
+  // 정수 + 본인 제외 + 중복 제거
+  const ids = Array.from(new Set(
+    rawIds.map(n => Number(n)).filter(n => Number.isInteger(n) && n > 0 && n !== user.id)
+  ));
+  if (!ids.length) return c.json({ error: '삭제할 대상이 없습니다.' }, 400);
+
+  // 같은 tenant + admin 아닌 대상만 선별 (백엔드 이중 가드)
+  const placeholders = ids.map(() => '?').join(',');
+  const eligible = await c.env.DB.prepare(
+    `SELECT id, role FROM users WHERE tenant_id = ? AND id IN (${placeholders})`
+  ).bind(user.tenant_id, ...ids).all<{ id: number; role: string }>();
+
+  const eligibleIds = (eligible.results || [])
+    .filter(r => r.role !== 'admin') // admin 역할은 일괄 삭제에서 영구 차단
+    .map(r => r.id);
+
+  if (!eligibleIds.length) {
+    return c.json({ error: '삭제 가능한 일반 멤버가 없습니다. (관리자 계정은 일괄 삭제 대상에서 제외됩니다.)' }, 400);
+  }
+
+  const skipped = ids.length - eligibleIds.length;
+  const ph = eligibleIds.map(() => '?').join(',');
+
+  // 관련 데이터 정리 → 멤버 삭제 (배치)
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE reservations SET status = 'cancelled' WHERE user_id IN (${ph})`).bind(...eligibleIds),
+    c.env.DB.prepare(`DELETE FROM sessions WHERE user_id IN (${ph})`).bind(...eligibleIds),
+    c.env.DB.prepare(`DELETE FROM users WHERE id IN (${ph})`).bind(...eligibleIds),
+  ]);
+
+  return c.json({
+    ok: true,
+    deleted: eligibleIds.length,
+    skipped, // admin 계정 또는 다른 테넌트라서 거부된 건수
+  });
+});
+
 /** 모든 사용자 검색 (참석자 추가용) - 본인 회사 멤버만 */
 /**
  * V7 고도화 §2: 참석자 자동완성용 멤버 검색

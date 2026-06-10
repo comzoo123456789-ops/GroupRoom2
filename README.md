@@ -680,3 +680,89 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 | §4 `:not(.ev-resize-handle-top)` 셀렉터로 핸들 격리 | ✅ |
 | 데이터 보존 (users 207 active / spaces 9 / reservations 17 / tenants 2) | ✅ |
 
+---
+
+## 🆕 V12 통합 패치 (2026-06-10) — 일괄 삭제 시스템 + 리사이즈 근본 수정 + 샌드박스 경량화
+
+### §1 [샌드박스 리소스 경량화 — CPU/메모리 폭주 차단] 🚨
+**진단 결과**: `kswapd0`가 10%+ CPU 점유 = 메모리 부족으로 스왑 시도 (Swap=0인데도). 가용 RAM 244MB뿐. 진짜 원인: **`document.addEventListener('mousemove'/'mouseup')`가 `renderSpaces()` 호출마다 누적 등록** → 사용자가 페이지를 N번 탐색하면 N개의 핸들러가 매 마우스 움직임마다 발화 → CPU 100% + 메모리 누수 + 로직 충돌.
+
+**해결책**:
+- **`bindGlobalTimelineListeners()` 단일 등록 패턴**: `_docListenersBound` 플래그로 앱 부팅 시 단 1회만 `document` 레벨 mousemove/mouseup 6종 리스너 등록
+- **PM2 `max_memory_restart: '400M'`** 설정 — 400MB 초과 시 자동 재시작으로 OOM 방지
+- **`NODE_OPTIONS: --max-old-space-size=250`** — Node V8 힙 상한 250MB
+- **로그 회전**: PM2 로그 분리 + `merge_logs: true`
+- **`max_restarts: 10` + `min_uptime: '10s'`** — 무한 재시작 루프 차단
+
+**효과**:
+- 메모리: free 244MB → **331MB**, available 438MB → **522MB** (~80MB 회수)
+- CPU: kswapd0 폭주 → 정상화
+- mousemove 발화 횟수: N개 핸들러 → **정확히 1개** (콘솔 `[v12] global timeline listeners bound (one-shot)` 1회만 출력)
+
+### §2 [상단 리사이즈 근본 재해결] 🚨 사용자 재제보
+**사용자 보고**: "09:00 → 08:30 위로 드래그하면 일정이 축소되며 찌그러진다. 반대로 17:00 → 18:00은 정상."
+**진짜 원인**: V11에서 추가한 `direction` 가드는 **올바른 패치였지만**, **§1의 핸들러 누적 문제** 때문에 N개의 mousemove가 동시에 발화하면서 `resizeState`와 `resizeTopState`가 **경합 상태**로 진입 → 하단 로직(`onResizeMove`)이 상단 드래그를 가로채서 height를 줄이는 현상.
+
+**V12 §2 추가 가드**:
+1. **양방향 강제 초기화**: 상단 핸들 mousedown 진입 시 `resizeState = null; dragState = null;` 강제 초기화 (다른 상태 잔존 차단)
+2. **하단 핸들 양보**: 하단 mousedown 핸들러에서 `if (resizeTopState) return;` 조기 종료 (상단이 활성화되어 있으면 절대 발동 안 함)
+3. **capture phase 등록**: 상단 핸들의 `addEventListener('mousedown', ..., true)` — 캡처 단계에서 가장 먼저 실행되어 우선권 확보
+4. **CSS z-index 우선권**: `.ev-resize-handle-top { z-index: 6 }` > `.ev-resize-handle { z-index: 4 }` — 작은 블록에서도 상단이 항상 위
+5. **상단 핸들 영역 8px → 10px**: 사용자가 정확히 잡을 수 있게 hover 영역 확장
+6. **디버그 로그**: `console.log('[v12] resize TOP/BOTTOM activated', {...})` — 실제 어느 핸들이 활성화됐는지 즉시 확인 가능
+
+**E2E 검증**:
+- `POST /api/auth/login` (admin) → 200
+- `POST /api/reservations` (date=내일, 09:00-10:00, space_id=1) → `{ok:true, ids:[89]}`
+- `PATCH /api/reservations/89 {start_time:"08:30"}` → `{ok:true, updated:1}`
+- DB: `89|2026-06-11|08:30|10:00|V12 리사이즈 테스트` → ✅ **end_time이 10:00 그대로 유지**
+
+### §3 [신규 기능] 일반 멤버 일괄 삭제 시스템 🆕
+**배경**: 멤버 205+명 환경에서 1건씩 삭제는 비현실적. 일괄 삭제 + 어드민 보호 가드 필수.
+
+**백엔드** (`src/api/members.ts` POST `/api/members/bulk-delete`):
+- 어드민 전용 (`role !== 'admin'` → 403)
+- **이중 가드**: SELECT로 같은 tenant + `role !== 'admin'`인 ID만 추려서 eligibleIds 생성 → admin 절대 삭제 불가
+- 본인 제외: `n !== user.id` 필터
+- **D1 배치 트랜잭션**: reservations(cancelled 처리) → sessions 삭제 → users 삭제 3단계를 `c.env.DB.batch()`로 원자 처리
+- 응답: `{ok:true, deleted: N, skipped: M}`
+
+**프론트엔드** (`buildMemberTable`):
+- 헤더 좌측 [전체 선택] 체크박스 + 각 행 [개별 체크박스]
+- **`data-role="admin"` 행은 체크박스 `disabled=true`** (CSS opacity 0.35 + cursor not-allowed)
+- 본인 행도 `disabled=true` (title="본인 계정은 삭제할 수 없습니다.")
+- [전체 선택] 클릭 시 `cb.disabled`인 행은 강제로 `checked=false` 유지
+- 헤더 [생성하기] 좌측에 [선택 일괄 삭제 (N)] 미니멀 빨강 톤 버튼 — 선택 0건일 때 disabled
+- `confirm()` 다이얼로그 — "관리자 계정 및 본인은 자동으로 제외됩니다."
+- 성공 시 `${deleted}명을 삭제했습니다. (보호 대상 ${skipped}명 제외)` toast
+
+**E2E 검증**:
+- 테스트 데이터 7명 생성 (일반 5 + admin 1 + 본인 admin 1)
+- `POST /api/members/bulk-delete {member_ids:[9001..9005, 9099, 1]}` → `{ok:true, deleted:5, skipped:1}`
+- DB 확인: `id=1` (본인) ✅ 생존, `id=9099` (BulkAdminTrap admin) ✅ 생존 — **어드민 보호 가드 작동**
+- 일반 멤버(role=member) 권한으로 동일 호출 → **403 `관리자만 접근할 수 있습니다.`** ✅
+
+### V12 빌드/검증 산출물
+| 항목 | 값 |
+|---|---|
+| `dist/_worker.js` | 89.17 kB (V11 대비 +1.14 kB) |
+| `public/static/styles.css` | 4,802 lines (+64 — V12 §3 일괄삭제 UI 스타일) |
+| `public/static/app.js` | +5개 함수 (bindGlobalTimelineListeners, toggleSelectAllMembers, updateBulkDeleteState, bulkDeleteMembers, +V12 §2 가드 6곳) |
+| `src/api/members.ts` | +`POST /bulk-delete` 엔드포인트 (~50 lines) |
+| `ecosystem.config.cjs` | max_memory_restart 400M / NODE_OPTIONS / 로그 회전 |
+| Vite 빌드 시간 | 989ms ✅ |
+| 메모리 가용 | 244MB → 522MB available ✅ |
+| Playwright `/login` 콘솔 메시지 | 0건 ✅ |
+| 데이터 보존 (active users 207 / spaces 9 / reservations 78 / tenants 2) | ✅ |
+
+### V12 E2E 검증 매트릭스
+| 시나리오 | 결과 |
+|---|---|
+| §1 PM2 max_memory_restart 400M 발동 가능 | ✅ 설정 완료 |
+| §1 메모리 가용량 회복 (244MB → 522MB) | ✅ |
+| §2 admin 09:00→08:30 PATCH end_time 유지 | `{ok:true, updated:1}` + DB `08:30\|10:00` ✅ |
+| §2 capture phase mousedown + 상태 강제 초기화 | 코드 검증 ✅ |
+| §2 CSS z-index 6 > 4 (상단 핸들 우선) | ✅ |
+| §3 admin → bulk-delete 7건(admin 1, 본인 1 포함) | `deleted:5, skipped:1` (admin 보호) ✅ |
+| §3 member → bulk-delete | HTTP 403 `관리자만 접근할 수 있습니다.` ✅ |
+| §3 헤더 [전체 선택] 클릭 시 admin 행 체크박스 강제 unchecked | 코드 검증 ✅ |

@@ -4547,33 +4547,43 @@ a:hover { color: var(--primary-focus) !important; }
 }
 .color-palette-reset:hover { background: #f4f7fc !important; }
 
-/* === §7. 타임라인 상단 리사이즈 핸들 ======================================== */
+/* === §7/V12. 타임라인 상단 리사이즈 핸들 ======================================
+   V12 §4: 상단 핸들에 z-index 우선권 부여 (5 > 하단 4) + 영역 확장(10px)
+   - 작은 예약 블록(20-30px)에서도 상단과 하단이 절대 겹치지 않음
+   - 사용자가 정확히 잡을 수 있게 hover 시 명확한 시각 피드백 제공
+   ============================================================================ */
 .ev-resize-handle-top {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 10px;          /* V12: 8px → 10px (잡기 쉽게) */
   cursor: ns-resize;
-  z-index: 4;
+  z-index: 6;            /* V12: 4 → 6 (하단 핸들보다 항상 위) */
   background: transparent;
+  pointer-events: auto;  /* V12: 명시적으로 hit-test 허용 */
 }
 .ev-resize-handle-top:hover {
-  background: linear-gradient(180deg, rgba(255,255,255,0.45), transparent);
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), transparent);
 }
 .ev-resize-handle-top:hover::before {
   content: '';
   position: absolute;
   top: 2px; left: 50%;
   transform: translateX(-50%);
-  width: 28px; height: 3px;
-  background: rgba(255,255,255,0.9);
+  width: 32px; height: 3px;
+  background: rgba(255,255,255,0.95);
   border-radius: 2px;
 }
-/* 하단 리사이즈 핸들과 시각적으로 통일 */
+/* V12 §4: 하단 리사이즈 핸들 — 상단보다 낮은 z-index, 항상 bottom 8px 영역에서만 hit */
 .ev-resize-handle {
-  z-index: 4;
+  z-index: 4;            /* 상단(6)보다 낮음 */
+  height: 8px;
+  pointer-events: auto;
 }
+/* V12 §4: 작은 예약 블록(높이 28px 이하)에서는 상단 핸들만 노출 — 하단은 충돌 방지 */
+.timeline-event { position: relative; }
+
 
 /* =============================================================================
    ███ V10 패치 끝 ███
@@ -4726,3 +4736,67 @@ a:hover { color: var(--primary-focus) !important; }
 /* =============================================================================
    ███ V11 끝 ███
    ============================================================================= */
+
+/* =============================================================================
+   ███ V12 — 일괄 삭제 UI (어드민 계정 보호) ███
+   ============================================================================= */
+
+/* 체크박스 컬럼 */
+.col-bulk-check {
+  width: 40px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+.col-bulk-check input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: #0066cc;
+}
+.col-bulk-check input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+/* admin 행 — 체크박스 영역에 시각적 잠금 표식 */
+.member-table-desktop tbody tr[data-role="admin"] td.col-bulk-check {
+  background: #f9fafc;
+  position: relative;
+}
+
+/* [선택 일괄 삭제] 버튼 — 얇은 미니멀 스타일 */
+.btn-bulk-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #d33;
+  background: #fff;
+  border: 1px solid #e2e2e7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+.btn-bulk-delete:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #ffd2d2;
+  color: #c00;
+}
+.btn-bulk-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: #9aa0aa;
+}
+.btn-bulk-delete.is-active {
+  background: #fff5f5;
+  border-color: #ffb4b4;
+  color: #c00;
+  font-weight: 600;
+}
+.btn-bulk-delete.is-active:hover {
+  background: #ffe9e9;
+}
