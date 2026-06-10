@@ -6,7 +6,27 @@ WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 - **목표**: 멀티 테넌트(WYLIE/LUSH) 회의실/공간 예약을 관리자가 직접 운영하는 사내 통합 플랫폼
 - **주요 기능**: 공간 예약(반복/일괄 수정), 일/월 뷰 타임라인, 부서·직책 마스터, 멤버 관리(엑셀 일괄 등록), 인사이트 대시보드, 테넌트별 공간 격리, 최초 로그인 비밀번호 강제 변경, 모바일 반응형 UI(V7 통합본 — 카드 UI 전환, sticky 해제, 반복 예약 분기 모달)
 
-## 🆕 V7 완결본 (최신 — 핵심 UX 마감)
+## 🆕 V7 완결본 후속 패치 (최신 — 헤더 롤백 + 홈 일정 한 줄)
+
+### §1 — 헤더 메뉴 버튼 스타일 원상복구 (ROLLBACK)
+- **문제**: 직전 라운드에 `.nav-link / .nav-avatar / .nav-brand` 자체에 `#dfe7f7` 라벤더 블루를 강제 적용해 다크 글로벌 네비 위 메뉴 버튼이 본래 디자인 톤을 잃었음
+- **해결**: 개별 메뉴 버튼의 자체 색만 정확히 복원
+  - `.nav-link { background: transparent !important; }`, hover `rgba(255,255,255,0.05)`, active `rgba(255,255,255,0.1)` — 오리지널 그대로
+  - `.nav-avatar` 28×28 / `.nav-user-name` 흰색 88% / `.nav-brand` 14px 600 — 오리지널 복원
+- **유지 항목**: Pretendard 전역 서체(`html/body/...`)는 그대로 유지 — 글로벌 룰이라 헤더 자체 색과 충돌 없음
+- **검증**: 서빙되는 styles.css에 `background-color: #dfe7f7` 강제 룰 **0건**
+
+### §2 — 홈 '앞으로의 일정' 시간/제목 레이아웃 최적화
+- **문제**: `02:00 - 08:00` 시간대가 좁은 폭에서 `02:00 -` / `08:00`으로 두 줄로 꺾이며 가독성 저하
+- **해결**:
+  - 전 해상도 공통 `.upcoming-row .time { white-space: nowrap !important; font-variant-numeric: tabular-nums; flex-shrink: 0; }` — 시간 꺾임 절대 방지
+  - 모바일(≤768px): `.upcoming-row { display: flex; flex-direction: column }` — 시간(13px) 한 줄 → 제목(15px·500) 한 줄 위·아래 스택
+  - `word-break: break-word` 사용 (`break-all`은 한글 한 자씩 끊겨 가독성 ↓)
+- **결과**: 어떤 폭에서도 시간이 한 줄로 곧게 연결, 제목이 그 아래 줄로 자연스럽게 안착
+
+---
+
+## V7 완결본 (직전 — 캘린더·공간헤더·서체)
 
 ### §1 — 홈 배너 'JUL 17' 고정 캘린더 아이콘 → 동적 미니 캘린더 위젯
 - **문제**: 홈 화면 hero 영역의 `📅` 이모지가 OS에 따라 'JUL 17'이 박힌 모양으로 렌더되어 6월 10일에도 'JUL 17'로 표시
