@@ -1,8 +1,81 @@
-# 메이트리그라운드 (Mateground) — V15 완결본
+# 메이트리그라운드 (Mateground) — V31 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V15 (Anti-Handley 프리미엄 디자인 개편 + 실시간 현황판)
+## 🆕 V31 (최종 디자인 디렉티브: 절제 미니멀 마감)
+
+> 사용자 디렉티브: "소스를 해석하고 잘 맞게 꾸며줘". V15 라벤더 Anti-Handley 베이스를 4탭 전체로 완전 확장하고, 광고성·중복 텍스트와 인기 공간 위젯을 제거해 호텔 안내판처럼 정갈한 마감으로 통일.
+
+### §1 — 로그인 게이트 하단 안내문구 완전 삭제
+- **삭제 대상**: 로그인 페이지 실시간 회의실 카드 상단의 안내 문구
+  > "현재 시각 기준 즉시 이용 가능한 공용 회의실 (Meeting Room A~E). 와일리 전용(Conference Room) · 러쉬 전용(파라다이스룸)은 표시하지 않습니다."
+- **처리**: `src/pages/login.tsx` 의 `<p class="lux-card__desc">…</p>` 블록을 마크업 자체에서 삭제 (CSS 숨김 X — 소스에서 완전 제거)
+- **유지**: 카드 head(타이틀 + LIVE 배지) → 곧바로 5룸 그리드로 진입 → 60초 폴링 시계는 카드 푸터에서 유지
+
+### §2 — 인사이트 [인기 공간] 섹션 소스 완전 소거
+- **렌더링 함수**: `renderInsightOverview()` (`public/static/app.js` ~2318)
+  - `el('div', { class: 'insight-popular' }, ...)` 블록 전체 삭제
+  - 통계 카드 3개 (평균 / 총건수 / 가동공간수) → 곧바로 `요일·시간대별 예약 밀집도` 히트맵으로 자연 연결
+- **CSS 잔재 청소** (`public/static/styles.css`):
+  - `.insight-popular`, `.popular-grid`, `.popular-item`, `.popular-rank.r-1/r-2/r-3`, `.popular-name`, `.popular-count` 전부 삭제
+  - 미디어쿼리 `@media (max-width: 1024px)` 안의 `.popular-grid` 룰도 삭제
+- **API 데이터 보존**: 백엔드 `/api/insights/overview` 응답의 `popular_spaces` 필드는 그대로 보존 (엑셀 다운로드 시 `'인기 공간'` 시트에서 계속 사용됨). UI에서만 제거하는 정확한 분리.
+
+### §3 — Anti-Handley 라벤더 테마 4탭 전면 확장
+- **V15 한계**: `.app-shell` 변수 오버라이드는 일부 컨테이너만 1px 사파이어 라인 처리. 카드/패널/사이드내비/요약카드 다수가 여전히 그림자·둥근모서리.
+- **V31 강화**: `.app-shell` 스코프 안에서 모든 카드 클래스를 광역 타게팅:
+  ```
+  .summary-card, .summary-card-item, .summary-card-grid-container,
+  .stat-card, .chart-card, .admin-card, .admin-content-card,
+  .management-content-card, .setting-card, .setting-section-box,
+  .schedule-palette-box, .color-palette-card, .palette-management-wrapper,
+  .repeat-panel, .org-panel, .space-card, .member-card, .invite-card,
+  .invites-section, .invite-status-banner, .invite-action-banner,
+  .space-filter-panel, .month-view-container, .heatmap-card-panel,
+  .admin-side-nav, .side-nav, .admin-sidebar,
+  .home-hero, .upcoming-section, .timeline-container, .insight-card, .insight-heatmap
+  ```
+  - 모두 `box-shadow: none !important; border-radius: 4px !important; border: 1px solid #1a365d !important; background: #ffffff !important;`
+- **1.5x 패딩**: 호텔 안내판 같은 정갈한 여백
+  - `home-hero` 48px / 주요 카드·패널 36px / 작은 카드 24px (데스크톱)
+  - 모바일(<=768px)은 28/20/16px 로 축소 — 좁은 화면 가독성 보호
+- **전역 내비**: `.global-nav` 하단 라인을 사파이어로 통일, 그림자 제거
+- **본문 배경 안전망**: `.app-shell .page-wrap { background: #dfe7f7 !important; }` — 다른 스타일의 우발적 덮어쓰기 차단
+
+### §4 — PC 가로 스크롤 최종 안전망
+- **V15 처리분 유지**: `.timeline-scroll { overflow-x: hidden }` 데스크톱, 모바일에서만 `auto`
+- **V31 광역 안전망** (`@media (min-width: 1024px)`):
+  ```
+  .timeline-scroll, .timeline-viewport-container, .timeline-container,
+  .space-list-wrapper, .grid-scroll-area,
+  .app-shell .home-hero, .app-shell .upcoming-section,
+  .app-shell .insight-card, .app-shell .insight-heatmap,
+  .app-shell .admin-content-card, .app-shell .management-content-card,
+  .app-shell .month-view-container
+  {
+    overflow-x: hidden !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  ```
+  - 추가로 `.timeline-grid` 는 `width:100% !important; min-width:0 !important;` 강제 → 부모 컨테이너 너비 100% 비례 분할
+
+### §5 — 절대 보존 검증 (Preservation Clause)
+- ✅ **데이터**: 멤버 / 공간 / 예약 전부 보존 (E2E: WYLIE admin 시점에서 spaces=8, members=2, reservations=43 정상 조회)
+- ✅ **리사이즈 V14 단일 R 객체**: `let R = null` + `origStartMin/origEndMin/curStartMin/curEndMin` 그대로 (945번 줄)
+- ✅ **일괄 삭제**: `bulkDeleteMembers` 핸들러, `#bulk-delete-btn` 인터랙션 보존
+- ✅ **팔레트 실시간 동기화**: `applyTenantColors()`, `<style id="__tenant_colors__">` 동적 주입, `.tenant-wylie/.tenant-lush` 클래스 모두 보존
+- ✅ **mouse/pointer/resize 리스너**: 8개 모두 보존
+- ✅ **검증 방식**: 순수 마크업 / CSS 시각 변경만 수행. JS 로직(이벤트 / 비즈니스 함수)에는 한 줄도 손대지 않음.
+
+### V31 빌드 산출
+- `dist/_worker.js` **94.18 kB** (V15 94.43 kB 대비 -0.25 kB — 인기 공간 마크업·CSS 제거 효과)
+- PM2 webapp online (restart count 10)
+- 빌드/배포 환경: Cloudflare Pages (sandbox preview: PM2 wrangler pages dev port 3000)
+
+---
+
+## V15 (Anti-Handley 프리미엄 디자인 개편 + 실시간 현황판)
 
 > 사용자 요구: 핸들리 스타일 폐기 → 라벤더(#dfe7f7) + 다크 사파이어(#1a365d) 라인의 호텔 안내판 느낌의 하이엔드 플랫 UI. PC 가로 스크롤 영구 폐기. 로그인 페이지에 실시간 공용 회의실 가용 현황 도입.
 

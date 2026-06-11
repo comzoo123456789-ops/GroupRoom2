@@ -33,10 +33,6 @@ export const LoginPage = () => {
             </h2>
             <span class="lux-card__badge" id="live-clock">LIVE</span>
           </div>
-          <p class="lux-card__desc">
-            현재 시각 기준 즉시 이용 가능한 공용 회의실 (Meeting Room A~E).
-            <br />와일리 전용(Conference Room) · 러쉬 전용(파라다이스룸)은 표시하지 않습니다.
-          </p>
 
           <div id="live-rooms-grid" class="lux-rooms-grid" aria-live="polite">
             {/* JS가 60초 간격으로 채워 넣음. 초기 placeholder. */}

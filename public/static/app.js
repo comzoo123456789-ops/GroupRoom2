@@ -2315,20 +2315,7 @@ async function renderInsightOverview(body) {
         el('div', { class: 'stat-trend' }, '예약이 있던 공간 / 전체 공간')
       ),
     ),
-    el('div', { class: 'insight-popular' },
-      el('h3', null, '인기 공간'),
-      (data.popular_spaces || []).length === 0
-        ? el('div', { class: 'org-empty' }, '데이터가 없습니다')
-        : el('div', { class: 'popular-grid' },
-            ...(data.popular_spaces || []).map((p, i) =>
-              el('div', { class: 'popular-item' },
-                el('div', { class: `popular-rank r-${i + 1}` }, String(i + 1).padStart(2, '0')),
-                el('div', { class: 'popular-name' }, p.name),
-                el('div', { class: 'popular-count' }, `${p.count}회`)
-              )
-            )
-          )
-    ),
+    // V31 §2 — [인기 공간] 섹션 완전 삭제. 히트맵이 자연스럽게 위로 올라옴.
     el('div', { class: 'insight-heatmap' },
       el('h3', null, '요일·시간대별 예약 밀집도'),
       buildHeatmap(data.heatmap || [], heatmapMax)
