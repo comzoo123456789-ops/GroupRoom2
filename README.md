@@ -1,6 +1,86 @@
-# 메이트리그라운드 (Mateground) — V32 완결본
+# 메이트리그라운드 (Mateground) — V33 긴급 패치
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
+
+## 🆕 V33 (긴급 4종 패치 — 글로벌 네비 가시성 + 모바일 반응형 + 한글 브랜드 + DEMO 삭제)
+
+> 사용자 V32 직후 4건 긴급 보고:
+> 1. 로그인 후 글로벌 네비가 안 보여서 4탭(홈/공간/인사이트/관리) 진입 불가
+> 2. 모바일 모든 페이지 배열 깨짐 — 전 페이지 반응형 보강 + 테스트 요구
+> 3. 글로벌 네비·로그인 페이지 모두 "메이트리그라운드" 한글 강제 (영문 MATRI BUILDING 금지)
+> 4. DEMO ACCOUNTS 섹션 완전 삭제 — 사용자에게 노출 금지 (재요청)
+
+### §1 — 글로벌 네비 가시성 복구 (CRITICAL FIX)
+- **원인 진단**: V32가 `.app-shell .global-nav { background:#ffffff !important; }`로 흰 배경으로 바꿨는데, 원본 `.global-nav .nav-brand` / `.nav-link` 텍스트 색은 어두운 배경용 `#fff` 흰색이라 **흰 배경 위에 흰 글자**가 되어 사라진 문제.
+- **수정** (`public/static/styles.css` 라인 ~190~265): `.app-shell .global-nav` 스코프 안에서 nav-brand·nav-link·nav-user-name·아이콘·햄버거 바·아바타까지 전부 `#484848` / `#FF385C`로 재정의. `-webkit-text-fill-color`까지 명시해 Safari/그라디언트 인쇄 강제.
+  - `.app-shell .global-nav .nav-brand` 17px / 700 weight / 다크 텍스트 강제
+  - `.app-shell .global-nav .nav-link` 알약(pill) 형태 (`border-radius: 999px`), 호버 `#f7f7f7`, 활성 `#FF385C` 핑크
+  - 브랜드 마크 3-bar: 어두운 배경용 흰색 → 핑크 그라디언트 (`#FF385C`/`#E31C5F`)
+  - 아바타: 핑크 그라디언트 배경 + 흰 글자
+- **결과**: `/home /spaces /insights /admin/members` 4개 탭 모두 HTTP 200 + 네비 정상 렌더 + 클릭 가능
+
+### §2 — DEMO ACCOUNTS 섹션 완전 삭제
+- **파일**: `src/pages/login.tsx`
+- `<div class="abnb-hint">DEMO ACCOUNTS...</div>` 블록 (와일리 Admin / 러쉬 Admin / 멤버 3행 + 비밀번호) 마크업 완전 제거
+- 검증: `curl /login | grep -E "DEMO ACCOUNTS|abnb-hint|admin1234|user1234"` = 0건
+- 부가 효과: 빌드 크기 -0.55 kB (94.22 → 93.67)
+
+### §3 — 한글 브랜드 표기 강제
+- **로그인 페이지** (`src/pages/login.tsx`)
+  - 타이틀: `MATRI BUILDING` → `메이트리그라운드`
+  - 부제: `Wylie & Lush Shared Workspace` → `와일리 & 러쉬 공유 워크스페이스`
+  - 푸터: `© MATEGROUND · WYLIE & LUSH KOREA` → `© 메이트리그라운드 · 와일리 & 러쉬 코리아`
+- **글로벌 네비**: `public/static/app.js` line 127 — 이미 `'메이트리그라운드'` 한글 (V31부터 유지). 모바일 드로어 line 194도 한글. JS는 무수정.
+- 검증: `curl /login | grep 메이트리그라운드` = 3건, `MATRI BUILDING` = 0건
+
+### §4 — 모바일 반응형 전면 보강 (전 페이지)
+- **파일**: `public/static/styles.css` 끝(라인 5567~5929)에 V33 §4 종합 블록 추가
+- **(A) `@media (max-width: 768px)` — 스마트폰**
+  - `html/body/.app-shell` `overflow-x: hidden + max-width:100vw` — 가로 스크롤 절대 차단
+  - 글로벌 네비: 데스크톱 메뉴 숨김 + 햄버거 강제 노출 + 패딩 14px
+  - 컨테이너 패딩 14px / 최대폭 100vw
+  - 모든 카드 (홈 히어로·요약·통계·차트·인사이트·어드민·관리·공간·멤버·인비테이션·세팅) → 패딩 16px / `width:100%` / `box-sizing:border-box` / 1열 스택
+  - 모든 그리드(요약·인사이트·통계·홈·공간·멤버·어드민·조직·2~4 컬럼) → `grid-template-columns: 1fr`
+  - 어드민 사이드내비 → 가로 스크롤 탭 바로 변환 (`flex-direction:row + overflow-x:auto`)
+  - 테이블 래퍼 `overflow-x:auto` + `min-width:560px` + `white-space:nowrap` (모바일에서 가로 스크롤)
+  - 인사이트 히트맵 `min-width:720px` + 가로 스크롤
+  - 타임라인 시간축 `font-size:11px` + 가로 스크롤
+  - 일정 블록 `font-size:11px + padding:4px 8px`
+  - h1 22px / h2 18px / h3 16px로 축소
+  - 폼·필터·툴바 행 → 세로 스택 (`flex-direction:column`)
+  - 모달 → `94vw + max-height:90vh + overflow-y:auto`
+  - 로그인 게이트 `.abnb-gate__grid` 1열, `.abnb-rooms-grid` 2열
+- **(B) `@media (max-width: 480px)` — 소형 폰**
+  - 글로벌 네비 패딩 10px / 브랜드 14px
+  - `.abnb-rooms-grid` 1열
+- **(C) `@media (min-width: 769px) and (max-width: 1023px)` — 태블릿**
+  - 컨테이너 패딩 20px
+  - 통계/요약 그리드 2열로 축소
+  - 어드민 사이드내비 폭 180px로 축소
+
+### V33 검증 결과 (E2E)
+```
+$ npm run build → dist/_worker.js 93.67 kB ✅ (V32 대비 -0.55 kB, DEMO 삭제 효과)
+$ curl /login → HTTP 200
+  메이트리그라운드: 3건 / MATRI BUILDING: 0건 ✅
+  와일리 & 러쉬: 2건 / Wylie & Lush: 0건 ✅
+  DEMO ACCOUNTS|abnb-hint|admin1234|user1234: 0건 ✅
+$ POST /api/auth/login (admin@wylie.co.kr) → ok:true ✅
+$ /home /spaces /insights /admin/members → 모두 HTTP 200 ✅
+$ /api/spaces /api/members /api/public/available-spaces → 모두 정상 응답 ✅
+$ PlaywrightConsoleCapture /login → 0 errors, 타이틀 "로그인 · 메이트리그라운드" ✅
+.app-shell .global-nav .nav-brand 규칙: 7개 ✅
+V33 §4 마커: 2개 ✅
+```
+
+### V33 데이터·로직 보존 (변경 없음)
+- ✅ R-object resize handler (app.js line 945)
+- ✅ bulkDeleteMembers 일괄 삭제 핸들러 (line 2644~2649)
+- ✅ applyTenantColors + `<style id="__tenant_colors__">` 3-layer 디펜스 (line 3348+)
+- ✅ V15 PUBLIC_ROOMS A~E 화이트리스트 + tenant_scope IS NULL 가드 (`src/api/public.ts`)
+- ✅ renderShell() 함수 무수정 — 마크업은 V32와 동일, CSS만 수정
+
+---
 
 ## 🆕 V32 (에어비앤비 DLS 전면 개편 — 오프 화이트 + Rausch 핑크)
 

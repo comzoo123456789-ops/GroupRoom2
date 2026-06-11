@@ -18,8 +18,8 @@ export const LoginPage = () => {
         <div class="abnb-brand-mark" aria-hidden="true">
           <span></span><span></span>
         </div>
-        <h1 class="abnb-gate__title">MATRI BUILDING</h1>
-        <p class="abnb-gate__sub">Wylie &amp; Lush Shared Workspace</p>
+        <h1 class="abnb-gate__title">메이트리그라운드</h1>
+        <p class="abnb-gate__sub">와일리 &amp; 러쉬 공유 워크스페이스</p>
       </header>
 
       <main class="abnb-gate__grid">
@@ -74,27 +74,12 @@ export const LoginPage = () => {
             <button type="submit" class="abnb-btn abnb-btn--gradient">공간 입장하기</button>
             <div id="login-error" class="abnb-form__error"></div>
           </form>
-
-          <div class="abnb-hint">
-            <div class="abnb-hint__title">DEMO ACCOUNTS</div>
-            <div class="abnb-hint__row">
-              <span class="abnb-tag abnb-tag--wylie">와일리 Admin</span>
-              <code>admin@wylie.co.kr / admin1234</code>
-            </div>
-            <div class="abnb-hint__row">
-              <span class="abnb-tag abnb-tag--lush">러쉬 Admin</span>
-              <code>admin@lush.co.kr / admin1234</code>
-            </div>
-            <div class="abnb-hint__row">
-              <span class="abnb-tag abnb-tag--member">멤버</span>
-              <code>hgpark@wylie.co.kr / user1234</code>
-            </div>
-          </div>
+          {/* V33 §2: DEMO ACCOUNTS 블록 완전 삭제 — 사용자 요청에 따라 노출 금지 */}
         </section>
       </main>
 
       <footer class="abnb-gate__footer">
-        © MATEGROUND · WYLIE &amp; LUSH KOREA
+        © 메이트리그라운드 · 와일리 &amp; 러쉬 코리아
       </footer>
 
       <script src="/static/login.js"></script>

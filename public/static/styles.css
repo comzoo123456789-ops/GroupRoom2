@@ -179,7 +179,9 @@
   .app-shell .invite-card { padding: 16px !important; }
 }
 
-/* (5) 전역 내비/탑바: 그림자 없는 깨끗한 화이트 + 라이트 그레이 라인 */
+/* (5) 전역 내비/탑바: 그림자 없는 깨끗한 화이트 + 라이트 그레이 라인
+       ⚠️ V33 §1 FIX: 흰 배경으로 바꾸면 원본 #fff 텍스트가 안 보이므로
+       nav-brand / nav-link / nav-user-name / 아이콘 색을 모두 #484848 로 재정의 */
 .app-shell .global-nav,
 .app-shell .global-nav-inner {
   box-shadow: 0 1px 0 rgba(0,0,0,0.08) !important;
@@ -187,6 +189,81 @@
 }
 .app-shell .global-nav {
   border-bottom: 1px solid #ebebeb !important;
+  min-height: 64px !important;
+}
+.app-shell .global-nav-inner {
+  min-height: 64px !important;
+  padding: 0 24px !important;
+}
+
+/* (5.1) V33 §1 — 네비 안의 모든 텍스트/아이콘을 흰 배경에서 보이게 강제 */
+.app-shell .global-nav .nav-brand,
+.app-shell .global-nav .nav-brand *,
+.app-shell .global-nav .nav-link,
+.app-shell .global-nav .nav-link *,
+.app-shell .global-nav .nav-link i,
+.app-shell .global-nav .nav-link span,
+.app-shell .global-nav .nav-user-name,
+.app-shell .global-nav .nav-hamburger,
+.app-shell .global-nav .nav-hamburger * {
+  color: #484848 !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: #484848 !important;
+}
+.app-shell .global-nav .nav-brand {
+  font-weight: 700 !important;
+  font-size: 17px !important;
+  letter-spacing: -0.01em !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.app-shell .global-nav .nav-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 14px !important;
+  border-radius: 999px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  background: transparent !important;
+}
+.app-shell .global-nav .nav-link:hover {
+  background: #f7f7f7 !important;
+  color: #222 !important;
+  -webkit-text-fill-color: #222 !important;
+}
+.app-shell .global-nav .nav-link.is-active,
+.app-shell .global-nav .nav-link.active {
+  background: #f1f1f1 !important;
+  color: #FF385C !important;
+  -webkit-text-fill-color: #FF385C !important;
+}
+.app-shell .global-nav .nav-link.is-active i,
+.app-shell .global-nav .nav-link.active i {
+  color: #FF385C !important;
+  -webkit-text-fill-color: #FF385C !important;
+}
+/* 브랜드 마크 바: 어두운 배경용 흰 막대를 핑크 막대로 */
+.app-shell .global-nav .nav-brand .brand-bars span {
+  background: #FF385C !important;
+}
+.app-shell .global-nav .nav-brand .brand-bars span:nth-child(3) {
+  background: #E31C5F !important;
+}
+/* 햄버거 바를 어둡게 */
+.app-shell .global-nav .nav-hamburger .hb-bar {
+  background: #484848 !important;
+}
+.app-shell .global-nav .nav-hamburger:hover .hb-bar {
+  background: #FF385C !important;
+}
+/* 아바타는 라이트 위에서도 보이도록 핑크 배경 */
+.app-shell .global-nav .nav-avatar {
+  background: linear-gradient(135deg, #FF385C 0%, #E31C5F 100%) !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  border: none !important;
 }
 
 /* (6) 본문 베이스 오프 화이트 */
@@ -5564,3 +5641,289 @@ a:hover { color: var(--primary-focus) !important; }
   content: '⚠';
   margin-right: 2px;
 }
+
+/* =========================================================================
+   V33 §4 — 모바일 반응형 전면 보강 (Mobile Responsive Overhaul)
+   --------------------------------------------------------------------------
+   사용자 보고: "모바일로 들어가면 배열이 하나도 안맞아"
+   대응: 모든 페이지에서 가로 스크롤·텍스트 잘림·카드 깨짐 방지
+   - 가로 스크롤 차단
+   - 컨테이너 패딩 축소
+   - 카드/그리드 1열 스택
+   - 테이블 가로 스크롤 박스화
+   - 글로벌 네비 햄버거 + 단순 배치
+   ========================================================================= */
+
+/* (A) 모바일 — 768px 이하 (스마트폰) */
+@media (max-width: 768px) {
+  /* 가로 스크롤 절대 방지 */
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+  .app-shell {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  /* 글로벌 네비 단순 배치 */
+  .app-shell .global-nav,
+  .app-shell .global-nav-inner {
+    min-height: 56px !important;
+  }
+  .app-shell .global-nav-inner {
+    padding: 0 14px !important;
+    gap: 8px !important;
+    justify-content: space-between !important;
+  }
+  .app-shell .global-nav .nav-brand {
+    font-size: 15px !important;
+  }
+  .app-shell .global-nav .nav-links {
+    display: none !important;
+  }
+  .app-shell .global-nav .nav-hamburger {
+    display: inline-flex !important;
+  }
+  .app-shell .global-nav .nav-user-name {
+    display: none !important;
+  }
+
+  /* 컨테이너/페이지 여백 축소 */
+  .page-wrap,
+  .container,
+  .main-content,
+  .app-content {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    max-width: 100vw !important;
+  }
+
+  /* 카드 1열 스택 + 패딩 축소 */
+  .app-shell .home-hero,
+  .app-shell .summary-card,
+  .app-shell .summary-card-item,
+  .app-shell .stat-card,
+  .app-shell .chart-card,
+  .app-shell .insight-card,
+  .app-shell .admin-content-card,
+  .app-shell .management-content-card,
+  .app-shell .space-card,
+  .app-shell .member-card,
+  .app-shell .invite-card,
+  .app-shell .setting-card,
+  .app-shell .setting-section-box,
+  .app-shell .schedule-palette-box,
+  .app-shell .palette-management-wrapper {
+    padding: 16px !important;
+    border-radius: 12px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .app-shell .home-hero {
+    padding: 20px 16px !important;
+  }
+
+  /* 모든 그리드 1열 */
+  .app-shell .summary-card-grid-container,
+  .app-shell .insight-stats-grid,
+  .app-shell .stats-grid,
+  .app-shell .stat-cards,
+  .app-shell .summary-grid,
+  .app-shell .home-grid,
+  .app-shell .spaces-grid,
+  .app-shell .members-grid,
+  .app-shell .admin-grid,
+  .app-shell .org-grid,
+  .app-shell .two-col-grid,
+  .app-shell .three-col-grid,
+  .app-shell .four-col-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* 어드민 사이드내비를 가로 스크롤 탭으로 */
+  .app-shell .admin-sidebar,
+  .app-shell .admin-side-nav,
+  .app-shell .side-nav {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 8px !important;
+    margin-bottom: 12px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 6px !important;
+    border-radius: 12px !important;
+  }
+  .app-shell .admin-sidebar a,
+  .app-shell .admin-side-nav a,
+  .app-shell .side-nav a {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* 테이블을 가로 스크롤 박스로 */
+  .app-shell .data-table-wrapper,
+  .app-shell .table-wrapper,
+  .app-shell .member-table-wrap,
+  .app-shell .space-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 8px !important;
+    border-radius: 12px !important;
+  }
+  .app-shell table {
+    min-width: 560px !important;
+    font-size: 13px !important;
+  }
+  .app-shell th,
+  .app-shell td {
+    padding: 8px 10px !important;
+    white-space: nowrap !important;
+  }
+
+  /* 인사이트 히트맵 가로 스크롤 */
+  .app-shell .insight-heatmap,
+  .app-shell .heatmap-card-panel {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 16px !important;
+  }
+  .app-shell .heatmap-grid {
+    min-width: 720px !important;
+  }
+
+  /* 타임라인 — 시간축 글자 축소 + 가로 스크롤 */
+  .app-shell .timeline-container,
+  .app-shell .month-view-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 16px 12px !important;
+  }
+  .app-shell .timeline-hour-label,
+  .app-shell .timeline-time {
+    font-size: 11px !important;
+  }
+
+  /* 일정 블록 — 모바일에서 텍스트 축소 */
+  .app-shell .event-block,
+  .app-shell .timeline-block,
+  .app-shell .reservation-block {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+
+  /* 버튼/입력창 풀 너비 */
+  .app-shell .btn-primary,
+  .app-shell .btn-secondary,
+  .app-shell .btn,
+  .app-shell input[type="text"],
+  .app-shell input[type="email"],
+  .app-shell input[type="password"],
+  .app-shell input[type="search"],
+  .app-shell select,
+  .app-shell textarea {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 페이지 헤더 — 큰 폰트 줄이기 */
+  .app-shell h1 { font-size: 22px !important; line-height: 1.3 !important; }
+  .app-shell h2 { font-size: 18px !important; line-height: 1.3 !important; }
+  .app-shell h3 { font-size: 16px !important; line-height: 1.3 !important; }
+
+  /* 폼 행을 세로 스택 */
+  .app-shell .form-row,
+  .app-shell .filter-row,
+  .app-shell .toolbar-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .app-shell .form-row > *,
+  .app-shell .filter-row > *,
+  .app-shell .toolbar-row > * {
+    width: 100% !important;
+  }
+
+  /* 모달 풀스크린화 */
+  .modal-overlay .modal,
+  .modal-wrapper .modal-card {
+    max-width: 94vw !important;
+    width: 94vw !important;
+    margin: 16px auto !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    border-radius: 16px !important;
+  }
+
+  /* 로그인 게이트 모바일 — 1열 스택 */
+  .abnb-gate {
+    padding: 24px 14px !important;
+  }
+  .abnb-gate__grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    max-width: 100% !important;
+  }
+  .abnb-gate__title {
+    font-size: 24px !important;
+  }
+  .abnb-card {
+    padding: 20px 16px !important;
+  }
+  .abnb-rooms-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+/* (B) 좁은 모바일 — 480px 이하 (소형 폰) */
+@media (max-width: 480px) {
+  .app-shell .global-nav-inner {
+    padding: 0 10px !important;
+  }
+  .app-shell .global-nav .nav-brand {
+    font-size: 14px !important;
+  }
+  .abnb-rooms-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* (C) 태블릿 — 769~1023px */
+@media (min-width: 769px) and (max-width: 1023px) {
+  .app-shell .global-nav-inner {
+    padding: 0 18px !important;
+  }
+  .page-wrap,
+  .container,
+  .main-content,
+  .app-content {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+  /* 그리드 2열로 축소 */
+  .app-shell .summary-card-grid-container,
+  .app-shell .insight-stats-grid,
+  .app-shell .stats-grid,
+  .app-shell .stat-cards {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  /* 어드민 사이드내비는 유지하되 폭 축소 */
+  .app-shell .admin-sidebar,
+  .app-shell .admin-side-nav {
+    width: 180px !important;
+  }
+}
+/* === V33 §4 END === */
