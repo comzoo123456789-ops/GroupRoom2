@@ -5927,3 +5927,415 @@ a:hover { color: var(--primary-focus) !important; }
   }
 }
 /* === V33 §4 END === */
+
+/* =========================================================================
+   V34 — 사용자 5종 긴급 보고 패치
+   --------------------------------------------------------------------------
+   §1 로그인 버튼 안 보임
+   §2 공간 타임라인 00:00 잘림 + 헤더 색점 잘림
+   §3 모바일 룸 헤더 라운드로 글자 잘림
+   §4 앞으로의 일정 시간 색이 분홍 → 검정
+   §5 홈 화면 신규 대시보드 카드 디자인
+   ========================================================================= */
+
+/* ▣ V34 §1 — 로그인 버튼 가시성 절대 강제 (브라우저별 그라디언트 fallback) */
+.abnb-btn.abnb-btn--gradient,
+button.abnb-btn--gradient,
+button[type="submit"].abnb-btn {
+  display: block !important;
+  width: 100% !important;
+  min-height: 52px !important;
+  height: 52px !important;
+  margin-top: 12px !important;
+  padding: 0 !important;
+  /* 단색 fallback → 그라디언트 */
+  background-color: #FF385C !important;
+  background-image: linear-gradient(90deg, #E31C5F 0%, #FF385C 100%) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  border: none !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 14px rgba(255,56,92,0.30) !important;
+  cursor: pointer !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 1 !important;
+  position: relative !important;
+}
+.abnb-btn.abnb-btn--gradient:hover,
+button.abnb-btn--gradient:hover {
+  background-color: #E31C5F !important;
+  background-image: linear-gradient(90deg, #D70466 0%, #E31C5F 100%) !important;
+  box-shadow: 0 6px 18px rgba(255,56,92,0.42) !important;
+  transform: translateY(-1px) !important;
+}
+.abnb-btn.abnb-btn--gradient:active,
+button.abnb-btn--gradient:active {
+  transform: translateY(0) !important;
+}
+
+/* ▣ V34 §2 — 공간 타임라인 상단 00:00 잘림 + 컨테이너 overflow 해결 */
+.app-shell .timeline-container,
+.app-shell .month-view-container {
+  overflow: visible !important;
+  padding-top: 20px !important;
+}
+.app-shell .timeline-container .timeline-scroll,
+.app-shell .timeline-viewport-container {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+/* 첫 시간 라벨(00:00)이 카드 라운드 안으로 묻히지 않도록 위 패딩 부여 */
+.app-shell .timeline-grid,
+.app-shell .timeline-body {
+  padding-top: 8px !important;
+}
+.app-shell .timeline-hour-label:first-child,
+.app-shell .timeline-time:first-child {
+  margin-top: 4px !important;
+}
+/* 헤더 셀의 컬러 닷이 카드 라운드 모서리에 걸리지 않도록 */
+.app-shell .timeline-header-cell {
+  padding-top: 14px !important;
+  padding-left: 12px !important;
+  overflow: visible !important;
+}
+.app-shell .timeline-header-cell .space-dot {
+  flex-shrink: 0 !important;
+}
+
+/* ▣ V34 §3 — 모바일 룸 헤더 잘림 해결 (Meeting Room A/B/C 글자 + 색점) */
+@media (max-width: 768px) {
+  .app-shell .timeline-container {
+    padding: 12px 8px !important;
+    border-radius: 12px !important;
+    overflow: visible !important;
+  }
+  .app-shell .timeline-container .timeline-scroll,
+  .app-shell .timeline-viewport-container {
+    border-radius: 8px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .app-shell .timeline-header-cell {
+    padding: 10px 6px 8px 6px !important;
+    min-width: 88px !important;
+    overflow: visible !important;
+  }
+  .app-shell .timeline-header-cell .space-name {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+  .app-shell .timeline-header-cell .space-dot {
+    width: 7px !important;
+    height: 7px !important;
+    margin-bottom: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  .app-shell .timeline-header-cell .space-name-prefix {
+    font-size: 10px !important;
+    color: #717171 !important;
+  }
+  .app-shell .timeline-header-cell .space-name-suffix {
+    font-size: 13px !important;
+    color: #222 !important;
+  }
+  /* 룸 헤더 컬럼이 최소폭을 확보하도록 timeline-grid를 가로 스크롤 가능하게 */
+  .app-shell .timeline-grid {
+    min-width: 100% !important;
+  }
+  /* 첫 시간 라벨 00:00이 카드 위 라인에 닿지 않게 추가 마진 */
+  .app-shell .timeline-hour-label:first-child,
+  .app-shell .timeline-time:first-child {
+    margin-top: 6px !important;
+    padding-top: 4px !important;
+  }
+}
+
+/* ▣ V34 §4 — 앞으로의 일정 시간 색을 핑크에서 검정/다크 그레이로 강제 */
+.app-shell .upcoming-row .time,
+.app-shell .upcoming-row .time *,
+.app-shell .upcoming-row .time i,
+.upcoming-row .time,
+.upcoming-row .time * {
+  color: #222222 !important;
+  -webkit-text-fill-color: #222222 !important;
+  font-weight: 600 !important;
+}
+.app-shell .upcoming-row .time i {
+  color: #717171 !important;
+  -webkit-text-fill-color: #717171 !important;
+}
+
+/* ▣ V34 §5 — 홈 V34 대시보드 신규 디자인 토큰
+   ============================================
+   기존 단조로운 home-hero + upcoming-section 구조 폐기
+   → 6개 카드(인사 / 오늘 / 다음 일정 / 통계 / 활동 / 빠른 진입)로 한눈에 보이는 대시보드
+*/
+.app-shell .v34-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+.app-shell .v34-card {
+  background: #ffffff !important;
+  border: 1px solid #ebebeb !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.app-shell .v34-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+}
+.app-shell .v34-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.app-shell .v34-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #717171;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.app-shell .v34-card__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.app-shell .v34-card__big {
+  font-size: 36px;
+  font-weight: 800;
+  color: #222;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+.app-shell .v34-card__sub {
+  font-size: 13px;
+  color: #717171;
+  margin: 4px 0 0 0;
+}
+/* 인사 카드 — 전체 폭, 핑크 그라디언트 */
+.app-shell .v34-card--greet {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #FF385C 0%, #E31C5F 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 28px 32px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 8px 24px rgba(255,56,92,0.22) !important;
+}
+.app-shell .v34-card--greet .v34-greet-text h2 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff !important;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+.app-shell .v34-card--greet .v34-greet-text p {
+  font-size: 15px;
+  color: rgba(255,255,255,0.92) !important;
+  margin: 0;
+}
+.app-shell .v34-card--greet .v34-greet-date {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255,255,255,0.18);
+  border-radius: 14px;
+  padding: 12px 20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.app-shell .v34-card--greet .v34-greet-date-month {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85) !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.app-shell .v34-card--greet .v34-greet-date-day {
+  font-size: 32px;
+  font-weight: 800;
+  color: #ffffff !important;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+/* 다음 일정 카드 */
+.app-shell .v34-card--next .v34-card__icon { background: #FFE4EA; color: #FF385C; }
+.app-shell .v34-next-time {
+  font-size: 24px;
+  font-weight: 700;
+  color: #222;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px 0;
+}
+.app-shell .v34-next-title {
+  font-size: 15px;
+  color: #484848;
+  margin: 0 0 12px 0;
+  font-weight: 500;
+}
+.app-shell .v34-next-space {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #717171;
+  background: #f7f7f7;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+.app-shell .v34-next-empty {
+  color: #717171;
+  font-size: 14px;
+  padding: 12px 0;
+}
+
+/* 통계 카드 */
+.app-shell .v34-card--stat .v34-card__icon { background: #E8F5FF; color: #0066cc; }
+.app-shell .v34-card--stat2 .v34-card__icon { background: #FFF4E5; color: #F59E0B; }
+.app-shell .v34-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+.app-shell .v34-stat-unit {
+  font-size: 14px;
+  color: #717171;
+  font-weight: 500;
+}
+
+/* 빠른 진입 카드 */
+.app-shell .v34-card--quick {
+  grid-column: 1 / -1;
+}
+.app-shell .v34-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.app-shell .v34-quick-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 12px;
+  background: #f7f7f7;
+  border: 1px solid #ebebeb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  color: #222;
+}
+.app-shell .v34-quick-item:hover {
+  background: #FFE4EA;
+  border-color: #FF385C;
+  transform: translateY(-2px);
+}
+.app-shell .v34-quick-item i {
+  font-size: 22px;
+  color: #FF385C;
+}
+.app-shell .v34-quick-item span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+
+/* 오늘의 일정 카드 (전체 폭) */
+.app-shell .v34-card--today {
+  grid-column: 1 / -1;
+}
+.app-shell .v34-card--today .v34-card__icon { background: #E5F8EE; color: #008A05; }
+.app-shell .v34-today-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.app-shell .v34-today-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #f7f7f7;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.app-shell .v34-today-row:hover {
+  background: #FFE4EA;
+  transform: translateX(3px);
+}
+.app-shell .v34-today-time {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222 !important;
+  -webkit-text-fill-color: #222 !important;
+  min-width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .v34-today-title {
+  font-size: 14px;
+  color: #484848;
+  flex: 1;
+  font-weight: 500;
+}
+.app-shell .v34-today-space {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #717171;
+  white-space: nowrap;
+}
+.app-shell .v34-today-empty {
+  color: #717171;
+  font-size: 14px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* 모바일 — 1열로 스택 + 빠른 진입 2열 */
+@media (max-width: 768px) {
+  .app-shell .v34-dashboard {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .app-shell .v34-card { padding: 18px !important; }
+  .app-shell .v34-card--greet { padding: 22px 20px !important; }
+  .app-shell .v34-card--greet .v34-greet-text h2 { font-size: 22px !important; }
+  .app-shell .v34-card__big { font-size: 28px !important; }
+  .app-shell .v34-quick-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .app-shell .v34-today-time { min-width: 90px !important; font-size: 13px !important; }
+  .app-shell .v34-today-row { padding: 10px 12px !important; gap: 10px !important; }
+}
+/* === V34 END === */

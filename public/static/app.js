@@ -374,7 +374,9 @@ async function handleLogout() {
 
 // ============== HOME PAGE ==============
 async function renderHome() {
-  // V7 고도화 §3: 받은 초대(PENDING) + 다가오는 일정(주최 OR 수락) 병렬 로드
+  // V34 §5: 홈 화면 전면 재설계 — 단조로운 home-hero + upcoming-section 폐기
+  //   → 한눈에 보이는 카드형 대시보드(인사 / 다음 일정 / 통계 / 오늘 일정 / 빠른 진입)
+  // V7 고도화 §3: 받은 초대(PENDING) + 다가오는 일정(주최 OR 수락) 병렬 로드 (유지)
   const [resUpcoming, resInvites] = await Promise.all([
     api('/api/reservations/upcoming'),
     api('/api/reservations/invitations'),
@@ -382,129 +384,244 @@ async function renderHome() {
   const reservations = resUpcoming?.data?.reservations || [];
   const invitations = resInvites?.data?.invitations || [];
 
-  const grouped = {};
-  for (const r of reservations) {
-    if (!grouped[r.date]) grouped[r.date] = [];
-    grouped[r.date].push(r);
-  }
-
   const goToSpace = (date, time) => {
-    // V6-4: 클릭한 카드의 날짜(예: 6/20)로 정확히 이동 — sessionStorage에 jumpDate 저장하여 페이지 리로드 후에도 유지
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       sessionStorage.setItem('jumpDate', date);
     }
     sessionStorage.setItem('spaceFocusTime', time || '');
     State.date = date;
-    State.view = 'day';   // 일간 뷰로 강제 전환
+    State.view = 'day';
     window.location.href = '/spaces';
   };
 
-  const upcomingItems = Object.entries(grouped).slice(0, 8).map(([date, list]) => {
-    const d = dayjs(date);
-    return el('div', { class: 'upcoming-day' },
-      el('div', {
-        class: 'upcoming-day-label is-clickable',
-        title: '클릭하면 해당 날짜의 공간 타임라인으로 이동합니다',
-        onclick: () => goToSpace(date, list[0]?.start_time)
-      },
-        el('div', { class: 'day-num' }, d.format('D')),
-        el('div', { class: 'day-text' }, d.locale('ko').format('M월, dddd'))
-      ),
-      el('div', { class: 'upcoming-items' },
-        ...list.map(r =>
-          el('div', {
-            class: 'upcoming-row is-clickable',
-            onclick: () => goToSpace(r.date, r.start_time)
-          },
-            el('div', { class: 'time' },
-              el('i', { class: 'fa-regular fa-clock', style: 'margin-right:6px;font-size:11px;color:#7a7a7a;' }),
-              `${r.start_time} - ${r.end_time}`
-            ),
-            el('div', { class: 'title' },
-              r.title || '새로운 일정',
-              /* V7 고도화 §3: 본인 역할 배지 — 주최/참석 구분 */
-              r.my_role === 'ATTENDEE'
-                ? el('span', { class: 'role-badge is-attendee' }, '참석')
-                : el('span', { class: 'role-badge is-owner' }, '주최')
-            ),
-            el('div', { class: 'space-pill' },
-              el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
-              r.space_name
-            ),
-            el('div', { class: 'avatar', style: `background:${r.user_avatar_color || '#7a7a7a'};` }, initials(r.user_name))
+  const today = dayjs();
+  const todayStr = today.format('YYYY-MM-DD');
+  const isAdmin = State.user?.role === 'admin';
+
+  // V34 §5: 데이터 가공
+  const todayList = reservations.filter(r => r.date === todayStr);
+  const upcomingList = reservations.filter(r => r.date > todayStr).slice(0, 5);
+  const nextOne = todayList[0] || upcomingList[0] || null;
+  const myWeekCount = reservations.filter(r => {
+    const d = dayjs(r.date);
+    return d.isAfter(today.subtract(1,'day')) && d.isBefore(today.add(7,'day'));
+  }).length;
+
+  // 인사말 (시간대별)
+  const hour = today.hour();
+  const greeting = hour < 6 ? '늦은 시각이네요' : hour < 12 ? '좋은 아침입니다' : hour < 18 ? '오늘도 화이팅' : '오늘 하루도 수고하셨어요';
+
+  // ── 카드 1: 인사 (전체 폭, 핑크 그라디언트) ──
+  const greetCard = el('section', { class: 'v34-card v34-card--greet' },
+    el('div', { class: 'v34-greet-text' },
+      el('h2', null, `${State.user.name}님, ${greeting}`),
+      el('p', null, today.locale('ko').format('YYYY년 M월 D일 dddd') + ' · ' + (State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아'))
+    ),
+    el('div', { class: 'v34-greet-date' },
+      el('div', { class: 'v34-greet-date-month' }, today.locale('en').format('MMM')),
+      el('div', { class: 'v34-greet-date-day' }, today.format('D'))
+    )
+  );
+
+  // ── 카드 2: 다음 일정 ──
+  const nextCard = el('section', {
+    class: 'v34-card v34-card--next' + (nextOne ? ' is-clickable' : ''),
+    style: nextOne ? 'cursor:pointer;' : '',
+    onclick: nextOne ? () => goToSpace(nextOne.date, nextOne.start_time) : null,
+  },
+    el('div', { class: 'v34-card__head' },
+      el('h3', { class: 'v34-card__title' }, '다음 일정'),
+      el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-clock' }))
+    ),
+    nextOne
+      ? el('div', null,
+          el('p', { class: 'v34-next-time' },
+            (nextOne.date === todayStr ? '오늘 ' : dayjs(nextOne.date).locale('ko').format('M/D ')) +
+            `${nextOne.start_time} - ${nextOne.end_time}`
+          ),
+          el('p', { class: 'v34-next-title' }, nextOne.title || '새로운 일정'),
+          el('span', { class: 'v34-next-space' },
+            el('span', { class: 'space-dot', style: `background:${nextOne.space_color || '#7a7a7a'};` }),
+            nextOne.space_name
           )
         )
-      )
-    );
-  });
+      : el('p', { class: 'v34-next-empty' }, '예정된 일정이 없습니다.')
+  );
 
-  // [V7 완결본 §1] 홈 배너 미니 캘린더 위젯 — 'JUL 17' 이모지 하드코딩 제거 후
-  //   실시간 dayjs() 데이터로 월(M월) / 일(D)을 동적 바인딩
-  const today = dayjs();
-  const main = el('main', { class: 'page-wrap' },
-    el('div', { class: 'home-hero' },
-      el('div', { class: 'home-hero-icon home-cal-badge' },
-        el('div', { class: 'cal-badge-month' }, today.locale('ko').format('M월')),
-        el('div', { class: 'cal-badge-day' }, today.format('D'))
-      ),
-      el('div', { class: 'home-hero-text' },
-        el('h2', null, `${State.user.name}님,`),
-        el('p', null, '오늘도 좋은 하루 되세요!')
+  // ── 카드 3: 이번 주 일정 개수 ──
+  const weekCard = el('section', { class: 'v34-card v34-card--stat' },
+    el('div', { class: 'v34-card__head' },
+      el('h3', { class: 'v34-card__title' }, '이번 주 일정'),
+      el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-calendar-check' }))
+    ),
+    el('div', { class: 'v34-stat-row' },
+      el('h2', { class: 'v34-card__big' }, String(myWeekCount)),
+      el('span', { class: 'v34-stat-unit' }, '건')
+    ),
+    el('p', { class: 'v34-card__sub' }, `예정 ${upcomingList.length}건 · 오늘 ${todayList.length}건`)
+  );
+
+  // ── 카드 4: 받은 초대 수 ──
+  const inviteCard = el('section', {
+    class: 'v34-card v34-card--stat2' + (invitations.length > 0 ? ' is-clickable' : ''),
+  },
+    el('div', { class: 'v34-card__head' },
+      el('h3', { class: 'v34-card__title' }, '받은 초대'),
+      el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-envelope-open-text' }))
+    ),
+    el('div', { class: 'v34-stat-row' },
+      el('h2', { class: 'v34-card__big' }, String(invitations.length)),
+      el('span', { class: 'v34-stat-unit' }, '건')
+    ),
+    el('p', { class: 'v34-card__sub' }, invitations.length > 0 ? '응답 대기 중인 초대가 있습니다' : '확인할 초대가 없습니다')
+  );
+
+  // ── 카드 5: 빠른 진입 ──
+  const quickItems = [
+    { href: '/spaces', icon: 'fa-calendar-day', label: '공간 예약' },
+    { href: '/spaces', icon: 'fa-plus-circle', label: '새 일정' },
+    isAdmin && { href: '/insights', icon: 'fa-chart-column', label: '인사이트' },
+    isAdmin && { href: '/admin/members', icon: 'fa-users-gear', label: '멤버 관리' },
+  ].filter(Boolean);
+
+  const quickCard = el('section', { class: 'v34-card v34-card--quick' },
+    el('div', { class: 'v34-card__head' },
+      el('h3', { class: 'v34-card__title' }, '빠른 진입'),
+      el('div', { class: 'v34-card__icon', style: 'background:#FFE4EA;color:#FF385C;' },
+        el('i', { class: 'fa-solid fa-bolt' })
       )
     ),
+    el('div', { class: 'v34-quick-grid' },
+      ...quickItems.map(q =>
+        el('a', { href: q.href, class: 'v34-quick-item' },
+          el('i', { class: `fa-solid ${q.icon}` }),
+          el('span', null, q.label)
+        )
+      )
+    )
+  );
 
-    /* [V7 고도화 §3] 받은 초대 알림 박스 — PENDING 상태인 초대만, 수락/거절 인라인 액션 */
-    invitations.length > 0
-      ? el('div', { class: 'invites-section' },
-          el('h3', { class: 'invites-section-title' },
-            el('i', { class: 'fa-solid fa-envelope-open-text', style: 'margin-right:8px;color:#0066cc;' }),
-            '받은 초대',
-            el('span', { class: 'invites-count-badge' }, invitations.length)
-          ),
-          el('div', { class: 'invites-list' },
-            ...invitations.map(inv =>
-              el('div', { class: 'invite-card' },
-                el('div', { class: 'invite-card-main' },
-                  el('div', { class: 'invite-card-title' }, inv.title || '새로운 일정'),
-                  el('div', { class: 'invite-card-meta' },
-                    el('span', { class: 'invite-card-time' },
-                      el('i', { class: 'fa-regular fa-calendar', style: 'margin-right:4px;' }),
-                      `${dayjs(inv.date).locale('ko').format('M월 D일 (dd)')} · ${inv.start_time} - ${inv.end_time}`
-                    ),
-                    el('span', { class: 'invite-card-space' },
-                      el('span', { class: 'space-dot', style: `background:${inv.space_color || '#7a7a7a'};` }),
-                      inv.space_name
-                    ),
-                  ),
-                  el('div', { class: 'invite-card-owner' },
-                    el('div', { class: 'avatar', style: `background:${inv.owner_avatar_color || '#7a7a7a'};width:20px;height:20px;font-size:10px;` }, initials(inv.owner_name)),
-                    el('span', null, `${inv.owner_name}님이 초대했습니다`)
-                  ),
-                ),
-                el('div', { class: 'invite-card-actions' },
-                  el('button', {
-                    class: 'btn-primary invite-accept-btn',
-                    onclick: () => respondInvitation(inv.id, 'ACCEPT'),
-                  }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
-                  el('button', {
-                    class: 'btn-secondary invite-decline-btn',
-                    onclick: () => respondInvitation(inv.id, 'DECLINE'),
-                  }, '거절'),
-                )
+  // ── 카드 6: 오늘의 일정 (있을 때만, 전체 폭) ──
+  const todayCard = todayList.length > 0
+    ? el('section', { class: 'v34-card v34-card--today' },
+        el('div', { class: 'v34-card__head' },
+          el('h3', { class: 'v34-card__title' }, `오늘의 일정 · ${todayList.length}건`),
+          el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-list-check' }))
+        ),
+        el('div', { class: 'v34-today-list' },
+          ...todayList.map(r =>
+            el('div', {
+              class: 'v34-today-row',
+              onclick: () => goToSpace(r.date, r.start_time)
+            },
+              el('span', { class: 'v34-today-time' }, `${r.start_time} - ${r.end_time}`),
+              el('span', { class: 'v34-today-title' },
+                r.title || '새로운 일정',
+                r.my_role === 'ATTENDEE'
+                  ? el('span', { class: 'role-badge is-attendee', style: 'margin-left:8px;' }, '참석')
+                  : el('span', { class: 'role-badge is-owner', style: 'margin-left:8px;' }, '주최')
+              ),
+              el('span', { class: 'v34-today-space' },
+                el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
+                r.space_name
               )
             )
           )
         )
-      : null,
+      )
+    : null;
 
-    el('div', { class: 'upcoming-section' },
-      el('h3', null, '앞으로의 일정'),
-      reservations.length === 0
-        ? el('div', { class: 'upcoming-empty' }, '예정된 일정이 없습니다. 공간 탭에서 예약을 만들어 보세요.')
-        : el('div', null, ...upcomingItems)
-    )
+  // ── 받은 초대 인라인 액션 (V7 §3 보존 — 있을 때만 노출) ──
+  const invitesSection = invitations.length > 0
+    ? el('section', { class: 'v34-card v34-card--today' },
+        el('div', { class: 'v34-card__head' },
+          el('h3', { class: 'v34-card__title' }, `받은 초대 응답 대기 · ${invitations.length}건`),
+          el('div', { class: 'v34-card__icon', style: 'background:#FFF4E5;color:#F59E0B;' },
+            el('i', { class: 'fa-solid fa-bell' })
+          )
+        ),
+        el('div', { class: 'invites-list', style: 'margin-top:4px;' },
+          ...invitations.map(inv =>
+            el('div', { class: 'invite-card' },
+              el('div', { class: 'invite-card-main' },
+                el('div', { class: 'invite-card-title' }, inv.title || '새로운 일정'),
+                el('div', { class: 'invite-card-meta' },
+                  el('span', { class: 'invite-card-time' },
+                    el('i', { class: 'fa-regular fa-calendar', style: 'margin-right:4px;' }),
+                    `${dayjs(inv.date).locale('ko').format('M월 D일 (dd)')} · ${inv.start_time} - ${inv.end_time}`
+                  ),
+                  el('span', { class: 'invite-card-space' },
+                    el('span', { class: 'space-dot', style: `background:${inv.space_color || '#7a7a7a'};` }),
+                    inv.space_name
+                  ),
+                ),
+                el('div', { class: 'invite-card-owner' },
+                  el('div', { class: 'avatar', style: `background:${inv.owner_avatar_color || '#7a7a7a'};width:20px;height:20px;font-size:10px;` }, initials(inv.owner_name)),
+                  el('span', null, `${inv.owner_name}님이 초대했습니다`)
+                ),
+              ),
+              el('div', { class: 'invite-card-actions' },
+                el('button', {
+                  class: 'btn-primary invite-accept-btn',
+                  onclick: () => respondInvitation(inv.id, 'ACCEPT'),
+                }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
+                el('button', {
+                  class: 'btn-secondary invite-decline-btn',
+                  onclick: () => respondInvitation(inv.id, 'DECLINE'),
+                }, '거절'),
+              )
+            )
+          )
+        )
+      )
+    : null;
+
+  // ── 카드 7: 앞으로의 일정 (오늘 외 다가오는 5건, 전체 폭) ──
+  const upcomingCard = upcomingList.length > 0
+    ? el('section', { class: 'v34-card v34-card--today' },
+        el('div', { class: 'v34-card__head' },
+          el('h3', { class: 'v34-card__title' }, '앞으로의 일정'),
+          el('div', { class: 'v34-card__icon', style: 'background:#E8F5FF;color:#0066cc;' },
+            el('i', { class: 'fa-solid fa-calendar-days' })
+          )
+        ),
+        el('div', { class: 'v34-today-list' },
+          ...upcomingList.map(r =>
+            el('div', {
+              class: 'v34-today-row',
+              onclick: () => goToSpace(r.date, r.start_time)
+            },
+              el('span', { class: 'v34-today-time' },
+                dayjs(r.date).locale('ko').format('M/D(dd) ') + r.start_time + '-' + r.end_time
+              ),
+              el('span', { class: 'v34-today-title' },
+                r.title || '새로운 일정',
+                r.my_role === 'ATTENDEE'
+                  ? el('span', { class: 'role-badge is-attendee', style: 'margin-left:8px;' }, '참석')
+                  : el('span', { class: 'role-badge is-owner', style: 'margin-left:8px;' }, '주최')
+              ),
+              el('span', { class: 'v34-today-space' },
+                el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
+                r.space_name
+              )
+            )
+          )
+        )
+      )
+    : null;
+
+  const dashboard = el('div', { class: 'v34-dashboard' },
+    greetCard,
+    nextCard,
+    weekCard,
+    inviteCard,
+    quickCard,
+    todayCard,
+    invitesSection,
+    upcomingCard,
   );
 
+  const main = el('main', { class: 'page-wrap' }, dashboard);
   renderShell(main);
 }
 

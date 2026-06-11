@@ -1,6 +1,92 @@
-# 메이트리그라운드 (Mateground) — V33 긴급 패치
+# 메이트리그라운드 (Mateground) — V34 긴급 패치
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
+
+## 🆕 V34 (긴급 5종 패치 — 로그인 버튼 + 타임라인 잘림 + 모바일 룸헤더 + 시간색 + 홈 대시보드 재설계)
+
+> 사용자 V33 직후 5건 보고:
+> 1. 로그인 버튼이 안 보임 → 보이게 수정
+> 2. 공간 타임라인 00:00이 카드 상단에 잘려있음 → 안 잘리게 수정
+> 3. 모바일에서 카드 둥근 모서리로 Meeting Room 글자/색점이 잘림 → 수정
+> 4. 앞으로의 일정 시간 색이 분홍 → 검정으로 변경
+> 5. 홈 화면이 그냥 에어비앤비 스타일로 색만 바뀐 채 내용은 그대로임 → 전체적인 틀을 완전히 다른 디자인, 한눈에 보이는 대시보드로 재설계
+
+### §1 — 로그인 버튼 가시성 절대 강제
+- **원인**: V32 `.abnb-btn--gradient`가 그라디언트만 정의돼 브라우저별 폴백이 없거나 `--abnb-radius-sm` 변수 의존으로 일부 환경에서 색이 안 깔림.
+- **수정** (`public/static/styles.css` V34 §1 블록): `button.abnb-btn--gradient` 셀렉터 강도 3중(`.abnb-btn.abnb-btn--gradient` + `button.abnb-btn--gradient` + `button[type="submit"].abnb-btn`) + 모든 속성 `!important`
+  - `background-color: #FF385C` (단색 fallback) + `background-image: linear-gradient(...)` (그라디언트)
+  - `color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;` Safari 강제
+  - `min-height: 52px; height: 52px; visibility: visible; opacity: 1; z-index: 1;`
+  - `box-shadow: 0 4px 14px rgba(255,56,92,0.30)` 핑크 글로우
+  - 호버 시 한 단 어두운 핑크 + 위로 살짝 부양
+
+### §2 — 공간 타임라인 00:00 잘림 해결
+- **원인**: `.app-shell .timeline-container`에 `overflow:hidden` + `border-radius:12px`이 걸려있어 카드 라운드 코너가 첫 시간 라벨(00:00)과 룸 헤더 색점을 잘라먹음.
+- **수정**:
+  - `.app-shell .timeline-container, .month-view-container { overflow: visible !important; padding-top: 20px !important; }`
+  - `.timeline-scroll`만 `overflow-x: auto` (수평 스크롤은 유지)
+  - `.timeline-grid, .timeline-body { padding-top: 8px !important; }`
+  - `.timeline-hour-label:first-child, .timeline-time:first-child { margin-top: 4px !important; }` 00:00 라벨 상단 여백
+  - `.timeline-header-cell { padding-top: 14px; padding-left: 12px; overflow: visible; }` 헤더 색점이 모서리에 안 닿음
+
+### §3 — 모바일 룸 헤더 글자/색점 잘림 해결
+- **원인**: V33에서 카드 `border-radius:12px`로 통일했는데 타임라인이 카드 안에 들어있으니 모바일에서 좁아진 컬럼 폭에 라운드 코너가 헤더 첫 줄 글자(`Meeting Room A`)와 색점을 가림.
+- **수정** (`@media (max-width: 768px)` V34 §3 블록):
+  - `.timeline-container { padding: 12px 8px; border-radius: 12px; overflow: visible; }` 패딩 부여
+  - `.timeline-scroll { border-radius: 8px; overflow-x: auto; overflow-y: visible; }` 내부 스크롤박스만 살짝 둥글게
+  - `.timeline-header-cell { padding: 10px 6px 8px 6px; min-width: 88px; overflow: visible; }`
+  - 헤더 안 `.space-name`을 **2줄 → 1줄 flex-row**로 (색점 + Meeting Room 텍스트가 옆에 나란히)
+  - `.space-dot { width: 7px; height: 7px; flex-shrink: 0; }` 절대 줄어들지 않음
+  - `.space-name-prefix` 10px / `.space-name-suffix` 13px로 폭 안에 들어가게 축소
+
+### §4 — 앞으로의 일정 시간 색 분홍 → 검정
+- **원인**: V32 `--primary: #FF385C` 스코프 오버라이드로 인해 `.upcoming-row .time { color: var(--ink-48) }`이 핑크 계열로 캐스케이드.
+- **수정**: 5-셀렉터 조합 `!important` + `-webkit-text-fill-color`
+  - 시간 텍스트 `color: #222222`, 시계 아이콘만 `#717171` 회색
+  - `font-weight: 600` 진하게
+
+### §5 — 홈 화면 전면 재설계 (가장 큰 변경)
+**기존 (V33까지)**: 핑크 그라디언트 인사 박스 + 받은 초대 + "앞으로의 일정" 한 덩어리 리스트만 표시. → 색만 핑크로 바뀐 채 정보 밀도 낮음.
+
+**V34 신규 (`public/static/app.js` renderHome 함수 완전 재작성)**:
+6+카드 그리드 대시보드. 한 화면에 모든 상태가 보임.
+
+| 카드 | 내용 | 위치 |
+|---|---|---|
+| **인사 카드** | 시간대별 인사말 + 이름 + 오늘 날짜 + 테넌트명 + Apr-style 날짜 배지(MMM/D) | 전체 폭, 핑크 그라디언트 |
+| **다음 일정 카드** | 가장 가까운 1건 (오늘이면 "오늘 HH:MM" / 미래면 "M/D HH:MM") + 제목 + 공간 알약 | 좌측 (2열 중) |
+| **이번 주 일정 카드** | 큰 숫자(N건) + "예정 X건 · 오늘 Y건" 부제 | 우측 (2열 중) |
+| **받은 초대 카드** | 큰 숫자(N건) + 응답 대기 여부 부제 | 좌측 (2열 중) |
+| **빠른 진입 카드** | 4-grid 아이콘 메뉴: 공간 예약 / 새 일정 / (어드민만)인사이트 / (어드민만)멤버 관리 | 전체 폭 |
+| **오늘의 일정 카드** | 오늘 모든 일정 리스트 (시간 검정 + 제목 + 주최/참석 배지 + 공간 알약) | 전체 폭, 오늘 일정 있을 때만 |
+| **받은 초대 응답 대기** | V7 §3 인라인 수락/거절 액션 유지 | 전체 폭, 초대 있을 때만 |
+| **앞으로의 일정** | 다가오는 5건 (오늘 이후) | 전체 폭, 있을 때만 |
+
+- 모든 카드 hover 시 `translateY(-2px) + box-shadow` 상승 효과
+- 빠른 진입 아이콘 hover 시 핑크 배경으로 변환
+- 모바일에서 1열 스택 + 빠른 진입은 2×2 grid + 시간 라벨 90px로 축소
+- "다음 일정" 카드 클릭 시 해당 일정 날짜로 공간 페이지 이동 (sessionStorage jumpDate)
+
+### V34 검증 결과 (E2E)
+```
+$ npm run build → dist/_worker.js 93.67 kB ✅
+$ /login HTTP 200 + abnb-btn 강제 룰 3건 매칭 ✅
+$ 로그인 → /home /spaces /insights /admin/members 모두 HTTP 200 ✅
+$ v34-dashboard / v34-card--greet / v34-quick-grid / v34-today-list = 5건 출현 ✅
+$ V34 §X 마커 5건 (CSS) ✅
+$ 데이터 보존: spaces / members / upcoming(예약 115번 등) 정상 응답 ✅
+$ PlaywrightConsoleCapture /login → 0 errors, 타이틀 "로그인 · 메이트리그라운드" ✅
+```
+
+### V34 데이터·로직 보존 (변경 없음)
+- ✅ R-object resize handler (app.js line 945)
+- ✅ bulkDeleteMembers (line 2644+)
+- ✅ applyTenantColors + `__tenant_colors__` 3-layer (line 3348+)
+- ✅ V15 PUBLIC_ROOMS A~E 가드
+- ✅ renderShell() 마크업 무수정
+- ✅ V7 §3 invitation accept/decline 인라인 액션 (이름·위치만 V34 카드 안으로 이전)
+
+---
 
 ## 🆕 V33 (긴급 4종 패치 — 글로벌 네비 가시성 + 모바일 반응형 + 한글 브랜드 + DEMO 삭제)
 
