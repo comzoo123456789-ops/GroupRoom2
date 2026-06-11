@@ -1,8 +1,72 @@
-# 메이트리그라운드 (Mateground) — V34 긴급 패치
+# 메이트리그라운드 (Mateground) — V35 긴급 패치
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V34 (긴급 5종 패치 — 로그인 버튼 + 타임라인 잘림 + 모바일 룸헤더 + 시간색 + 홈 대시보드 재설계)
+## 🆕 V35 (받은 초대 카드 통합 + 모달 + 타임라인 00:00 위 선 제거)
+
+> 사용자 V34 직후 2건 보고:
+> 1. "받은 초대"(요약 카드)와 "받은 초대 응답 대기"(상세 카드)가 중복 → 하나로 합치고 클릭하면 팝업으로 열리게. 받은 초대가 0건이면 클릭 비활성.
+> 2. V34 §2에도 불구하고 00:00 위쪽이 여전히 잘려보임 + 00:00 위에 가로선이 보임 → 선 제거 + 자연스럽게.
+
+### §1 — 받은 초대 카드 통합 + 클릭 모달
+- **변경 전**: 홈 대시보드에 ④ "받은 초대 N건" 통계 카드 + ⑦ "받은 초대 응답 대기 · N건" 상세 카드, 두 개가 중복으로 노출 → 사용자는 스크롤을 더 해야 응답 버튼에 도달.
+- **변경 후**: 단일 카드(`v34-card--stat2`)만 노출, 카드 어디든 클릭 시 팝업 모달이 떠서 초대 목록과 수락/거절 버튼을 보여줌. 받은 초대 0건이면 클릭 비활성(`is-clickable` 클래스 제거 + `onclick: null`).
+- **수정 위치**:
+  - `public/static/app.js` `renderHome()` 내부:
+    - `inviteCard.props.class`: `'v34-card v34-card--stat2' + (hasInvites ? ' is-clickable v34-invite-clickable' : ' v34-invite-disabled')`
+    - `inviteCard.props.onclick`: `hasInvites ? () => openInviteModal(invitations) : null`
+    - subtitle: 초대 있을 때 "클릭하여 응답하기 ›", 없을 때 "현재 받은 초대가 없습니다"
+    - 기존 `invitesSection` 블록 전체 삭제 (≈43줄)
+    - 대시보드 카드 8개 → 7개 (greet/next/week/invite/quick/today/upcoming)
+  - 새 함수 4종 추가:
+    - `openInviteModal(invitations)` — `#invite-modal` 오버레이 생성, 초대 목록 렌더
+    - `closeInviteModal()` — 오버레이 제거 + Escape 핸들러 해제
+    - `_inviteEscHandler(e)` — Escape 키 → 모달 닫기
+    - `respondInvitationFromModal(reservationId, action)` — `/api/reservations/:id/respond` 호출 후 모달 닫고 `renderHome()` 재렌더
+  - `public/static/styles.css` V35 §1 블록 신규:
+    - `.v34-invite-clickable:hover` → translateY(-3px) + 핑크 그림자 + 보더 강조
+    - `.v34-invite-disabled` → `cursor: default` + 살짝 흐림
+    - `.v35-invite-overlay` (fixed inset:0, rgba(0,0,0,0.5), fade-in 0.18s)
+    - `.v35-invite-modal` (560px, radius 18px, slide-up 0.22s)
+    - `.v35-invite-modal__head` / `__body` / `__close`
+    - `.v35-invite-item` / `__main` / `__title` / `__meta` / `__owner` / `__actions`
+    - `.v35-invite-accept` (FF385C → E31C5F 그라디언트) / `.v35-invite-decline` (흰 배경 + 회색 보더)
+    - `@keyframes v35-fade-in / v35-slide-up`
+    - `@media (max-width: 768px)` 모달 모바일 적응 (item flex-direction column, actions row 100%)
+- **API 흐름**: 기존 `/api/reservations/invitations`(목록) + `/api/reservations/:id/respond`(수락/거절) 그대로 사용. 응답 후 `renderHome()` 재호출 → 초대 0건이 되면 카드가 자동으로 비활성 상태로 전환.
+
+### §2 — 공간 타임라인 00:00 위 선 제거 + 잘림 완전 해결
+- **V34 §2가 실패한 이유**: `overflow:visible` + `padding-top:20px`만 추가했고 실제 원인 두 가지를 건드리지 않음.
+  - 진짜 원인 ①: `.timeline-header-cell { border-bottom: 1px solid var(--hairline) }` → 헤더와 첫 시간 셀 사이에 가로선이 그어지고 있었음 (사용자가 본 그 선).
+  - 진짜 원인 ②: `.timeline-time-cell { top: -6px }` → 시간 셀이 음수 top으로 위로 끌려 올라가 헤더 영역과 시각적으로 겹침 → 00:00 라벨 상단이 헤더에 가려져서 잘려 보임.
+- **V35 §2 수정** (`styles.css` 끝에 추가):
+  - `.app-shell .timeline-header-cell { border-bottom: none !important; padding-bottom: 14px !important; box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important; }`
+    - 보더 제거 + 흐릿한 그림자로 분리감만 유지 → 사용자가 본 "선"이 사라짐.
+  - `.app-shell .timeline-time-cell { top: 0 !important; padding-top: 0 !important; }`
+    - 음수 top 제거 → 시간 셀이 더 이상 헤더 영역으로 침범하지 않음.
+  - `.app-shell .timeline-time-cell:first-child { padding-top: 16px !important; color: #484848 !important; font-weight: 600 !important; height: auto !important; min-height: 40px !important; overflow: visible !important; }`
+    - 00:00 라벨에 16px 상단 패딩 + 진한 색상 + 굵게 → 헤더와 자연스럽게 떨어지고 잘리지 않음.
+  - `.app-shell .timeline-time-col { padding-top: 4px !important; overflow: visible !important; }`
+    - 시간 컬럼 자체에도 상단 여유.
+  - `.app-shell .timeline-container, .month-view-container { padding-top: 0 !important; overflow: visible !important; }`
+    - V34에서 줬던 `padding-top: 20px`을 0으로 되돌리고 cell 내부 패딩으로 처리 → 카드 내부 공간 낭비 제거.
+  - `@media (max-width: 768px)`에도 같은 규칙 재적용 → 모바일에서도 동일.
+
+### V35 변경 파일
+- `public/static/app.js` — `renderHome()` inviteCard 클릭화, `invitesSection` 제거, `openInviteModal/closeInviteModal/_inviteEscHandler/respondInvitationFromModal` 4개 함수 추가
+- `public/static/styles.css` — 끝에 V35 §1(invite-clickable hover + 모달 스타일) + V35 §2(timeline-header-cell border-bottom 제거 + time-cell top 보정) 블록 약 300줄 추가
+
+### V35 검증 결과
+- `npm run build` → `dist/_worker.js 93.67 kB` ✅
+- 4개 탭 HTTP 200 (`/home`, `/spaces`, `/insights`, `/admin/members` — 로그인 시) ✅
+- `/login` HTTP 200, 콘솔 에러 0건 (PlaywrightConsoleCapture) ✅
+- `/api/reservations/invitations` → `{"invitations":[]}` 정상 ✅
+- 마커 grep: `openInviteModal/respondInvitationFromModal/v35-invite` 20회, `v34-invite-clickable` 1회, `invitesSection` 0회(완전 제거 확인) ✅
+- CSS 마커: V35 §2 timeline 룰 28회, `.timeline-time-cell:first-child` 2회(데스크탑+모바일) ✅
+
+---
+
+## V34 (긴급 5종 패치 — 로그인 버튼 + 타임라인 잘림 + 모바일 룸헤더 + 시간색 + 홈 대시보드 재설계)
 
 > 사용자 V33 직후 5건 보고:
 > 1. 로그인 버튼이 안 보임 → 보이게 수정

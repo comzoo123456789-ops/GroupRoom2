@@ -461,9 +461,13 @@ async function renderHome() {
     el('p', { class: 'v34-card__sub' }, `예정 ${upcomingList.length}건 · 오늘 ${todayList.length}건`)
   );
 
-  // ── 카드 4: 받은 초대 수 ──
+  // ── 카드 4: 받은 초대 (V35: 클릭하면 팝업 모달 / 0이면 비활성화) ──
+  const hasInvites = invitations.length > 0;
   const inviteCard = el('section', {
-    class: 'v34-card v34-card--stat2' + (invitations.length > 0 ? ' is-clickable' : ''),
+    class: 'v34-card v34-card--stat2' + (hasInvites ? ' is-clickable v34-invite-clickable' : ' v34-invite-disabled'),
+    style: hasInvites ? 'cursor:pointer;' : 'cursor:default;opacity:0.85;',
+    onclick: hasInvites ? () => openInviteModal(invitations) : null,
+    title: hasInvites ? '클릭하면 초대 상세를 확인할 수 있어요' : '',
   },
     el('div', { class: 'v34-card__head' },
       el('h3', { class: 'v34-card__title' }, '받은 초대'),
@@ -473,7 +477,14 @@ async function renderHome() {
       el('h2', { class: 'v34-card__big' }, String(invitations.length)),
       el('span', { class: 'v34-stat-unit' }, '건')
     ),
-    el('p', { class: 'v34-card__sub' }, invitations.length > 0 ? '응답 대기 중인 초대가 있습니다' : '확인할 초대가 없습니다')
+    el('p', { class: 'v34-card__sub' },
+      hasInvites
+        ? el('span', null,
+            '클릭하여 응답하기 ',
+            el('i', { class: 'fa-solid fa-chevron-right', style: 'font-size:10px;margin-left:2px;' })
+          )
+        : '확인할 초대가 없습니다'
+    )
   );
 
   // ── 카드 5: 빠른 진입 ──
@@ -531,50 +542,8 @@ async function renderHome() {
       )
     : null;
 
-  // ── 받은 초대 인라인 액션 (V7 §3 보존 — 있을 때만 노출) ──
-  const invitesSection = invitations.length > 0
-    ? el('section', { class: 'v34-card v34-card--today' },
-        el('div', { class: 'v34-card__head' },
-          el('h3', { class: 'v34-card__title' }, `받은 초대 응답 대기 · ${invitations.length}건`),
-          el('div', { class: 'v34-card__icon', style: 'background:#FFF4E5;color:#F59E0B;' },
-            el('i', { class: 'fa-solid fa-bell' })
-          )
-        ),
-        el('div', { class: 'invites-list', style: 'margin-top:4px;' },
-          ...invitations.map(inv =>
-            el('div', { class: 'invite-card' },
-              el('div', { class: 'invite-card-main' },
-                el('div', { class: 'invite-card-title' }, inv.title || '새로운 일정'),
-                el('div', { class: 'invite-card-meta' },
-                  el('span', { class: 'invite-card-time' },
-                    el('i', { class: 'fa-regular fa-calendar', style: 'margin-right:4px;' }),
-                    `${dayjs(inv.date).locale('ko').format('M월 D일 (dd)')} · ${inv.start_time} - ${inv.end_time}`
-                  ),
-                  el('span', { class: 'invite-card-space' },
-                    el('span', { class: 'space-dot', style: `background:${inv.space_color || '#7a7a7a'};` }),
-                    inv.space_name
-                  ),
-                ),
-                el('div', { class: 'invite-card-owner' },
-                  el('div', { class: 'avatar', style: `background:${inv.owner_avatar_color || '#7a7a7a'};width:20px;height:20px;font-size:10px;` }, initials(inv.owner_name)),
-                  el('span', null, `${inv.owner_name}님이 초대했습니다`)
-                ),
-              ),
-              el('div', { class: 'invite-card-actions' },
-                el('button', {
-                  class: 'btn-primary invite-accept-btn',
-                  onclick: () => respondInvitation(inv.id, 'ACCEPT'),
-                }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
-                el('button', {
-                  class: 'btn-secondary invite-decline-btn',
-                  onclick: () => respondInvitation(inv.id, 'DECLINE'),
-                }, '거절'),
-              )
-            )
-          )
-        )
-      )
-    : null;
+  // V35 §1: 받은 초대 응답 대기 카드 제거 — '받은 초대' 카드(④)를 클릭하면 모달 팝업
+  //   사용자 보고: 스크롤 번거로움 → 통합 + 0건이면 비활성화
 
   // ── 카드 7: 앞으로의 일정 (오늘 외 다가오는 5건, 전체 폭) ──
   const upcomingCard = upcomingList.length > 0
@@ -617,7 +586,6 @@ async function renderHome() {
     inviteCard,
     quickCard,
     todayCard,
-    invitesSection,
     upcomingCard,
   );
 
@@ -1877,6 +1845,123 @@ async function openReservationDetail(r) {
   );
   backdrop.append(modal);
   document.body.append(backdrop);
+}
+
+/**
+ * V35 §1: 받은 초대 모달 — 홈 '받은 초대' 카드 클릭 시 호출
+ *  사용자 보고: 받은 초대 카드 + 받은 초대 응답 대기 카드를 두 개 두면
+ *  스크롤이 번거롭다 → 카드는 하나로 통합, 클릭 시 팝업 모달로 표시.
+ *  0건이면 호출되지 않음(카드가 비활성화됨).
+ */
+function closeInviteModal() {
+  const m = document.getElementById('invite-modal');
+  if (m) m.remove();
+  document.removeEventListener('keydown', _inviteEscHandler);
+}
+function _inviteEscHandler(e) {
+  if (e.key === 'Escape') closeInviteModal();
+}
+
+function openInviteModal(invitations) {
+  if (!invitations || invitations.length === 0) return;
+  // 기존 모달이 있으면 제거
+  const existing = document.getElementById('invite-modal');
+  if (existing) existing.remove();
+
+  const backdrop = el('div', {
+    id: 'invite-modal',
+    class: 'modal-overlay v35-invite-overlay',
+    onclick: (e) => { if (e.target === backdrop) closeInviteModal(); },
+  });
+
+  const modal = el('div', { class: 'modal v35-invite-modal' },
+    // 헤더
+    el('div', { class: 'v35-invite-modal__head' },
+      el('div', { class: 'v35-invite-modal__title' },
+        el('div', { class: 'v34-card__icon', style: 'background:#FFF4E5;color:#F59E0B;width:32px;height:32px;font-size:14px;' },
+          el('i', { class: 'fa-solid fa-envelope-open-text' })
+        ),
+        el('div', null,
+          el('h3', { style: 'margin:0;font-size:18px;font-weight:700;color:#222;' }, `받은 초대 · ${invitations.length}건`),
+          el('p', { style: 'margin:2px 0 0;font-size:13px;color:#717171;' }, '응답 대기 중인 초대를 확인하세요')
+        )
+      ),
+      el('button', {
+        class: 'v35-invite-modal__close',
+        'aria-label': '닫기',
+        onclick: closeInviteModal,
+      }, el('i', { class: 'fa-solid fa-xmark' }))
+    ),
+    // 본문 — 초대 리스트 (스크롤 가능)
+    el('div', { class: 'v35-invite-modal__body' },
+      ...invitations.map(inv =>
+        el('div', { class: 'v35-invite-item' },
+          el('div', { class: 'v35-invite-item__main' },
+            el('div', { class: 'v35-invite-item__title' }, inv.title || '새로운 일정'),
+            el('div', { class: 'v35-invite-item__meta' },
+              el('span', null,
+                el('i', { class: 'fa-regular fa-calendar', style: 'margin-right:6px;color:#717171;' }),
+                `${dayjs(inv.date).locale('ko').format('M월 D일 (dd)')} · ${inv.start_time} - ${inv.end_time}`
+              )
+            ),
+            el('div', { class: 'v35-invite-item__meta' },
+              el('span', { class: 'v34-next-space' },
+                el('span', { class: 'space-dot', style: `background:${inv.space_color || '#7a7a7a'};` }),
+                inv.space_name
+              )
+            ),
+            el('div', { class: 'v35-invite-item__owner' },
+              el('div', { class: 'avatar', style: `background:${inv.owner_avatar_color || '#7a7a7a'};width:22px;height:22px;font-size:10px;` }, initials(inv.owner_name)),
+              el('span', { style: 'font-size:13px;color:#484848;' }, `${inv.owner_name}님이 초대했습니다`)
+            )
+          ),
+          el('div', { class: 'v35-invite-item__actions' },
+            el('button', {
+              class: 'v35-invite-accept',
+              onclick: () => respondInvitationFromModal(inv.id, 'ACCEPT'),
+            }, el('i', { class: 'fa-solid fa-check' }), ' 수락'),
+            el('button', {
+              class: 'v35-invite-decline',
+              onclick: () => respondInvitationFromModal(inv.id, 'DECLINE'),
+            }, '거절')
+          )
+        )
+      )
+    ),
+  );
+
+  backdrop.append(modal);
+  document.body.append(backdrop);
+  document.addEventListener('keydown', _inviteEscHandler);
+}
+
+/**
+ * V35 §1: 모달 안에서 호출되는 응답 핸들러 — 응답 후 모달 갱신 또는 닫기
+ */
+async function respondInvitationFromModal(reservationId, action) {
+  const res = await api(`/api/reservations/${reservationId}/respond`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    toast(res.data?.error || '응답 처리에 실패했습니다.', 'error');
+    return;
+  }
+  toast(
+    action === 'ACCEPT'
+      ? '초대를 수락했습니다. 일정이 캘린더에 반영됩니다.'
+      : '초대를 거절했습니다.',
+    'success'
+  );
+  // 모달 닫고 홈 재렌더 → 새 초대 목록 반영 (0건이면 카드 자동 비활성화)
+  closeInviteModal();
+  try {
+    if (State.page === 'home') await renderHome();
+    else if (State.page === 'spaces') {
+      await loadTimeline();
+      renderSpaces();
+    }
+  } catch (_) {}
 }
 
 /**

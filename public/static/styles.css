@@ -6339,3 +6339,289 @@ button.abnb-btn--gradient:active {
   .app-shell .v34-today-row { padding: 10px 12px !important; gap: 10px !important; }
 }
 /* === V34 END === */
+
+/* =========================================================================
+   V35 — 사용자 2종 추가 보고 패치
+   --------------------------------------------------------------------------
+   §1 받은 초대 카드 클릭 시 모달 팝업 (스크롤 번거로움 해결)
+   §2 공간 타임라인 00:00 위 선 제거 + 첫 라벨 자연스럽게
+   ========================================================================= */
+
+/* ▣ V35 §1 — 받은 초대 카드 호버/클릭 인터랙션 */
+.app-shell .v34-card.v34-invite-clickable {
+  cursor: pointer !important;
+  position: relative;
+}
+.app-shell .v34-card.v34-invite-clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(245,158,11,0.18) !important;
+  border-color: #F59E0B !important;
+}
+.app-shell .v34-card.v34-invite-clickable:hover .v34-card__icon {
+  background: #F59E0B !important;
+  color: #ffffff !important;
+}
+.app-shell .v34-card.v34-invite-clickable:active {
+  transform: translateY(-1px);
+}
+.app-shell .v34-card.v34-invite-disabled {
+  cursor: default !important;
+}
+.app-shell .v34-card.v34-invite-disabled:hover {
+  transform: none !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+}
+
+/* ▣ V35 §1 — 받은 초대 모달 (V35 디자인) */
+.v35-invite-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: v35-fade-in 0.18s ease-out;
+}
+@keyframes v35-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.v35-invite-modal {
+  background: #ffffff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.30);
+  animation: v35-slide-up 0.22s ease-out;
+}
+@keyframes v35-slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.v35-invite-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #ebebeb;
+  flex-shrink: 0;
+}
+.v35-invite-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.v35-invite-modal__close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f7;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #484848;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.v35-invite-modal__close:hover {
+  background: #ebebeb;
+  color: #222;
+}
+.v35-invite-modal__body {
+  padding: 16px 24px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.v35-invite-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  background: #f7f7f7;
+  border: 1px solid #ebebeb;
+  border-radius: 14px;
+  transition: all 0.15s ease;
+}
+.v35-invite-item:hover {
+  background: #ffffff;
+  border-color: #d0d0d0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.v35-invite-item__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v35-invite-item__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+.v35-invite-item__meta {
+  font-size: 13px;
+  color: #484848;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.v35-invite-item__owner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.v35-invite-item__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.v35-invite-accept,
+.v35-invite-decline {
+  min-width: 84px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.v35-invite-accept {
+  background: linear-gradient(135deg, #FF385C 0%, #E31C5F 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(255,56,92,0.22);
+}
+.v35-invite-accept:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(255,56,92,0.32);
+  transform: translateY(-1px);
+}
+.v35-invite-decline {
+  background: #ffffff;
+  color: #717171;
+  border: 1px solid #ebebeb;
+}
+.v35-invite-decline:hover {
+  background: #f7f7f7;
+  color: #484848;
+  border-color: #d0d0d0;
+}
+/* 모달 모바일 적응 */
+@media (max-width: 768px) {
+  .v35-invite-overlay { padding: 12px; }
+  .v35-invite-modal { max-height: 92vh; border-radius: 16px; }
+  .v35-invite-modal__head { padding: 16px 18px; }
+  .v35-invite-modal__body { padding: 12px 18px 18px; }
+  .v35-invite-item {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+    gap: 12px;
+  }
+  .v35-invite-item__actions {
+    flex-direction: row;
+    width: 100%;
+  }
+  .v35-invite-accept,
+  .v35-invite-decline {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ▣ V35 §2 — 공간 타임라인 00:00 위 선 제거 + 첫 라벨 자연스럽게
+   ============================================================
+   원인:
+     (1) .timeline-header-cell { border-bottom: 1px solid var(--hairline) }
+         → 헤더와 첫 시간 셀 사이를 가르는 "선"이 사용자가 본 그 선.
+     (2) .timeline-time-cell { top: -6px }
+         → 시간 셀이 위로 -6px 끌어올려져 있어 00:00이 헤더 영역으로 침범 → 잘림.
+   해결:
+     - 헤더 셀의 border-bottom 제거 (또는 흐릿한 분리선으로 대체)
+     - 첫 시간 셀의 top: -6px를 0으로 되돌리고 padding-top으로 여유
+     - 헤더 자체를 padding-bottom 늘려 첫 라벨과 자연스러운 간격
+*/
+.app-shell .timeline-header-cell {
+  border-bottom: none !important;
+  padding-bottom: 14px !important;
+  /* 그림자로 부드러운 분리감만 부여 */
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+}
+.app-shell .timeline-time-col {
+  border-right: 1px solid #ebebeb !important;
+  background: #ffffff !important;
+}
+/* 시간 셀의 음수 top 제거 — 헤더 안으로 침범하지 않게 */
+.app-shell .timeline-time-cell {
+  top: 0 !important;
+  padding-top: 0 !important;
+}
+/* 첫 시간 셀(00:00)에는 충분한 여백을 줘서 헤더와 자연스럽게 떨어지게 */
+.app-shell .timeline-time-cell:first-child {
+  padding-top: 16px !important;
+  margin-top: 0 !important;
+  color: #484848 !important;
+  font-weight: 600 !important;
+  height: auto !important;
+  min-height: 40px !important;
+  overflow: visible !important;
+}
+/* 시간 컬럼 자체에도 상단 여유를 둬서 첫 라벨이 잘리지 않게 */
+.app-shell .timeline-time-col {
+  padding-top: 4px !important;
+  overflow: visible !important;
+}
+/* 타임라인 컨테이너 상단 패딩을 줄이고 카드 안쪽으로 자연스럽게 */
+.app-shell .timeline-container,
+.app-shell .month-view-container {
+  padding-top: 0 !important;
+  overflow: visible !important;
+}
+.app-shell .timeline-grid,
+.app-shell .timeline-body {
+  padding-top: 0 !important;
+}
+/* 모바일에서도 동일하게 — V34 §3 룰 덮어쓰기 */
+@media (max-width: 768px) {
+  .app-shell .timeline-container {
+    padding-top: 8px !important;
+  }
+  .app-shell .timeline-header-cell {
+    border-bottom: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+    padding-bottom: 10px !important;
+  }
+  .app-shell .timeline-time-cell:first-child {
+    padding-top: 8px !important;
+  }
+  .app-shell .timeline-hour-label:first-child,
+  .app-shell .timeline-time:first-child {
+    margin-top: 0 !important;
+    padding-top: 8px !important;
+  }
+}
+/* === V35 END === */
