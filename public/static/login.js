@@ -17,7 +17,7 @@
       errEl.textContent = '';
       const btn = form.querySelector('button[type="submit"]');
       btn.disabled = true;
-      btn.textContent = '로그인 중...';
+      btn.textContent = '입장 중…';
 
       const data = new FormData(form);
       try {
@@ -33,14 +33,14 @@
         if (!res.ok) {
           errEl.textContent = json.error || '로그인에 실패했습니다.';
           btn.disabled = false;
-          btn.textContent = '로그인';
+          btn.textContent = '공간 입장하기';
           return;
         }
         window.location.href = '/home';
       } catch (err) {
         errEl.textContent = '서버에 접속할 수 없습니다.';
         btn.disabled = false;
-        btn.textContent = '로그인';
+        btn.textContent = '공간 입장하기';
       }
     });
   }
@@ -62,7 +62,7 @@
 
   function renderRooms(rooms, nowText) {
     if (!Array.isArray(rooms) || rooms.length === 0) {
-      grid.innerHTML = '<div class="lux-room lux-room--empty">표시할 공용 회의실이 없습니다.</div>';
+      grid.innerHTML = '<div class="abnb-room abnb-room--empty">표시할 공용 회의실이 없습니다.</div>';
       return;
     }
     grid.innerHTML = rooms
@@ -72,19 +72,19 @@
             ? `${r.next_busy_at}까지 가용`
             : '오늘 남은 시간 모두 가용';
           return `
-            <div class="lux-room lux-room--ok">
-              <div class="lux-room__name">${escapeHtml(r.name)}</div>
-              <div class="lux-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
-              <span class="lux-room__chip lux-room__chip--ok">즉시 사용 가능</span>
-              <div class="lux-room__sub">${escapeHtml(sub)}</div>
+            <div class="abnb-room abnb-room--ok">
+              <div class="abnb-room__name">${escapeHtml(r.name)}</div>
+              <div class="abnb-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
+              <span class="abnb-room__chip abnb-room__chip--ok">즉시 사용 가능</span>
+              <div class="abnb-room__sub">${escapeHtml(sub)}</div>
             </div>`;
         }
         return `
-          <div class="lux-room lux-room--busy">
-            <div class="lux-room__name">${escapeHtml(r.name)}</div>
-            <div class="lux-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
-            <span class="lux-room__chip lux-room__chip--busy">사용 중</span>
-            <div class="lux-room__sub">${escapeHtml(r.current_end_at || '')}에 종료 예정</div>
+          <div class="abnb-room abnb-room--busy">
+            <div class="abnb-room__name">${escapeHtml(r.name)}</div>
+            <div class="abnb-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
+            <span class="abnb-room__chip abnb-room__chip--busy">사용 중</span>
+            <div class="abnb-room__sub">${escapeHtml(r.current_end_at || '')}에 종료 예정</div>
           </div>`;
       })
       .join('');

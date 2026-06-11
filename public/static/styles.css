@@ -55,59 +55,31 @@
 }
 
 /* =========================================================
-   V15 §4 — 로그인 후 전역 라벤더 매트 테마 (Hi-End Flat UI)
-   .app-shell 스코프 안에서만 변수 오버라이드 → 로그인 페이지/모달은 영향 없음
-   원칙: 라벤더 #dfe7f7 배경, 사파이어 #1a365d 라인, 직각 4px,
-        box-shadow 전량 제거, 호텔 안내판처럼 정갈한 여백
+   V32 — 에어비앤비 DLS 전면 개편
+   .app-shell 스코프 안에서만 변수 오버라이드 → 로그인 페이지(.abnb-gate), 모달, 토스트는 영향 없음
+   원칙: 오프 화이트 #f7f7f7 베이스, 12px 라운드, 1px solid #ebebeb 라인,
+        soft shadow(0 6px 16px rgba(0,0,0,0.08)), 메인 액센트 #FF385C,
+        타이포 컬러 #484848 / 보조 #717171
    ========================================================= */
 .app-shell {
-  --parchment: #dfe7f7;           /* 본문 베이스 = 라벤더 매트 */
-  --canvas:    #ffffff;            /* 카드/패널 = 순백 */
-  --hairline:  #c8d3e8;            /* 보조 라인 (라벤더 톤) */
-  --divider-soft: #e2e8f3;
-  --primary:   #1a365d;            /* 액션 색상 = 다크 사파이어 */
-  --primary-focus: #1a365d;
-  --shadow-product: none;          /* 그림자 전량 소거 */
-  --shadow-soft:    none;
-  --r-xs: 4px;
-  --r-sm: 4px;
-  --r-md: 4px;
-  --r-lg: 4px;
+  --parchment: #f7f7f7;            /* 본문 베이스 = 오프 화이트 */
+  --canvas:    #ffffff;             /* 카드/패널 = 순백 */
+  --hairline:  #ebebeb;             /* 보조 라인 = 에어비앤비 라이트 그레이 */
+  --divider-soft: #f0f0f0;
+  --primary:   #FF385C;             /* 액션 색상 = Rausch 핑크 */
+  --primary-focus: #E31C5F;
+  --ink:       #484848;             /* 본문 텍스트 */
+  --ink-80:    #484848;
+  --ink-48:    #717171;             /* 보조 텍스트 */
+  --shadow-product: 0 6px 16px rgba(0,0,0,0.08);
+  --shadow-soft:    0 2px 8px rgba(0,0,0,0.06);
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 12px;
 }
 
-/* 카드/테이블/타임라인 컨테이너의 그림자 완전 소거 + 시그니처 사파이어 라인 */
-.app-shell .home-hero,
-.app-shell .timeline-card,
-.app-shell .insight-card,
-.app-shell .insight-heatmap,
-.app-shell .data-table-wrapper,
-.app-shell .admin-content-card,
-.app-shell .setting-card {
-  box-shadow: none !important;
-  border-radius: 4px !important;
-  border: 1px solid #1a365d;
-  background: #ffffff;
-}
-
-/* 본 셸의 사이드바도 라벤더에 맞게 */
-.app-shell .side-nav,
-.app-shell .admin-sidebar {
-  background: #ffffff;
-  border-right: 1px solid #1a365d;
-}
-
-/* 본문 영역 배경 — page-wrap이 .app-shell 하위에 있으므로 자동 매핑됨 (parchment 변수 사용 중) */
-.app-shell {
-  background: #dfe7f7;
-}
-
-/* =========================================================
-   V31 §3 — Anti-Handley 전면 강화: 4탭(홈/공간/인사이트/관리) 일관 적용
-   원칙: 직각 4px / box-shadow:none / 1px solid #1a365d / #ffffff 카드 / 1.5x padding
-   주의: .app-shell 스코프로 제한 → 로그인 페이지(.lux-gate), 모달, 토스트는 영향 없음
-   ========================================================= */
-
-/* (1) 모든 주요 카드/패널/그리드 박스의 그림자·둥근모서리·라인 통일 */
+/* (1) 모든 주요 카드/패널/박스: 12px 라운드 + 1px 라인 + soft shadow + #ffffff */
 .app-shell .home-hero,
 .app-shell .upcoming-section,
 .app-shell .timeline-container,
@@ -140,26 +112,25 @@
 .app-shell .space-filter-panel,
 .app-shell .month-view-container,
 .app-shell .heatmap-card-panel {
-  box-shadow: none !important;
-  -webkit-box-shadow: none !important;
-  border-radius: 4px !important;
-  border: 1px solid #1a365d !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08) !important;
+  -webkit-box-shadow: 0 6px 16px rgba(0,0,0,0.08) !important;
+  border-radius: 12px !important;
+  border: 1px solid #ebebeb !important;
   background: #ffffff !important;
 }
 
-/* (2) 사이드/관리자 내비 */
+/* (2) 사이드/관리자 내비 — soft shadow + 12px 라운드 */
 .app-shell .admin-side-nav,
 .app-shell .side-nav,
 .app-shell .admin-sidebar {
-  box-shadow: none !important;
-  border-radius: 4px !important;
-  border: 1px solid #1a365d !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+  border-radius: 12px !important;
+  border: 1px solid #ebebeb !important;
   background: #ffffff !important;
 }
 
-/* (3) 1.5x 패딩 — 호텔 안내판처럼 정갈한 여백
-        기존 32px → 48px 수준, 24px → 36px, 16px → 24px 가량으로 상향 */
-.app-shell .home-hero { padding: 48px !important; }
+/* (3) 1.5x 패딩 — 에어비앤비 특유의 여유로운 여백 */
+.app-shell .home-hero { padding: 40px !important; }
 .app-shell .upcoming-section,
 .app-shell .timeline-container,
 .app-shell .insight-card,
@@ -171,7 +142,7 @@
 .app-shell .schedule-palette-box,
 .app-shell .palette-management-wrapper,
 .app-shell .month-view-container,
-.app-shell .heatmap-card-panel { padding: 36px !important; }
+.app-shell .heatmap-card-panel { padding: 32px !important; }
 .app-shell .stat-card,
 .app-shell .summary-card,
 .app-shell .summary-card-item,
@@ -182,9 +153,9 @@
 .app-shell .member-card,
 .app-shell .invite-card { padding: 24px !important; }
 
-/* (4) 모바일에서는 1.5x 패딩이 과해지므로 축소 */
+/* (4) 모바일 축소 */
 @media (max-width: 768px) {
-  .app-shell .home-hero { padding: 28px 20px !important; }
+  .app-shell .home-hero { padding: 24px 20px !important; }
   .app-shell .upcoming-section,
   .app-shell .timeline-container,
   .app-shell .insight-card,
@@ -208,19 +179,138 @@
   .app-shell .invite-card { padding: 16px !important; }
 }
 
-/* (5) 전역 내비/탑바도 사파이어 하단 라인으로 통일 */
+/* (5) 전역 내비/탑바: 그림자 없는 깨끗한 화이트 + 라이트 그레이 라인 */
 .app-shell .global-nav,
 .app-shell .global-nav-inner {
-  box-shadow: none !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.08) !important;
   background: #ffffff !important;
 }
 .app-shell .global-nav {
-  border-bottom: 1px solid #1a365d !important;
+  border-bottom: 1px solid #ebebeb !important;
 }
 
-/* (6) 본문 베이스 라벤더 확정 (간혹 다른 스타일이 덮어쓰는 경우 안전망) */
+/* (6) 본문 베이스 오프 화이트 */
+.app-shell {
+  background: #f7f7f7;
+}
 .app-shell .page-wrap {
-  background: #dfe7f7 !important;
+  background: #f7f7f7 !important;
+}
+
+/* (7) 본문 텍스트 컬러 통일 — 에어비앤비 #484848 */
+.app-shell,
+.app-shell h1, .app-shell h2, .app-shell h3, .app-shell h4 {
+  color: #484848;
+}
+.app-shell .stat-label,
+.app-shell .stat-trend,
+.app-shell .summary-card-text {
+  color: #717171 !important;
+}
+
+/* (8) 액센트 핑크 — 주요 버튼/링크/배지 */
+.app-shell .btn-primary {
+  background: linear-gradient(90deg, #E31C5F 0%, #FF385C 100%) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(255,56,92,0.18) !important;
+}
+.app-shell .btn-primary:hover {
+  background: linear-gradient(90deg, #D70466 0%, #E31C5F 100%) !important;
+}
+
+/* =========================================================
+   V32 §3 — 알약(Pill) 일정 블록
+   타임라인/이벤트 카드에 부드러운 14px 라운드 + soft shadow.
+   기존 V31의 직각 사파이어 라인을 폐기하고 에어비앤비 스타일로 회귀.
+   ========================================================= */
+.app-shell .event-block,
+.app-shell .timeline-block,
+.app-shell .reservation-block,
+.app-shell .timeline-slot.is-booked,
+.app-shell .timeline-active-bar {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12) !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+/* hover 시 살짝 부풀어 오르는 느낌 */
+.app-shell .event-block:hover,
+.app-shell .timeline-block:hover,
+.app-shell .reservation-block:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18) !important;
+  transform: translateY(-1px);
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.app-shell .event-block.is-mine {
+  box-shadow: 0 0 0 2px #FF385C, 0 4px 12px rgba(255,56,92,0.22) !important;
+}
+/* 리사이즈 핸들도 알약 곡선에 맞게 */
+.app-shell .ev-resize-handle {
+  border-radius: 0 0 14px 14px !important;
+}
+
+/* =========================================================
+   V32 §5 — 관리 일반 탭: 멤버/공간 1:1 황금비 확대
+   (디바이스 카드는 V11에서 이미 영구 삭제. 남은 2장을 웅장하게)
+   ========================================================= */
+.app-shell .summary-card-grid-container {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 28px !important;
+  margin-bottom: 32px !important;
+}
+.app-shell .summary-card-item {
+  padding: 36px 32px !important;
+  min-height: 140px;
+  display: flex !important;
+  align-items: center;
+  gap: 24px;
+}
+.app-shell .summary-card-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFE9EF 0%, #FFF2F5 100%);
+  color: #FF385C;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.app-shell .summary-card-text .label,
+.app-shell .summary-card-text .card-title {
+  font-size: 14px !important;
+  color: #717171 !important;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.app-shell .summary-card-text .value,
+.app-shell .summary-card-text .card-value {
+  font-size: 34px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.6px;
+  color: #484848 !important;
+  margin-top: 4px;
+}
+@media (max-width: 768px) {
+  .app-shell .summary-card-grid-container {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .app-shell .summary-card-item {
+    padding: 24px 20px !important;
+    min-height: auto;
+  }
+  .app-shell .summary-card-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+  .app-shell .summary-card-text .value,
+  .app-shell .summary-card-text .card-value {
+    font-size: 26px !important;
+  }
 }
 
 * {
@@ -475,381 +565,366 @@ a:hover { text-decoration: underline; }
 .tag-soft { background: var(--hairline); color: var(--ink-80); }
 
 /* =========================================================
-   V15 §1, §3 — LUX GATE (라벤더 테마 로그인 페이지)
-   디자인 원칙: 라벤더 매트 배경(#dfe7f7) + 사파이어 라인(#1a365d)
-   직각 미니멀(4px) + 그림자 없음 + 호텔 안내판 같은 여백
+   V32 — ABNB GATE (에어비앤비 DLS 로그인 페이지)
+   디자인 원칙: 오프 화이트 #f7f7f7 + Rausch 핑크 #FF385C,
+                12px 라운드 + 1px solid #ebebeb + soft shadow,
+                알약(pill) 배지 형태 가용 표시.
    ========================================================= */
 :root {
-  --lux-bg:        #dfe7f7;   /* 라벤더 블루 매트 */
-  --lux-canvas:    #ffffff;   /* 카드 본체 */
-  --lux-ink:       #0f1c2e;   /* 본문 텍스트 */
-  --lux-line:      #1a365d;   /* 시그니처 다크 사파이어 라인 */
-  --lux-line-soft: #e2e8f3;   /* 라벤더 톤 보조 라인 */
-  --lux-muted:     #475569;   /* 부제·라벨 텍스트 */
-  --lux-muted-2:   #64748b;   /* 푸터·메타 텍스트 */
-  --lux-ok:        #047857;   /* 가용 상태 그린 */
-  --lux-ok-bg:     #ecfdf5;
-  --lux-busy:      #b91c1c;   /* 사용중 상태 레드 */
-  --lux-busy-bg:   #fef2f2;
-  --lux-radius:    4px;
+  --abnb-bg:        #f7f7f7;
+  --abnb-canvas:    #ffffff;
+  --abnb-ink:       #484848;
+  --abnb-ink-2:     #717171;
+  --abnb-line:      #ebebeb;
+  --abnb-line-soft: #f0f0f0;
+  --abnb-pink:      #FF385C;
+  --abnb-pink-2:    #E31C5F;
+  --abnb-ok:        #008A05;
+  --abnb-ok-bg:     #e8f6e8;
+  --abnb-busy:      #C13515;
+  --abnb-busy-bg:   #fbeae5;
+  --abnb-shadow:    0 6px 16px rgba(0,0,0,0.12);
+  --abnb-shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  --abnb-radius:    12px;
+  --abnb-radius-sm: 8px;
+  --abnb-pill:      30px;
 }
 
-.lux-gate {
+.abnb-gate {
   min-height: 100vh;
-  background: var(--lux-bg);
-  color: var(--lux-ink);
+  background: var(--abnb-bg);
+  color: var(--abnb-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 32px 40px;
+  justify-content: flex-start;
+  padding: 56px 40px 40px;
   box-sizing: border-box;
-  font-feature-settings: 'ss01' on, 'cv11' on;
+  font-family: 'Inter', -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* ─── 상단 헤더 ─── */
-.lux-gate__header {
-  width: 100%;
-  max-width: 1100px;
-  margin-bottom: 40px;
+/* ─── 브랜드 헤더 ─── */
+.abnb-gate__brand {
+  text-align: center;
+  margin-bottom: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
-.lux-gate__brand {
+.abnb-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #FF385C 0%, #E31C5F 100%);
+  position: relative;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(255,56,92,0.22);
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
 }
-.lux-brand-mark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 28px;
-  padding: 8px;
-  background: var(--lux-line);
-  border-radius: var(--lux-radius);
-}
-.lux-brand-mark span {
+.abnb-brand-mark span {
   display: block;
-  width: 5px;
+  width: 6px;
   background: #ffffff;
-  border-radius: 1px;
+  border-radius: 3px;
 }
-.lux-brand-mark span:nth-child(1) { height: 14px; }
-.lux-brand-mark span:nth-child(2) { height: 22px; }
-.lux-brand-mark span:nth-child(3) { height: 10px; background: #dfe7f7; }
-.lux-gate__title-block { line-height: 1.2; }
-.lux-gate__title {
-  margin: 0;
-  font-size: 26px;
+.abnb-brand-mark span:nth-child(1) { height: 18px; margin-right: 3px; }
+.abnb-brand-mark span:nth-child(2) { height: 24px; }
+.abnb-gate__title {
+  font-size: 28px;
   font-weight: 800;
-  letter-spacing: 0.16em;
-  color: var(--lux-line);
-  text-transform: uppercase;
+  letter-spacing: -1px;
+  color: #484848;
+  margin: 0;
 }
-.lux-gate__sub {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--lux-muted);
-  letter-spacing: -0.01em;
+.abnb-gate__sub {
+  font-size: 14px;
+  color: #717171;
+  margin: 0;
+  font-weight: 500;
 }
 
-/* ─── 본문 레이아웃 (좌: 현황판 / 우: 로그인) ─── */
-.lux-gate__layout {
-  width: 100%;
-  max-width: 1100px;
+/* ─── 메인 그리드 ─── */
+.abnb-gate__grid {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
   gap: 32px;
-  align-items: stretch;
+  width: 100%;
+  max-width: 1150px;
+  align-items: flex-start;
 }
 
-/* ─── 공통 카드 ─── */
-.lux-card {
-  background: var(--lux-canvas);
-  border: 1px solid var(--lux-line);
-  border-radius: var(--lux-radius);
-  padding: 30px 32px;
+/* ─── 카드 베이스 ─── */
+.abnb-card {
+  background: var(--abnb-canvas);
+  border: 1px solid var(--abnb-line);
+  border-radius: var(--abnb-radius);
+  padding: 32px;
+  box-shadow: var(--abnb-shadow);
   box-sizing: border-box;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
 }
-.lux-card__head {
+.abnb-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid var(--lux-bg);
+  margin-bottom: 20px;
   padding-bottom: 14px;
-  margin-bottom: 16px;
-  gap: 12px;
+  border-bottom: 1px solid var(--abnb-line-soft);
 }
-.lux-card__title {
+.abnb-card__title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--abnb-ink);
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--lux-line);
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.lux-card__title--plain {
-  letter-spacing: 0.16em;
-  font-size: 15px;
-  text-transform: uppercase;
-}
-.lux-card__badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--lux-line);
-  background: var(--lux-bg);
-  padding: 5px 10px;
-  border-radius: var(--lux-radius);
-  text-transform: uppercase;
-}
-.lux-card__badge--ghost {
-  background: transparent;
-  border: 1px solid var(--lux-line-soft);
-  color: var(--lux-muted);
-}
-.lux-card__badge.is-fetching {
-  background: var(--lux-line);
-  color: #fff;
-}
-.lux-card__desc {
-  margin: 0 0 20px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--lux-muted);
-}
-.lux-card__foot {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--lux-line-soft);
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
-  color: var(--lux-muted-2);
-  letter-spacing: 0.02em;
 }
-.lux-card__foot-text { font-weight: 600; }
-.lux-card__foot-note { letter-spacing: 0.08em; text-transform: uppercase; }
+.abnb-card__title--solo {
+  font-size: 22px;
+  margin: 0 0 24px;
+}
+.abnb-card__badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--abnb-pink);
+}
+.abnb-card__badge.is-fetching { opacity: 0.45; }
 
-/* ─── 실시간 펄스 도트 ─── */
-.lux-pulse {
+/* 펄스 도트 (LIVE 표시) */
+.abnb-pulse {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--lux-ok);
-  box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.6);
-  animation: lux-pulse-ring 1.8s ease-out infinite;
-  display: inline-block;
+  background: var(--abnb-ok);
+  box-shadow: 0 0 0 0 rgba(0,138,5,0.6);
+  animation: abnb-pulse 1.6s ease-out infinite;
 }
-@keyframes lux-pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.45); }
-  70%  { box-shadow: 0 0 0 8px rgba(4, 120, 87, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0); }
+@keyframes abnb-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,138,5,0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(0,138,5,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,138,5,0); }
 }
 
 /* ─── 회의실 그리드 ─── */
-.lux-rooms-grid {
+.abnb-rooms-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
 }
-.lux-room {
-  border: 1px solid var(--lux-line-soft);
-  border-radius: var(--lux-radius);
-  padding: 16px 14px;
-  background: #fff;
+.abnb-room {
+  border: 1px solid var(--abnb-line);
+  border-radius: var(--abnb-radius);
+  padding: 20px 16px;
+  background: #ffffff;
+  text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  align-items: center;
+  gap: 8px;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
-.lux-room--ok    { border-color: var(--lux-line); background: #ffffff; }
-.lux-room--busy  { border-color: var(--lux-line-soft); background: #fafbfd; opacity: 0.72; }
-.lux-room--skeleton {
-  color: transparent;
-  background: linear-gradient(90deg, #eef2fa 0%, #f6f8fc 50%, #eef2fa 100%);
+.abnb-room--ok:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.abnb-room--busy { opacity: 0.72; background: #fafafa; }
+.abnb-room--skeleton {
+  background: linear-gradient(90deg, #f3f3f3 0%, #fafafa 50%, #f3f3f3 100%);
   background-size: 200% 100%;
-  animation: lux-skeleton 1.4s ease-in-out infinite;
-  min-height: 78px;
-}
-.lux-room--empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: var(--lux-muted);
-  font-size: 13px;
-  padding: 24px;
-  background: var(--lux-bg);
+  animation: abnb-skel 1.4s ease-in-out infinite;
+  min-height: 96px;
   border-color: transparent;
 }
-@keyframes lux-skeleton {
+@keyframes abnb-skel {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-.lux-room__name {
-  font-size: 14px;
+.abnb-room--empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--abnb-ink-2);
+  font-size: 13px;
+  padding: 24px;
+  border-color: transparent;
+}
+.abnb-room__name {
+  font-size: 15px;
   font-weight: 700;
-  color: var(--lux-line);
-  letter-spacing: -0.01em;
+  color: var(--abnb-ink);
+  letter-spacing: -0.2px;
 }
-.lux-room__meta {
-  font-size: 11px;
-  color: var(--lux-muted-2);
-  letter-spacing: 0.02em;
+.abnb-room__meta {
+  font-size: 12px;
+  color: var(--abnb-ink-2);
 }
-.lux-room__chip {
+.abnb-room__chip {
   display: inline-block;
-  align-self: flex-start;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 3px 8px;
-  border-radius: 2px;
-  margin-top: 2px;
+  letter-spacing: 0.02em;
+  padding: 5px 12px;
+  border-radius: var(--abnb-pill);
+  color: #fff;
 }
-.lux-room__chip--ok   { color: var(--lux-ok);   background: var(--lux-ok-bg);   }
-.lux-room__chip--busy { color: var(--lux-busy); background: var(--lux-busy-bg); }
-.lux-room__sub {
+.abnb-room__chip--ok   { background: var(--abnb-pink); }
+.abnb-room__chip--busy { background: #8a8a8a; }
+.abnb-room__sub {
   font-size: 11px;
-  color: var(--lux-muted-2);
-  letter-spacing: -0.01em;
+  color: var(--abnb-ink-2);
 }
 
+/* ─── 카드 푸터 ─── */
+.abnb-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--abnb-line-soft);
+  font-size: 12px;
+  color: var(--abnb-ink-2);
+}
+.abnb-card__foot-text { font-weight: 600; }
+.abnb-card__foot-note { letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+
 /* ─── 로그인 폼 ─── */
-.lux-form {
+.abnb-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.lux-field { display: flex; flex-direction: column; gap: 6px; }
-.lux-field__label {
+.abnb-field { display: flex; flex-direction: column; gap: 8px; }
+.abnb-field__label {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--lux-muted);
-  text-transform: uppercase;
+  color: var(--abnb-ink);
+  letter-spacing: 0.02em;
 }
-.lux-field input {
+.abnb-field input {
   width: 100%;
   height: 44px;
   background: #ffffff;
-  border: 1px solid var(--lux-line);
-  border-radius: var(--lux-radius);
+  border: 1px solid var(--abnb-line);
+  border-radius: var(--abnb-radius-sm);
   padding: 0 14px;
-  font-size: 15px;
-  color: var(--lux-ink);
-  letter-spacing: -0.01em;
-  box-shadow: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
-  font-family: inherit;
-}
-.lux-field input::placeholder { color: #94a3b8; font-weight: 400; }
-.lux-field input:focus {
-  outline: none;
-  border-color: var(--lux-line);
-  background: #f5f8ff;
-}
-.lux-btn {
-  height: 46px;
-  border: 1px solid var(--lux-line);
-  border-radius: var(--lux-radius);
   font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.05s ease;
+  color: var(--abnb-ink);
   font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.lux-btn:active { transform: translateY(1px); }
-.lux-btn--primary {
-  background: var(--lux-line);
+.abnb-field input::placeholder { color: #b0b0b0; }
+.abnb-field input:focus {
+  outline: none;
+  border-color: var(--abnb-pink);
+  box-shadow: 0 0 0 2px rgba(255,56,92,0.16);
+}
+.abnb-btn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: var(--abnb-radius-sm);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
+  margin-top: 8px;
+}
+.abnb-btn:active { transform: translateY(1px); }
+.abnb-btn--gradient {
   color: #ffffff;
+  background: linear-gradient(90deg, #E31C5F 0%, #FF385C 100%);
+  box-shadow: 0 4px 12px rgba(255,56,92,0.22);
 }
-.lux-btn--primary:hover { background: #0f2447; }
-.lux-btn--primary:disabled {
-  background: #94a3b8;
-  border-color: #94a3b8;
+.abnb-btn--gradient:hover { filter: brightness(1.05); }
+.abnb-btn--gradient:disabled {
+  background: #d4d4d4;
+  color: #fff;
   cursor: not-allowed;
+  box-shadow: none;
+  filter: none;
 }
-.lux-form__error {
-  color: var(--lux-busy);
+.abnb-form__error {
+  color: var(--abnb-busy);
   font-size: 13px;
   min-height: 18px;
   font-weight: 500;
-  letter-spacing: -0.01em;
 }
 
-/* ─── 데모 계정 ─── */
-.lux-hint {
+/* ─── 데모 계정 힌트 ─── */
+.abnb-hint {
   margin-top: 22px;
   padding: 16px 18px;
-  border: 1px solid var(--lux-line-soft);
-  border-radius: var(--lux-radius);
-  background: #f9fbff;
+  border: 1px solid var(--abnb-line-soft);
+  border-radius: var(--abnb-radius-sm);
+  background: #fafafa;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
-.lux-hint__title {
+.abnb-hint__title {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
-  color: var(--lux-line);
+  color: var(--abnb-ink-2);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
-.lux-hint__row {
+.abnb-hint__row {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--lux-ink);
+  color: var(--abnb-ink);
 }
-.lux-hint__row code {
+.abnb-hint__row code {
   font-family: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
   font-size: 11px;
-  color: var(--lux-muted);
-  letter-spacing: -0.01em;
+  color: var(--abnb-ink-2);
 }
-.lux-tag {
+.abnb-tag {
   display: inline-block;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   padding: 3px 8px;
-  border-radius: 2px;
-  text-transform: uppercase;
+  border-radius: var(--abnb-pill);
+  color: #fff;
 }
-.lux-tag--wylie  { background: var(--lux-line); color: #fff; }
-.lux-tag--lush   { background: #4a1f4d;          color: #fff; }
-.lux-tag--member { background: var(--lux-line-soft); color: var(--lux-muted); }
+.abnb-tag--wylie  { background: #703e96; }
+.abnb-tag--lush   { background: var(--abnb-pink); }
+.abnb-tag--member { background: #8a8a8a; }
 
 /* ─── 푸터 ─── */
-.lux-gate__footer {
-  margin-top: 36px;
+.abnb-gate__footer {
+  margin-top: 40px;
   font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--lux-muted-2);
+  letter-spacing: 0.12em;
+  color: var(--abnb-ink-2);
   text-transform: uppercase;
 }
 
 /* ─── 모바일 (≤768px) ─── */
 @media (max-width: 768px) {
-  .lux-gate { padding: 28px 16px 32px; }
-  .lux-gate__header { margin-bottom: 24px; }
-  .lux-gate__title { font-size: 22px; }
-  .lux-gate__sub { font-size: 12px; }
-  .lux-gate__layout {
+  .abnb-gate { padding: 32px 16px 32px; }
+  .abnb-gate__brand { margin-bottom: 24px; }
+  .abnb-gate__title { font-size: 22px; }
+  .abnb-gate__sub { font-size: 12px; }
+  .abnb-gate__grid {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-  .lux-card { padding: 22px 20px; }
-  .lux-rooms-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .lux-room { padding: 12px; }
+  .abnb-card { padding: 24px 20px; }
+  .abnb-rooms-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .abnb-room { padding: 14px 10px; }
+  .abnb-room__name { font-size: 13px; }
 }
 
 /* =====================================================

@@ -1,8 +1,82 @@
-# 메이트리그라운드 (Mateground) — V31 완결본
+# 메이트리그라운드 (Mateground) — V32 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V31 (최종 디자인 디렉티브: 절제 미니멀 마감)
+## 🆕 V32 (에어비앤비 DLS 전면 개편 — 오프 화이트 + Rausch 핑크)
+
+> 사용자 디렉티브: V31 라벤더 사파이어 테마 전체 폐기. 에어비앤비 DLS 비주얼로 갈아엎고, MATRI BUILDING 브랜드 통일, 알약(pill) 일정 블록, 멤버/공간 1:1 황금비 확장 적용. 전용룸 차단 가드는 V15 그대로 유지.
+
+### §1 — 로그인 게이트 (MATRI BUILDING) 에어비앤비 DLS 전면 재구축
+- **마크업** (`src/pages/login.tsx`): LUX → ABNB 완전 교체
+  - 컨테이너: `.abnb-gate` (오프 화이트 `#f7f7f7` 매트 베이스)
+  - 브랜드 헤더: `.abnb-brand-mark` (그라디언트 핑크 로고 마크) + `MATRI BUILDING` 타이틀 + `Wylie & Lush Shared Workspace` 부제
+  - 메인 그리드: 1.3 fr (실시간 가용판) + 1.0 fr (로그인 폼)
+  - 모든 카드: `border-radius: 12px` + `1px solid #ebebeb` + `box-shadow: 0 6px 16px rgba(0,0,0,0.12)`
+- **알약(pill) 배지**: 즉시 사용 가능 → 핑크 `#FF385C` 알약 / 사용 중 → 그레이 알약
+- **펄스 도트 LIVE**: 그린 `#008A05` + keyframes `abnb-pulse` 0~70~100% 박스섀도우 확산
+- **로그인 버튼**: `linear-gradient(90deg, #E31C5F → #FF385C)` + 핑크 글로우 그림자, 텍스트 `공간 입장하기`
+- **인풋 포커스**: `border-color: #FF385C` + `box-shadow: 0 0 0 2px rgba(255,56,92,0.16)` 핑크 링
+- **모바일 (≤768px)**: 1열 스택 + 회의실 그리드 2열 + 패딩 24px
+
+### §2 — 전용룸 차단 가드 (V15에서 이미 완성, V32에서 재검증)
+- 백엔드 `GET /api/public/available-spaces` (`src/api/public.ts`):
+  - `WHERE name IN ('Meeting Room A','B','C','D','E')` (5개 하드 화이트리스트)
+  - `AND tenant_scope IS NULL` (이중 가드)
+  - **결과**: `Conference Room`(WYLIE 전용), `파라다이스룸`(LUSH 전용), `Lounge`, `Recharging Zone` 전부 절대 노출 불가
+- E2E 검증: API 응답에 5개만 정확히 반환됨 (KST 16:34 기준)
+
+### §3 — 알약(Pill) 형태 일정 블록
+- **CSS 오버라이드** (`.app-shell` 스코프):
+  - `.event-block, .timeline-block, .reservation-block, .timeline-slot.is-booked, .timeline-active-bar`
+  - `border-radius: 14px !important` + `box-shadow: 0 2px 6px rgba(0,0,0,0.12) !important` + `border: none !important`
+- **호버 인터랙션**: `transform: translateY(-1px)` + 그림자 강화 (transition 0.18s)
+- **내 일정 강조**: `0 0 0 2px #FF385C, 0 4px 12px rgba(255,56,92,0.22)` 핑크 링
+- **리사이즈 핸들**: `border-radius: 0 0 14px 14px`로 알약 곡선 매칭
+- **V14 단일 R 객체 리사이즈 로직 무손실 보존** — JS 한 줄도 안 건드림
+
+### §4 — 로그인 후 4탭 전체 에어비앤비 테마
+- **`.app-shell` 변수 오버라이드**: parchment `#f7f7f7` / canvas `#fff` / hairline `#ebebeb` / primary `#FF385C` / r-md `12px` / shadow `0 6px 16px rgba(0,0,0,0.08)`
+- **광역 카드 강제 룰** (V31 사파이어 라인 → V32 ebebeb 라인):
+  ```
+  home-hero, upcoming-section, timeline-container, insight-card, insight-heatmap,
+  stat-card, summary-card-item, chart-card, admin-content-card, management-content-card,
+  setting-card, schedule-palette-box, color-palette-card, palette-management-wrapper,
+  repeat-panel, org-panel, space-card, member-card, invite-card, invites-section,
+  space-filter-panel, month-view-container, heatmap-card-panel
+  → border-radius: 12px !important + 1px solid #ebebeb !important + shadow 0 6px 16px rgba(0,0,0,0.08) !important
+  ```
+- **사이드 내비**: 12px 라운드 + soft shadow `0 2px 8px rgba(0,0,0,0.06)`
+- **여백 시스템**: home-hero 40px / 주요 카드 32px / 작은 카드 24px (모바일 24/20/16)
+- **글로벌 내비**: 그림자 미세화 (`0 1px 0 rgba(0,0,0,0.08)`) + ebebeb 하단 라인
+- **텍스트 컬러**: 본문 `#484848` / 보조 `#717171` 전역 통일
+- **버튼 그라디언트**: `.btn-primary`에 핑크 그라디언트 + 핑크 글로우
+
+### §5 — 관리 일반 탭: 멤버/공간 1:1 황금비 확대
+- `.summary-card-grid-container`: 2분할 그대로, gap `16px` → `28px`
+- `.summary-card-item`: `padding: 36px 32px` + `min-height: 140px` + flex 정렬 (아이콘 좌 / 텍스트 우)
+- `.summary-card-icon`: 64×64 원형 + 핑크 그라디언트 배경 + 26px 아이콘
+- `.summary-card-text .value`: 28px → 34px 임팩트 폰트 강화
+- 모바일에서는 1열로 자동 변환
+
+### 절대 보존 검증 (Preservation Clause)
+- ✅ 데이터: spaces 8 / members 2 / reservations 43 정상 (WYLIE admin 시점)
+- ✅ 리사이즈 V14 단일 R 객체 (945줄) — `let R = null; ... origStartMin/origEndMin/curStartMin/curEndMin`
+- ✅ 일괄 삭제 `bulkDeleteMembers`, `#bulk-delete-btn` 핸들러
+- ✅ 팔레트 실시간 동기화 `applyTenantColors()` + `<style id="__tenant_colors__">` 동적 주입
+- ✅ V31 §2 인기 공간 삭제 유지 (`insight-popular` 흔적 0건)
+- ✅ V31 §1 안내문구 삭제 유지
+- ✅ JS 비즈니스 로직 무수정 — 순수 마크업/CSS만 교체
+
+### V32 빌드/배포 상태
+- `dist/_worker.js` **94.22 kB** (V31 94.18 kB 대비 +0.04 kB — login 마크업 약간 증가)
+- PM2 webapp online (restart count 11)
+- /login HTTP 200, abnb-gate/brand-mark/pulse/card--live/card--login/rooms-grid/btn--gradient 7개 클래스 정상 노출
+- /api/public/available-spaces: Meeting Room A~E 5개 정확 반환, KST 16:34
+- 미리보기 URL: https://3000-iylt8ni2z01kxtgymrr7e-02b9cc79.sandbox.novita.ai/login
+
+---
+
+## V31 (최종 디자인 디렉티브: 절제 미니멀 마감)
 
 > 사용자 디렉티브: "소스를 해석하고 잘 맞게 꾸며줘". V15 라벤더 Anti-Handley 베이스를 4탭 전체로 완전 확장하고, 광고성·중복 텍스트와 인기 공간 위젯을 제거해 호텔 안내판처럼 정갈한 마감으로 통일.
 
