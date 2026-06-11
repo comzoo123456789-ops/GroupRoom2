@@ -54,6 +54,54 @@
   --shadow-soft: rgba(0, 0, 0, 0.04) 0 1px 3px;
 }
 
+/* =========================================================
+   V15 §4 — 로그인 후 전역 라벤더 매트 테마 (Hi-End Flat UI)
+   .app-shell 스코프 안에서만 변수 오버라이드 → 로그인 페이지/모달은 영향 없음
+   원칙: 라벤더 #dfe7f7 배경, 사파이어 #1a365d 라인, 직각 4px,
+        box-shadow 전량 제거, 호텔 안내판처럼 정갈한 여백
+   ========================================================= */
+.app-shell {
+  --parchment: #dfe7f7;           /* 본문 베이스 = 라벤더 매트 */
+  --canvas:    #ffffff;            /* 카드/패널 = 순백 */
+  --hairline:  #c8d3e8;            /* 보조 라인 (라벤더 톤) */
+  --divider-soft: #e2e8f3;
+  --primary:   #1a365d;            /* 액션 색상 = 다크 사파이어 */
+  --primary-focus: #1a365d;
+  --shadow-product: none;          /* 그림자 전량 소거 */
+  --shadow-soft:    none;
+  --r-xs: 4px;
+  --r-sm: 4px;
+  --r-md: 4px;
+  --r-lg: 4px;
+}
+
+/* 카드/테이블/타임라인 컨테이너의 그림자 완전 소거 + 시그니처 사파이어 라인 */
+.app-shell .home-hero,
+.app-shell .timeline-card,
+.app-shell .insight-card,
+.app-shell .insight-heatmap,
+.app-shell .data-table-wrapper,
+.app-shell .admin-content-card,
+.app-shell .setting-card {
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  border: 1px solid #1a365d;
+  background: #ffffff;
+}
+
+/* 본 셸의 사이드바도 라벤더에 맞게 */
+.app-shell .side-nav,
+.app-shell .admin-sidebar {
+  background: #ffffff;
+  border-right: 1px solid #1a365d;
+}
+
+/* 본문 영역 배경 — page-wrap이 .app-shell 하위에 있으므로 자동 매핑됨 (parchment 변수 사용 중) */
+.app-shell {
+  background: #dfe7f7;
+}
+
+
 * {
   box-sizing: border-box;
 }
@@ -304,6 +352,384 @@ a:hover { text-decoration: underline; }
 .tag-blue { background: rgba(0,102,204,0.1); color: var(--primary); }
 .tag-dark { background: rgba(29,29,31,0.85); color: #fff; }
 .tag-soft { background: var(--hairline); color: var(--ink-80); }
+
+/* =========================================================
+   V15 §1, §3 — LUX GATE (라벤더 테마 로그인 페이지)
+   디자인 원칙: 라벤더 매트 배경(#dfe7f7) + 사파이어 라인(#1a365d)
+   직각 미니멀(4px) + 그림자 없음 + 호텔 안내판 같은 여백
+   ========================================================= */
+:root {
+  --lux-bg:        #dfe7f7;   /* 라벤더 블루 매트 */
+  --lux-canvas:    #ffffff;   /* 카드 본체 */
+  --lux-ink:       #0f1c2e;   /* 본문 텍스트 */
+  --lux-line:      #1a365d;   /* 시그니처 다크 사파이어 라인 */
+  --lux-line-soft: #e2e8f3;   /* 라벤더 톤 보조 라인 */
+  --lux-muted:     #475569;   /* 부제·라벨 텍스트 */
+  --lux-muted-2:   #64748b;   /* 푸터·메타 텍스트 */
+  --lux-ok:        #047857;   /* 가용 상태 그린 */
+  --lux-ok-bg:     #ecfdf5;
+  --lux-busy:      #b91c1c;   /* 사용중 상태 레드 */
+  --lux-busy-bg:   #fef2f2;
+  --lux-radius:    4px;
+}
+
+.lux-gate {
+  min-height: 100vh;
+  background: var(--lux-bg);
+  color: var(--lux-ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 32px 40px;
+  box-sizing: border-box;
+  font-feature-settings: 'ss01' on, 'cv11' on;
+}
+
+/* ─── 상단 헤더 ─── */
+.lux-gate__header {
+  width: 100%;
+  max-width: 1100px;
+  margin-bottom: 40px;
+}
+.lux-gate__brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.lux-brand-mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 28px;
+  padding: 8px;
+  background: var(--lux-line);
+  border-radius: var(--lux-radius);
+}
+.lux-brand-mark span {
+  display: block;
+  width: 5px;
+  background: #ffffff;
+  border-radius: 1px;
+}
+.lux-brand-mark span:nth-child(1) { height: 14px; }
+.lux-brand-mark span:nth-child(2) { height: 22px; }
+.lux-brand-mark span:nth-child(3) { height: 10px; background: #dfe7f7; }
+.lux-gate__title-block { line-height: 1.2; }
+.lux-gate__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--lux-line);
+  text-transform: uppercase;
+}
+.lux-gate__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--lux-muted);
+  letter-spacing: -0.01em;
+}
+
+/* ─── 본문 레이아웃 (좌: 현황판 / 우: 로그인) ─── */
+.lux-gate__layout {
+  width: 100%;
+  max-width: 1100px;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 32px;
+  align-items: stretch;
+}
+
+/* ─── 공통 카드 ─── */
+.lux-card {
+  background: var(--lux-canvas);
+  border: 1px solid var(--lux-line);
+  border-radius: var(--lux-radius);
+  padding: 30px 32px;
+  box-sizing: border-box;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+}
+.lux-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--lux-bg);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+.lux-card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--lux-line);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.lux-card__title--plain {
+  letter-spacing: 0.16em;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+.lux-card__badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--lux-line);
+  background: var(--lux-bg);
+  padding: 5px 10px;
+  border-radius: var(--lux-radius);
+  text-transform: uppercase;
+}
+.lux-card__badge--ghost {
+  background: transparent;
+  border: 1px solid var(--lux-line-soft);
+  color: var(--lux-muted);
+}
+.lux-card__badge.is-fetching {
+  background: var(--lux-line);
+  color: #fff;
+}
+.lux-card__desc {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--lux-muted);
+}
+.lux-card__foot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--lux-line-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--lux-muted-2);
+  letter-spacing: 0.02em;
+}
+.lux-card__foot-text { font-weight: 600; }
+.lux-card__foot-note { letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ─── 실시간 펄스 도트 ─── */
+.lux-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lux-ok);
+  box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.6);
+  animation: lux-pulse-ring 1.8s ease-out infinite;
+  display: inline-block;
+}
+@keyframes lux-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.45); }
+  70%  { box-shadow: 0 0 0 8px rgba(4, 120, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0); }
+}
+
+/* ─── 회의실 그리드 ─── */
+.lux-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.lux-room {
+  border: 1px solid var(--lux-line-soft);
+  border-radius: var(--lux-radius);
+  padding: 16px 14px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lux-room--ok    { border-color: var(--lux-line); background: #ffffff; }
+.lux-room--busy  { border-color: var(--lux-line-soft); background: #fafbfd; opacity: 0.72; }
+.lux-room--skeleton {
+  color: transparent;
+  background: linear-gradient(90deg, #eef2fa 0%, #f6f8fc 50%, #eef2fa 100%);
+  background-size: 200% 100%;
+  animation: lux-skeleton 1.4s ease-in-out infinite;
+  min-height: 78px;
+}
+.lux-room--empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--lux-muted);
+  font-size: 13px;
+  padding: 24px;
+  background: var(--lux-bg);
+  border-color: transparent;
+}
+@keyframes lux-skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.lux-room__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lux-line);
+  letter-spacing: -0.01em;
+}
+.lux-room__meta {
+  font-size: 11px;
+  color: var(--lux-muted-2);
+  letter-spacing: 0.02em;
+}
+.lux-room__chip {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  margin-top: 2px;
+}
+.lux-room__chip--ok   { color: var(--lux-ok);   background: var(--lux-ok-bg);   }
+.lux-room__chip--busy { color: var(--lux-busy); background: var(--lux-busy-bg); }
+.lux-room__sub {
+  font-size: 11px;
+  color: var(--lux-muted-2);
+  letter-spacing: -0.01em;
+}
+
+/* ─── 로그인 폼 ─── */
+.lux-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.lux-field { display: flex; flex-direction: column; gap: 6px; }
+.lux-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--lux-muted);
+  text-transform: uppercase;
+}
+.lux-field input {
+  width: 100%;
+  height: 44px;
+  background: #ffffff;
+  border: 1px solid var(--lux-line);
+  border-radius: var(--lux-radius);
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--lux-ink);
+  letter-spacing: -0.01em;
+  box-shadow: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+}
+.lux-field input::placeholder { color: #94a3b8; font-weight: 400; }
+.lux-field input:focus {
+  outline: none;
+  border-color: var(--lux-line);
+  background: #f5f8ff;
+}
+.lux-btn {
+  height: 46px;
+  border: 1px solid var(--lux-line);
+  border-radius: var(--lux-radius);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.05s ease;
+  font-family: inherit;
+}
+.lux-btn:active { transform: translateY(1px); }
+.lux-btn--primary {
+  background: var(--lux-line);
+  color: #ffffff;
+}
+.lux-btn--primary:hover { background: #0f2447; }
+.lux-btn--primary:disabled {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  cursor: not-allowed;
+}
+.lux-form__error {
+  color: var(--lux-busy);
+  font-size: 13px;
+  min-height: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ─── 데모 계정 ─── */
+.lux-hint {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--lux-line-soft);
+  border-radius: var(--lux-radius);
+  background: #f9fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lux-hint__title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--lux-line);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.lux-hint__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--lux-ink);
+}
+.lux-hint__row code {
+  font-family: 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--lux-muted);
+  letter-spacing: -0.01em;
+}
+.lux-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+.lux-tag--wylie  { background: var(--lux-line); color: #fff; }
+.lux-tag--lush   { background: #4a1f4d;          color: #fff; }
+.lux-tag--member { background: var(--lux-line-soft); color: var(--lux-muted); }
+
+/* ─── 푸터 ─── */
+.lux-gate__footer {
+  margin-top: 36px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--lux-muted-2);
+  text-transform: uppercase;
+}
+
+/* ─── 모바일 (≤768px) ─── */
+@media (max-width: 768px) {
+  .lux-gate { padding: 28px 16px 32px; }
+  .lux-gate__header { margin-bottom: 24px; }
+  .lux-gate__title { font-size: 22px; }
+  .lux-gate__sub { font-size: 12px; }
+  .lux-gate__layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .lux-card { padding: 22px 20px; }
+  .lux-rooms-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .lux-room { padding: 12px; }
+}
 
 /* =====================================================
    APP SHELL - Top Nav (Apple Global Nav style)
@@ -1894,22 +2320,24 @@ a:hover { text-decoration: underline; }
    V5 — REQ-STYL-01: 모바일 반응형 보강
    ===================================================== */
 
-/* 타임라인 가로 스크롤 (8개 공간 시 모바일 화면 짤림 방지) */
+/* V15 §2 — PC 가로 스크롤 영구 제거.
+   기존: 항상 overflow-x:auto + min-width 강제 → 9~10개 공간이면 1440 모니터에서도 잘림.
+   변경: 데스크톱(>=1024px)에서는 가로 스크롤 자체를 차단하고 100% Full-Width 비례 분할.
+        모바일에서만 가로 스크롤 허용. */
 .timeline-scroll {
-  overflow-x: auto;
+  overflow-x: hidden;       /* 데스크톱 기본 — 가로 스크롤 차단 */
   overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 .timeline-scroll .timeline-grid {
-  min-width: 800px; /* 7~8개 공간이 최소 보여질 크기 */
+  /* 데스크톱에서는 min-width 지정 X — JS가 minmax(0,1fr)로 화면 꽉 차게 채움 */
+  width: 100%;
 }
 
-@media (max-width: 768px) {
-  .timeline-grid {
-    grid-template-columns: 50px repeat(auto-fill, minmax(110px, 1fr));
-  }
-  .timeline-scroll .timeline-grid {
-    min-width: 900px;
+@media (max-width: 1023px) {
+  .timeline-scroll {
+    overflow-x: auto;       /* 모바일/태블릿: 가로 스크롤 복원 */
+    -webkit-overflow-scrolling: touch;
   }
 }
 

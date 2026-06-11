@@ -697,24 +697,25 @@ function buildTimelineGrid() {
   // V6-1 + V7 최종본 §1: spaces 개수에 동적으로 대응하는 그리드 컬럼 정의
   //  - 모든 화면에서 컬럼 최소 너비(min 160px) 강제 → 'Recharging Zone', '와일리빌딩 파라다이스룸' 등
   //    긴 영문/한글 공간명이 줄바꿈 없이 한 줄로 노출되도록 보장
-  //  - 데스크톱(>=1280px): 8개 컬럼 = 56 + 8*160 = 1336px → 일반 화면에선 1fr 신축
-  //  - 좁은 화면(<1280px): min 130px 강제 + 가로 스크롤
+  // V15 §2 — PC 가로 스크롤 영구 제거:
+  //  - 데스크톱(>=1024px): 100% Full-Width 비례 분할 (minmax(0, 1fr))
+  //                       → 공간 개수가 늘어나도 자동으로 1:1 리밸런싱, 가로 스크롤 발생 X
+  //  - 모바일(<1024px):  최소 110px 보장 + 가로 스크롤 유지 (좁은 단말 가독성)
   const spaceCount = State.spaces.length || 1;
-  const isNarrow = window.innerWidth < 1280;
-  const DESKTOP_MIN_COL = 160; // V7 최종본 §1: 'Recharging Zone' 한 줄 노출 보장
-  const MOBILE_MIN_COL = 130;
+  const isNarrow = window.innerWidth < 1024;
+  const MOBILE_MIN_COL = 110;
   const colTemplate = isNarrow
     ? `50px repeat(${spaceCount}, minmax(${MOBILE_MIN_COL}px, 1fr))`
-    : `56px repeat(${spaceCount}, minmax(${DESKTOP_MIN_COL}px, 1fr))`;
-  // 좁은 화면에서는 최소 너비를 확보해 가로 스크롤이 작동하도록 함
-  // 데스크톱에서도 spaceCount가 많아 min-width 합이 viewport를 넘으면 timeline-scroll로 가로 스크롤
-  const minWidth = isNarrow
-    ? (50 + spaceCount * MOBILE_MIN_COL)
-    : (56 + spaceCount * DESKTOP_MIN_COL);
+    : `56px repeat(${spaceCount}, minmax(0, 1fr))`;       // ← min 0 = 화면에 꽉 차게
+  // 모바일만 min-width 강제(가로 스크롤 작동용). 데스크톱은 min-width 자체를 지정하지 않아
+  // 부모 컨테이너 너비를 그대로 따라가도록 처리.
+  const minWidthAttr = isNarrow
+    ? `min-width:${50 + spaceCount * MOBILE_MIN_COL}px;`
+    : '';
   const grid = el('div', {
     class: 'timeline-grid',
     id: 'timeline-grid',
-    style: `grid-template-columns: ${colTemplate};${minWidth ? `min-width:${minWidth}px;` : ''}`,
+    style: `grid-template-columns: ${colTemplate};${minWidthAttr}`,
   });
 
   // Top-left empty cell
@@ -2626,7 +2627,7 @@ async function renderAdminMembers() {
     el('div', { class: 'page-header is-admin-header' },
       el('div', { class: 'page-title-block' },
         el('h1', null, '관리'),
-        el('p', null, '회사 정보를 입력하고 서비스 기본 설정을 관리하세요.')
+        el('p', null, '서비스 기본 설정과 멤버를 관리합니다.')
       )
     ),
     el('div', { class: 'admin-layout' },

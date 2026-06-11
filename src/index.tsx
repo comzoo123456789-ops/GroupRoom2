@@ -8,6 +8,7 @@ import membersApi from './api/members';
 import insightsApi from './api/insights';
 import orgApi from './api/org';
 import tenantsApi from './api/tenants'; // V11 §3-3
+import publicApi from './api/public';   // V15 §1 — 비로그인 공개 API
 import type { Bindings, User } from './types';
 
 import { LoginPage } from './pages/login';
@@ -29,6 +30,9 @@ app.get('/favicon.ico', (c) => c.redirect('/favicon.svg'));
 // ============================================
 // API ROUTES
 // ============================================
+// V15 §1: 공개 API — 비로그인 상태에서도 접근 가능. authMiddleware 적용 X.
+app.route('/api/public', publicApi);
+
 app.route('/api/auth', authApi);
 app.use('/api/spaces/*', authMiddleware);
 app.route('/api/spaces', spacesApi);

@@ -1,3 +1,50 @@
+# 메이트리그라운드 (Mateground) — V15 완결본
+
+WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
+
+## 🆕 V15 (Anti-Handley 프리미엄 디자인 개편 + 실시간 현황판)
+
+> 사용자 요구: 핸들리 스타일 폐기 → 라벤더(#dfe7f7) + 다크 사파이어(#1a365d) 라인의 호텔 안내판 느낌의 하이엔드 플랫 UI. PC 가로 스크롤 영구 폐기. 로그인 페이지에 실시간 공용 회의실 가용 현황 도입.
+
+### §1 — 로그인 페이지 전면 개편 + 실시간 공용 회의실 가용판
+- **신규 백엔드 API** (`src/api/public.ts` — 인증 미들웨어 미적용):
+  - `GET /api/public/available-spaces` — 현재 KST 시각 기준, `Meeting Room A~E` 5개의 즉시 사용 가능 여부 반환
+  - 응답: `{ now: {date, time}, rooms: [{id, name, capacity, available, current_end_at, next_busy_at}] }`
+  - 정책: `tenant_scope IS NULL` 공용 5개만 대상. `Conference Room`(WYLIE 전용) · `파라다이스룸`(LUSH 전용) 무조건 제외
+- **신규 로그인 페이지** (`src/pages/login.tsx` + `public/static/login.js`):
+  - 라벤더 매트(#dfe7f7) 배경 + 사파이어 라인 카드 + 직각 4px + 그림자 없음
+  - 좌측 카드: 5개 룸을 카드 그리드로 표시, 가용=즉시 사용 가능 칩 / 비가용=종료 예정 시각 표시
+  - 우측 카드: SIGN IN 폼 (라벤더 톤 인풋, 사파이어 버튼)
+  - **60초 폴링** (`setInterval`)으로 새로고침 없이 실시간 갱신, 펄스 도트 LIVE 인디케이터
+  - 모바일에서는 1열 스택 + 회의실 그리드 2열로 자동 전환
+- **검증 (E2E)**:
+  - `GET /api/public/available-spaces` → Meeting Room A~E 5개만 반환, 전용룸 제외 ✅
+  - 14:00–16:00 가짜 예약 추가 → `Meeting Room A: available=false, current_end_at='16:00'` ✅
+  - 가짜 예약 삭제 → `available=true` 복귀 ✅
+
+### §2 — PC 타임라인 가로 스크롤 영구 제거 (100% Full-Width 반응형)
+- **문제**: 데스크톱에서도 `min-width: 56 + 8*160 = 1336px` 가 강제되어 1440 모니터에서도 `Recharging Zone` 우측이 잘리고 가로 드래그 필요. 향후 공간이 늘어나면 더 악화
+- **해결**:
+  - JS (`app.js` line ~700): 데스크톱 컬럼 정의를 `minmax(160px, 1fr)` → `minmax(0, 1fr)` 로 변경 + `min-width` 어트리뷰트 자체를 데스크톱에서는 출력하지 않음 → 부모 컨테이너 너비를 그대로 따라감
+  - CSS (`styles.css`): `.timeline-scroll { overflow-x: hidden }` 데스크톱 기본값. 모바일(<1024px)에서만 `overflow-x: auto` 복원
+- **결과**: 공간 개수가 5개든 12개든 화면에 1:1 비례 분할되어 가로 스크롤 없이 한 화면 렌더링. 모바일은 기존대로 자연스러운 가로 스크롤 유지
+
+### §4 — 로그인 후 전역 라벤더 테마 (Hi-End Flat UI)
+- **스코프 안전 변수 오버라이드**: `.app-shell { --parchment: #dfe7f7; --primary: #1a365d; --shadow-product: none; --r-md: 4px; ... }` — 셸 안에서만 작동하므로 로그인 페이지/모달 영향 X
+- **그림자 전량 소거**: 카드 / 히트맵 / 데이터테이블 / admin-content-card 등 `box-shadow: none !important` + `border-radius: 4px !important` + 사파이어 1px 라인
+- **칼로 자른 듯한 시인성**: 흐릿한 그림자가 사라지고 호텔 안내판처럼 정갈한 경계만 남음
+
+### §5 — 관리 > 일반 설정 정돈
+- `[회사 정보]` 카드 + `[디바이스 -]` 카드 — V11에서 이미 영구 삭제됨 (V11 §3-1, §3-2)
+- V15: admin 페이지 헤더 부제를 "회사 정보를 입력하고..." → "서비스 기본 설정과 멤버를 관리합니다." 로 정정 (실제로 회사 정보 입력 기능이 없으므로 오해 제거)
+
+### §6 — 일정 컬러 팔레트 + 우측 상단 범례 실시간 동기화
+- V14에서 이미 3중 방어선(`:root` CSS 변수 / `<style id="__tenant_colors__">` 동적 주입 / `.tenant-wylie`/`.tenant-lush` 클래스)으로 완전 구현 완료
+- 어드민 팔레트 → DB PATCH → `applyTenantColors()` 즉시 호출 + `refreshTimelineEvents()` 강제 리렌더링
+- 검증: V14 시점에서 `/api/tenants` DB 값과 화면 픽셀 색이 일치하는 것을 E2E 확인
+
+---
+
 # 메이트리그라운드 (Mateground) — V14 완결본
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
