@@ -134,9 +134,12 @@ function renderShell(content) {
               svg.setAttribute('height', '28');
               svg.setAttribute('fill', 'none');
               svg.setAttribute('stroke', 'currentColor');
-              svg.setAttribute('stroke-width', '2');
-              svg.setAttribute('stroke-linecap', 'square');
-              svg.innerHTML = '<path d="M5 24 L5 6 L14 16 L23 6 L23 24" />';
+              svg.setAttribute('stroke-width', '2.4');
+              svg.setAttribute('stroke-linecap', 'round');
+              svg.setAttribute('stroke-linejoin', 'round');
+              // V38: M 글자가 명확히 보이도록 path 재설계 — 양 다리는 바깥에서 시작, 중앙 V는 깊고 또렷하게
+              // 좌하단(4,23) → 좌상단(4,5) → 중앙 하단 V(14,18) → 우상단(24,5) → 우하단(24,23)
+              svg.innerHTML = '<path d="M4 23 L4 5 L14 18 L24 5 L24 23" />';
               return svg;
             })()
           ),

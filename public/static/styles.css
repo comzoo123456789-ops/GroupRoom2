@@ -8303,3 +8303,134 @@ button.abnb-btn--gradient:hover {
 }
 
 /* === V37 END === */
+
+/* ==========================================================================
+   V38 — 로고 M 마크 + 로그인 모바일 컴팩트 표
+   §1 .abnb-brand-mark--svg : II 두 막대 → SVG M 마크
+   §2 모바일에서 .abnb-card--live 영역을 컴팩트 표 형태로 압축 (5개 한 박스)
+   ========================================================================== */
+
+/* §1 — 로그인 헤더 SVG M 마크 스타일 (기존 .abnb-brand-mark span 막대 스타일 무효화) */
+.abnb-brand-mark.abnb-brand-mark--svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 기존 span 두 개 막대 모드의 gap/width 등을 모두 리셋 */
+  gap: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  margin-bottom: 12px;
+}
+.abnb-brand-mark.abnb-brand-mark--svg svg {
+  color: #171A20;   /* Carbon Dark */
+  display: block;
+}
+/* 기존 span 막대 모드와 충돌하면 SVG 모드에서는 span 자체 숨김 (안전장치) */
+.abnb-brand-mark.abnb-brand-mark--svg > span {
+  display: none !important;
+}
+
+/* §2 — 로그인 페이지 모바일 회의실 컴팩트 표
+   기존 (V37): .abnb-rooms-grid 가 420px 이하에서 1fr (= 5개가 큰 카드로 세로 나열)
+   변경 (V38): 5개를 하나의 박스 안에 표 형태로 압축 — 로그인 폼이 위로 올라옴 */
+@media (max-width: 768px) {
+  /* 5개 카드의 grid 자체를 표처럼 동작하도록 — 컬럼은 없애고 세로 행으로 나열하되 각 행을 매우 컴팩트하게 */
+  .abnb-card--live .abnb-rooms-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+    border: 1px solid #EEEEEE;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #FFFFFF;
+  }
+
+  /* 각 룸 카드를 표 한 행처럼: 좌측에 이름, 우측에 상태칩 */
+  .abnb-card--live .abnb-room {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+    border: none !important;
+    border-bottom: 1px solid #EEEEEE !important;
+    border-radius: 0 !important;
+    background: #FFFFFF !important;
+    min-height: 44px;
+    text-align: left !important;
+  }
+  .abnb-card--live .abnb-room:last-child {
+    border-bottom: none !important;
+  }
+
+  /* 이름: 좌측, 한 줄 */
+  .abnb-card--live .abnb-room__name {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #171A20 !important;
+    margin: 0 !important;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left !important;
+  }
+
+  /* 정원 표시: 표 안에서는 숨김 — 공간 절약 (필요시 ::before로 작게 부활 가능) */
+  .abnb-card--live .abnb-room__capacity {
+    display: none !important;
+  }
+
+  /* 상태칩(즉시 사용 가능 / 사용 중): 우측 작게 */
+  .abnb-card--live .abnb-room__status,
+  .abnb-card--live .abnb-room .abnb-chip,
+  .abnb-card--live .abnb-room__chip {
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+    border-radius: 4px !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    margin: 0 !important;
+  }
+
+  /* 보조 텍스트(오늘 남은 시간 모두 가용 등): 숨김 — 한 줄 컴팩트 표 유지 */
+  .abnb-card--live .abnb-room__hint,
+  .abnb-card--live .abnb-room__note,
+  .abnb-card--live .abnb-room__detail {
+    display: none !important;
+  }
+
+  /* LIVE 카드 자체 패딩도 축소 → 표가 더 위로 */
+  .abnb-card--live {
+    padding: 16px !important;
+  }
+  .abnb-card--live .abnb-card__head {
+    margin-bottom: 12px;
+  }
+  .abnb-card--live .abnb-card__title {
+    font-size: 15px !important;
+  }
+  .abnb-card--live .abnb-card__foot {
+    margin-top: 10px;
+    font-size: 11px;
+  }
+}
+
+/* 420px 이하 — V37 의 `grid-template-columns: 1fr` (= 큰 카드 세로) 무효화
+   상위 V38 768px 규칙이 flex column 으로 강제하므로 이건 단순 리셋 */
+@media (max-width: 420px) {
+  .abnb-card--live .abnb-rooms-grid {
+    grid-template-columns: none !important; /* 의미 없음 — display:flex 로 이미 덮어씀 */
+  }
+  .abnb-card--live .abnb-room {
+    padding: 9px 10px !important;
+  }
+  .abnb-card--live .abnb-room__name {
+    font-size: 13px !important;
+  }
+}
+
+/* === V38 END === */

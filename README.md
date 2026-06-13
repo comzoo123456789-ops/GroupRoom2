@@ -1,8 +1,46 @@
-# 메이트리그라운드 (Mateground) — V37 Tesla 시스템 완성 + UX 다듬기
+# 메이트리그라운드 (Mateground) — V38 로고 M 마크 + 로그인 모바일 컴팩트
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V37 (로그인 페이지 Tesla 적용 + 모바일 타임라인 분리 + 로고 한글 단일화 + 멤버 아코디언)
+## 🆕 V38 (로고 II → M 마크 + 로그인 모바일 회의실 컴팩트 표)
+
+> 사용자 V37 직후 요청:
+> 1. **"메인페이지 로고는 왜 II 그대로야 M으로 바꿔줘야지"** — 로그인 페이지 헤더 막대 두 개(II)가 M으로 안 보임
+> 2. **"스마트폰으로 보면 이용가능한 공용회의실 a,b,c,d,e 이거 하나의 표로 다보여줄수있게 축소해줘 ... 로그인 페이지가 너무 맨아래에 있어서 로그인하기 힘들어"** — 모바일에서 5개 카드가 큰 박스로 적층되어 로그인 폼이 화면 한참 아래
+
+### §1 — 로고 M 마크 가시성 개선
+- **문제**:
+  - 로그인 페이지 `.abnb-brand-mark`는 원래 `<span></span><span></span>` 두 개의 막대 → II 처럼만 보임 (M 의도 없음)
+  - 글로벌 nav `.tesla-logo-mark` SVG path 도 `stroke-width: 2 + linecap: square + 양 다리가 5→6 거의 수직` 이라 중앙 V 가 잘 안 보이고 II 처럼 읽힘
+- **변경**:
+  - 로그인 페이지: `<div class="abnb-brand-mark abnb-brand-mark--svg">` 안에 글로벌 nav 와 동일한 SVG M path 삽입 (40×40)
+  - 글로벌 nav SVG path 재설계: `M4 23 L4 5 L14 18 L24 5 L24 23` — 좌하단(4,23) → 좌상단(4,5) → 중앙 깊은 V(14,18) → 우상단(24,5) → 우하단(24,23)
+  - `stroke-width: 2 → 2.4`, `stroke-linecap: square → round`, `stroke-linejoin: round` 추가 — M 모서리 부드럽게
+- **위치**: `src/pages/login.tsx` line 17~25 + `public/static/app.js` line ~130~141
+
+### §2 — 로그인 모바일 회의실 컴팩트 표 (5개 한 박스)
+- **문제 (V37 모바일)**: `@media (max-width: 420px)` 에서 `.abnb-rooms-grid { grid-template-columns: 1fr }` 로 각 회의실이 큰 카드 5개로 세로 적층 → 로그인 폼이 화면 한참 아래로 밀림
+- **변경 (V38 모바일 ≤768px)**:
+  - `.abnb-card--live .abnb-rooms-grid` → `display: flex; flex-direction: column; gap: 0` + 외곽 4px radius 박스 한 개로 묶기
+  - 각 `.abnb-room` 은 표 한 행처럼: `flex-direction: row; justify-content: space-between` (좌 이름 / 우 상태칩)
+  - 행 높이 44px, 패딩 10px 12px, 행 구분선 `border-bottom: 1px #EEEEEE` (마지막 행은 none)
+  - 정원 표시(`__capacity`) 및 보조 텍스트(`__hint`, `__note`, `__detail`) 모바일에서 숨김 → 한 줄 컴팩트 유지
+  - 상태칩 11px / padding 3px 8px / radius 4px 로 축소
+  - LIVE 카드 자체 패딩 16px 로 축소, 타이틀 15px
+- **결과**: 모바일에서 5개 회의실 = 한 박스 5행 (약 220~250px 높이) → 로그인 폼이 즉시 보이는 위치로 상승
+- **위치**: `public/static/styles.css` V38 §2 (V37 END 뒤 추가)
+
+### 📊 V38 빌드/배포 상태
+- 빌드: ✅ `vite build` 성공 (`dist/_worker.js` 93.88 kB)
+- PM2: ✅ `webapp` online (PID 56712)
+- HTTP: `/login` 200 · `/` 302
+- 정적: `app.js` 190 KB / `styles.css` 233 KB
+- Playwright `/login` 콘솔 메시지 0건
+- 마크업 확인: `abnb-brand-mark--svg` 1건 · styles.css V38 마커 4건
+
+---
+
+## V37 (로그인 페이지 Tesla 적용 + 모바일 타임라인 분리 + 로고 한글 단일화 + 멤버 아코디언)
 
 > 사용자 V36 직후 요청:
 > 1. **"이것도 테슬라 스타일로 바꿔줘야하는거 아니야? 왜 하다가 말았어"** → V36에서 의도적으로 제외했던 로그인 페이지(`.abnb-gate`)도 Tesla 스타일로 통일

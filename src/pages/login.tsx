@@ -15,8 +15,11 @@ export const LoginPage = () => {
     <div class="abnb-gate">
       {/* 상단 브랜드 헤더 */}
       <header class="abnb-gate__brand">
-        <div class="abnb-brand-mark" aria-hidden="true">
-          <span></span><span></span>
+        {/* V38: II 두 막대 → M 모양 SVG 마크로 교체 (app.js 글로벌 nav 로고와 동일한 path) */}
+        <div class="abnb-brand-mark abnb-brand-mark--svg" aria-hidden="true">
+          <svg viewBox="0 0 28 28" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 23 L4 5 L14 18 L24 5 L24 23" />
+          </svg>
         </div>
         <h1 class="abnb-gate__title">메이트리그라운드</h1>
         <p class="abnb-gate__sub">와일리 &amp; 러쉬 공유 워크스페이스</p>
