@@ -1,8 +1,69 @@
-# 메이트리그라운드 (Mateground) — V38 로고 M 마크 + 로그인 모바일 컴팩트
+# 메이트리그라운드 (Mateground) — V39 실시간 연동 + 시계화 now-line + 정원 제거
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V38 (로고 II → M 마크 + 로그인 모바일 회의실 컴팩트 표)
+## 🆕 V39 (실시간 연동 강화 + 빨간 실선 시계화 + 정원 8명 제거)
+
+> 사용자 V38 직후 요청:
+> 1. **"왜 메인페이지랑 공간 페이지 실시간 연동이 안돼는거지?"** — 홈 대시보드가 예약 변경을 못 따라잡음
+> 2. **"지금 11시 15분인데 왜 실선은 11시가 고정이야? 11시 16분이면 11~12시 사이 16분 거리만큼 내려가야"** — 타임라인 현재시각 빨간 선이 페이지 로드 시점에 고정
+> 3. **"모바일 화면 공용 회의실에서 정원 8명 코드에서 삭제"** — 정원 정보 불필요
+> 4. **"Meeting Ro....만 보여서 A~E 안 보여"** — 모바일에서 이름 잘림. 정원 삭제로 확보된 공간을 이름이 활용
+
+### §1 — 타임라인 빨간 실선 실시간 시계화 (now-line ticker)
+- **문제**:
+  - `drawNowLine()`은 `renderSpaces()` 진입 시 단 1회만 호출 → 그 시점의 분 위치에 고정
+  - 11:00 에 들어오면 11:00 위치에 그려진 후 영영 안 움직임
+- **변경**:
+  - `drawNowLine()` 재호출 시 기존 `.timeline-now-line` DOM 자동 제거 후 새로 그림
+  - `top` 계산에 초 단위까지 포함: `top = (hour*60 + minute + second/60) * (40/60)`
+  - 새 `startNowLineTicker()` 함수가 30초마다 `drawNowLine()` 호출 (페이지 'spaces' && view 'day' 일 때만)
+  - 예약 폴링 시점(3초)에도 `drawNowLine()` 동시 호출 → 즉시 따라잡음
+  - CSS: `.timeline-now-line { transition: top 0.6s ease }` 추가 → 선이 자연스럽게 미끄러져 내려감
+- **위치**: `public/static/app.js` `drawNowLine` + `startNowLineTicker` + `startPolling` / `styles.css` V39 §4
+
+### §2 — 홈 페이지 실시간 연동 (예약 변경 즉시 반영)
+- **문제**: 다른 사용자가 공간 페이지에서 예약을 만들거나 취소해도 홈 대시보드의 "다음 일정 / 앞으로의 일정 / 오늘 일정" 카드가 갱신되지 않음 — `renderHome()`이 한 번 그려진 후 폴링 없음
+- **변경**:
+  - `renderHome()` 끝에 `startPolling()` 호출 추가
+  - `startPolling()`에 `State.page === 'home'` 분기 추가:
+    - 3초마다 `/api/reservations/upcoming` 재요청
+    - 응답 시그니처(`id:updated_at:status` 조합) 비교
+    - 변경이 감지되면 `renderHome()` 재실행 → 카드 전체 즉시 리렌더
+  - 초기 마운트 직후 중복 렌더 방지를 위해 `State._homeUpcomingSigInited` 플래그 사용
+- **결과**: 공간 페이지에서 예약 추가/취소 → 다른 디바이스의 홈 페이지가 3초 내 자동 동기화
+- **위치**: `public/static/app.js` `renderHome` 끝 + `startPolling` 분기
+
+### §3 — 로그인 페이지 "정원 8명" 텍스트 완전 제거
+- **문제**: 모바일 회의실 카드에 "정원 8명" 표시되어 공간 차지 → 회의실 이름 영역 좁아져 "Meeting Ro..." 잘림
+- **변경**:
+  - `public/static/login.js` `renderRooms()`에서 `<div class="abnb-room__meta">정원 N명</div>` 두 군데 모두 삭제 (available / busy)
+  - 추가 안전장치: `styles.css`에 `.abnb-room__meta { display: none !important }` (혹시 다른 코드에서 부활해도 차단)
+- **효과**:
+  - 모바일 컴팩트 표(V38)에서 행 높이가 줄어들고, 이름 영역이 행 가로폭의 대부분 차지 → `Meeting Room A~E` 완전 노출
+  - 데스크톱 그리드에서도 카드가 더 깔끔하게 보임
+- **위치**: `public/static/login.js` line 68~89 (마크업 2곳) + `styles.css` V39 §1
+
+### §4 — 모바일 회의실 카드 이름 노출 보강
+- **문제**: V38에서 컴팩트 표로 변경했어도 이름이 잘릴 가능성 (긴 회의실명, 좁은 폰)
+- **변경 (V39 §2 CSS)**:
+  - `.abnb-card--live .abnb-room__name { flex: 1 1 auto; min-width: 0; white-space: nowrap; text-overflow: ellipsis }` — flex 자식에 `min-width: 0` 필수
+  - `.abnb-room__chip { flex: 0 0 auto; white-space: nowrap }` — 상태칩은 절대 안 줄어들고 항상 한 줄
+  - `.abnb-room__sub { display: none }` — 보조 설명("오늘 남은 시간 모두 가용") 모바일 숨김
+- **데스크톱 (≥769px)**: 정원 표시 사라진 공간을 이름이 흡수, padding 18px/14px, 이름 15px/600
+- **위치**: `styles.css` V39 §2, §3
+
+### 📊 V39 빌드/배포 상태
+- 빌드: ✅ `vite build` 성공 (`dist/_worker.js` 93.88 kB)
+- PM2: ✅ `webapp` online (PID 58587)
+- HTTP: `/login` 200 · `/`, `/spaces`, `/home`, `/admin/members` 302
+- Playwright `/login` 콘솔 메시지 0건
+- API 검증: `/api/public/available-spaces` → Meeting Room A~E 5개 정상 반환
+- 마커: app.js V39 마커 15건 · styles.css V39 END 1건
+
+---
+
+## V38 (로고 II → M 마크 + 로그인 모바일 회의실 컴팩트 표)
 
 > 사용자 V37 직후 요청:
 > 1. **"메인페이지 로고는 왜 II 그대로야 M으로 바꿔줘야지"** — 로그인 페이지 헤더 막대 두 개(II)가 M으로 안 보임

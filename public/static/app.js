@@ -618,6 +618,13 @@ async function renderHome() {
 
   const main = el('main', { class: 'page-wrap' }, dashboard);
   renderShell(main);
+
+  // V39 §4: 홈 페이지도 3초 폴링으로 예약 변경 즉시 반영
+  //   - startPolling 내부에서 State.page === 'home' 분기 처리
+  //   - 시그니처 비교로 변경 시에만 renderHome() 재호출
+  if (typeof startPolling === 'function') {
+    try { startPolling(); } catch (e) { console.warn('[app] home polling start failed:', e?.message); }
+  }
 }
 
 // ============== SPACES (TIMELINE) PAGE ==============
@@ -1263,18 +1270,52 @@ function minutesToTime(min) {
 }
 
 function drawNowLine() {
+  // V39 §2: 실시간 빨간 선 — 호출 시마다 기존 선 제거 후 현재 시각 위치에 재배치
+  //         (이전: 한 번 그리고 갱신 안 함 → 11:00 에 고정되는 버그)
   if (State.date !== dayjs().format('YYYY-MM-DD')) return;
   const grid = $('#timeline-grid');
   if (!grid) return;
+  // 이전 라인 제거
+  $$('.timeline-now-line', grid).forEach(n => n.remove());
   const now = dayjs();
-  const top = (now.hour() * 60 + now.minute()) * (40 / 60);
+  // 분 단위 정밀: 11:16 이면 11~12 사이 16/60 위치
+  const minutesFromMidnight = now.hour() * 60 + now.minute() + (now.second() / 60);
+  const top = minutesFromMidnight * (40 / 60);
   const line = el('div', { class: 'timeline-now-line', style: `top:${56 + top}px;` });
   grid.append(line);
 }
 
+// V39 §2: now-line 전용 30초 인터벌 — startPolling과 별개로 동작 (페이지 진입 시작)
+let nowLineInterval = null;
+function startNowLineTicker() {
+  if (nowLineInterval) clearInterval(nowLineInterval);
+  nowLineInterval = setInterval(() => {
+    if (State.page === 'spaces' && State.view === 'day') {
+      drawNowLine();
+    }
+  }, 30 * 1000); // 30초마다 → 분 단위 변동 충분히 캐치
+}
+
 function startPolling() {
   if (pollingInterval) clearInterval(pollingInterval);
+  // V39 §2: now-line 갱신을 위한 별도 ticker 도 함께 시작
+  startNowLineTicker();
   pollingInterval = setInterval(async () => {
+    // V39 §4: 홈 페이지에도 실시간 연동 — 예약 변경 시 홈 카드 즉시 리렌더
+    if (State.page === 'home') {
+      try {
+        const upRes = await api('/api/reservations/upcoming');
+        const newUpcoming = upRes?.data?.reservations || [];
+        const sig = JSON.stringify(newUpcoming.map(r => r.id + ':' + r.updated_at + ':' + r.status));
+        if (sig !== State._homeUpcomingSig) {
+          State._homeUpcomingSig = sig;
+          // 첫 호출이 아닐 때만 재렌더 (초기 마운트 직후 중복 방지)
+          if (State._homeUpcomingSigInited) await renderHome();
+          State._homeUpcomingSigInited = true;
+        }
+      } catch (e) {}
+      return;
+    }
     if (State.page !== 'spaces') return;
     const resvRes = await api(`/api/reservations?date=${State.date}`);
     const newReservations = resvRes?.data?.reservations || [];
@@ -1291,6 +1332,8 @@ function startPolling() {
           if (!col) continue;
           State.reservations.filter(r => r.space_id === s.id).forEach(r => col.append(buildEventEl(r)));
         }
+        // V39 §2: 예약 변경 시점에도 now-line 위치 재계산 (어차피 새 시점)
+        drawNowLine();
       }
     }
   }, 3000);

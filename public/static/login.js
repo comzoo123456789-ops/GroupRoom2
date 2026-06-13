@@ -65,6 +65,8 @@
       grid.innerHTML = '<div class="abnb-room abnb-room--empty">표시할 공용 회의실이 없습니다.</div>';
       return;
     }
+    // V39 §3: 사용자 요청 — "정원 8명" 텍스트 완전 삭제 (마크업 자체 제거)
+    //         이미 회의실인 줄 알기 때문에 정원 정보는 불필요
     grid.innerHTML = rooms
       .map((r) => {
         if (r.available) {
@@ -74,7 +76,6 @@
           return `
             <div class="abnb-room abnb-room--ok">
               <div class="abnb-room__name">${escapeHtml(r.name)}</div>
-              <div class="abnb-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
               <span class="abnb-room__chip abnb-room__chip--ok">즉시 사용 가능</span>
               <div class="abnb-room__sub">${escapeHtml(sub)}</div>
             </div>`;
@@ -82,7 +83,6 @@
         return `
           <div class="abnb-room abnb-room--busy">
             <div class="abnb-room__name">${escapeHtml(r.name)}</div>
-            <div class="abnb-room__meta">정원 ${Number(r.capacity) || '-'}명</div>
             <span class="abnb-room__chip abnb-room__chip--busy">사용 중</span>
             <div class="abnb-room__sub">${escapeHtml(r.current_end_at || '')}에 종료 예정</div>
           </div>`;
