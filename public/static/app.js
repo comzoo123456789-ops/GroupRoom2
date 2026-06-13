@@ -141,8 +141,8 @@ function renderShell(content) {
             })()
           ),
           el('span', { class: 'tesla-logo-wordmark' },
-            el('span', { class: 'tesla-logo-eng' }, 'MATEGROUND'),
-            el('span', { class: 'tesla-logo-kor' }, '메이트리그라운드')
+            // V37: 사용자 요청 — 영문 'MATEGROUND' 제거, 한글 '메이트리그라운드'만 노출
+            el('span', { class: 'tesla-logo-kor tesla-logo-kor--solo' }, '메이트리그라운드')
           )
         ),
         navLinksNode,
@@ -575,12 +575,17 @@ async function renderHome() {
         ),
         el('div', { class: 'v34-today-list' },
           ...upcomingList.map(r =>
+            // V37 §2: 모바일에서 4줄(날짜 / 시간 / 회의명 / 위치)로 분리되도록
+            //   date와 time을 별도 span으로 나눠 렌더 → CSS @media에서 flex-direction:column으로 세로 배치
             el('div', {
               class: 'v34-today-row',
               onclick: () => goToSpace(r.date, r.start_time)
             },
+              el('span', { class: 'v34-today-date' },
+                dayjs(r.date).locale('ko').format('M/D(dd)')
+              ),
               el('span', { class: 'v34-today-time' },
-                dayjs(r.date).locale('ko').format('M/D(dd) ') + r.start_time + '-' + r.end_time
+                r.start_time + ' - ' + r.end_time
               ),
               el('span', { class: 'v34-today-title' },
                 r.title || '새로운 일정',
@@ -2847,32 +2852,29 @@ async function renderAdminMembers() {
             el('h2', { style: 'margin:0;font-size:24px;font-weight:600;letter-spacing:-0.3px;' }, '멤버'),
             el('p', { style: 'margin:4px 0 0;color:#7a7a7a;font-size:14px;' }, '관리자가 직접 직원 계정을 생성하고 정보를 관리합니다.')
           ),
-          // V13 §1: [선택 일괄 삭제] + [본인 외 전체 삭제] + [생성하기]
-          el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;' },
-            // 본인 외 전체 삭제 — 위험 버튼 (admin 본인 빼고 다 날림)
+          // V37: 한 줄 정리 — 전체 삭제 / 선택 삭제 / 생성하기 (텍스트 간결화 + nowrap)
+          el('div', { class: 'admin-action-row' },
+            // 전체 삭제 — 위험 버튼 (admin 본인 빼고 다 날림)
             el('button', {
-              class: 'btn-purge-all',
+              class: 'btn-purge-all admin-action-btn',
               id: 'purge-all-btn',
               title: '본인(' + State.user.email + ')을 제외한 같은 회사의 모든 멤버 삭제',
               onclick: purgeAllMembersExceptSelf,
-            },
-              el('i', { class: 'fa-solid fa-triangle-exclamation', style: 'margin-right:6px;font-size:12px;' }),
-              '본인 외 전체 삭제'
-            ),
-            // 선택 일괄 삭제 — 일반 일괄 삭제
+            }, '전체 삭제'),
+            // 선택 삭제 — 일반 일괄 삭제
             el('button', {
-              class: 'btn-bulk-delete',
+              class: 'btn-bulk-delete admin-action-btn',
               id: 'bulk-delete-btn',
               disabled: true,
               onclick: bulkDeleteMembers,
             },
-              el('i', { class: 'fa-solid fa-trash-can', style: 'margin-right:6px;font-size:12px;' }),
-              el('span', { id: 'bulk-delete-label' }, '선택 일괄 삭제')
+              el('span', { id: 'bulk-delete-label' }, '선택 삭제')
             ),
-            el('button', { class: 'btn-primary btn-compact-mobile', onclick: openMemberCreateModal },
-              el('i', { class: 'fa-solid fa-plus', style: 'margin-right:6px;' }),
-              '생성하기'
-            )
+            // 생성하기
+            el('button', {
+              class: 'btn-primary admin-action-btn admin-action-btn--primary',
+              onclick: openMemberCreateModal,
+            }, '생성하기')
           )
         ),
         el('div', { class: 'tabs' },
@@ -2992,10 +2994,27 @@ function buildMemberTable(members) {
     tbody
   );
 
-  // V7-3: 모바일 전용 카드 리스트
+  // V7-3 → V37 §4: 모바일 카드 리스트 — 헤더만 노출, 클릭 시에만 상세(부서/직책/상태)와 액션이 펼쳐짐
+  //   - 자동으로 모든 카드가 펼쳐져 있던 문제(사용자 표현: "안 누른 팝업창이 떠있다") 해결
+  //   - .member-card 클릭 시 .is-expanded 토글, 다른 카드는 자동으로 접힘 (아코디언 한 번에 하나만)
   const cards = el('div', { class: 'member-cards-mobile', id: 'member-cards-mobile' },
     ...members.map(m =>
-      el('div', { class: 'member-card', 'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase() },
+      el('div', {
+        class: 'member-card member-card--collapsible',
+        'data-search': (m.name + ' ' + m.email + ' ' + (m.department || '') + ' ' + (m.position || '')).toLowerCase(),
+        'data-member-id': String(m.id),
+        onclick: (e) => {
+          // 내부 버튼 클릭 시에는 토글 막기 (수정/삭제는 액션이 별도)
+          if (e.target.closest('.btn-card-action')) return;
+          if (e.target.closest('input')) return;
+          const card = e.currentTarget;
+          const wasOpen = card.classList.contains('is-expanded');
+          // 다른 카드 접기
+          $$('.member-card--collapsible.is-expanded').forEach(c => c.classList.remove('is-expanded'));
+          // 자신 토글
+          if (!wasOpen) card.classList.add('is-expanded');
+        }
+      },
         el('div', { class: 'member-card-head' },
           el('div', { class: 'avatar member-card-avatar', style: `background:${m.avatar_color};width:42px;height:42px;font-size:15px;` }, initials(m.name)),
           el('div', { class: 'member-card-id' },
@@ -3003,34 +3022,38 @@ function buildMemberTable(members) {
             el('div', { class: 'member-card-email' }, m.email)
           ),
           el('div', { class: 'member-card-badges' },
-            el('span', { class: m.role === 'admin' ? 'status-badge s-admin' : 'status-badge s-member' }, m.role === 'admin' ? 'Admin' : '일반')
+            el('span', { class: m.role === 'admin' ? 'status-badge s-admin' : 'status-badge s-member' }, m.role === 'admin' ? 'Admin' : '일반'),
+            el('i', { class: 'fa-solid fa-chevron-down member-card-chevron', 'aria-hidden': 'true' })
           )
         ),
-        el('div', { class: 'member-card-meta' },
-          el('div', { class: 'meta-row' },
-            el('span', { class: 'meta-label' }, '부서'),
-            el('span', { class: 'meta-value' }, m.department || '-')
+        // 펼침 영역 — 기본 숨김, .is-expanded 시 노출
+        el('div', { class: 'member-card-body' },
+          el('div', { class: 'member-card-meta' },
+            el('div', { class: 'meta-row' },
+              el('span', { class: 'meta-label' }, '부서'),
+              el('span', { class: 'meta-value' }, m.department || '-')
+            ),
+            el('div', { class: 'meta-row' },
+              el('span', { class: 'meta-label' }, '직책'),
+              el('span', { class: 'meta-value' }, m.position || '-')
+            ),
+            el('div', { class: 'meta-row' },
+              el('span', { class: 'meta-label' }, '상태'),
+              el('span', { class: 'meta-value' }, el('span', { class: 'status-badge s-active' }, '활성'))
+            )
           ),
-          el('div', { class: 'meta-row' },
-            el('span', { class: 'meta-label' }, '직책'),
-            el('span', { class: 'meta-value' }, m.position || '-')
-          ),
-          el('div', { class: 'meta-row' },
-            el('span', { class: 'meta-label' }, '상태'),
-            el('span', { class: 'meta-value' }, el('span', { class: 'status-badge s-active' }, '활성'))
+          el('div', { class: 'member-card-actions' },
+            el('button', { class: 'btn-card-action', onclick: (e) => { e.stopPropagation(); openMemberEditModal(m); } },
+              el('i', { class: 'fa-solid fa-pen', style: 'margin-right:6px;font-size:11px;' }),
+              '수정'
+            ),
+            m.id !== State.user.id
+              ? el('button', { class: 'btn-card-action is-danger', onclick: (e) => { e.stopPropagation(); deleteMember(m.id); } },
+                  el('i', { class: 'fa-solid fa-trash', style: 'margin-right:6px;font-size:11px;' }),
+                  '삭제'
+                )
+              : null
           )
-        ),
-        el('div', { class: 'member-card-actions' },
-          el('button', { class: 'btn-card-action', onclick: () => openMemberEditModal(m) },
-            el('i', { class: 'fa-solid fa-pen', style: 'margin-right:6px;font-size:11px;' }),
-            '수정'
-          ),
-          m.id !== State.user.id
-            ? el('button', { class: 'btn-card-action is-danger', onclick: () => deleteMember(m.id) },
-                el('i', { class: 'fa-solid fa-trash', style: 'margin-right:6px;font-size:11px;' }),
-                '삭제'
-              )
-            : null
         )
       )
     )
@@ -3089,7 +3112,7 @@ function updateBulkDeleteState() {
     btn.classList.toggle('is-active', count > 0);
   }
   if (label) {
-    label.textContent = count > 0 ? `선택 일괄 삭제 (${count})` : '선택 일괄 삭제';
+    label.textContent = count > 0 ? `선택 삭제 (${count})` : '선택 삭제';
   }
   // 전체 선택 체크박스 상태 동기화
   const all = document.getElementById('bulk-select-all');

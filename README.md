@@ -1,8 +1,80 @@
-# 메이트리그라운드 (Mateground) — V36 Tesla 디자인 시스템
+# 메이트리그라운드 (Mateground) — V37 Tesla 시스템 완성 + UX 다듬기
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V36 (Tesla 스타일 전면 적용 — 로그인/접속 페이지 제외 모든 내부 페이지)
+## 🆕 V37 (로그인 페이지 Tesla 적용 + 모바일 타임라인 분리 + 로고 한글 단일화 + 멤버 아코디언)
+
+> 사용자 V36 직후 요청:
+> 1. **"이것도 테슬라 스타일로 바꿔줘야하는거 아니야? 왜 하다가 말았어"** → V36에서 의도적으로 제외했던 로그인 페이지(`.abnb-gate`)도 Tesla 스타일로 통일
+> 2. **앞으로의 일정** 모바일에서 한 줄에 다 박혀 있던 정보를 **날짜 / 시간 / 회의명 / 미팅룸 위치 4줄로 세로 분리**
+> 3. **로고 영문 `MATEGROUND` 제거** — 한글 "메이트리그라운드"만 노출
+> 4. **멤버 페이지 정리**:
+>    - 상단 액션 버튼 "본인 외 전체 삭제 / 선택 일괄 삭제 / 생성하기" → **"전체 삭제 / 선택 삭제 / 생성하기"** 한 줄 정렬
+>    - 모바일 멤버 카드: 자동으로 펼쳐져 있던 상세를 **클릭 시에만 펼쳐지는 아코디언**으로 변경 + 한 번에 하나만 열림
+
+### §1 — 로그인 페이지 Tesla 스타일 적용 (V36에서 제외했던 `.abnb-gate`)
+- **전체 배경**: 회색 → Pure White
+- **브랜드 마크**: 분홍 큐브 → Carbon Dark 수직 막대 2개 (4×22 / 4×28)
+- **타이틀 "메이트리그라운드"**: 분홍 그라디언트 → Carbon Dark `#171A20` 26px/600 단색
+- **카드(좌측 LIVE 회의실 그리드 + 우측 로그인 폼)**: 그림자 제거, 4px radius, Cloud Gray `#EEEEEE` 보더
+- **회의실 카드 "즉시 사용 가능" 칩**: 분홍 그라디언트 → Electric Blue `#3E6AE1` 단색
+- **LIVE 펄스 점**: 초록 → Electric Blue
+- **"공간 입장하기" 버튼**: 분홍 그라디언트 `linear-gradient(135deg, #FF385C, #E31C5F)` → **Electric Blue flat** `#3E6AE1 !important`
+  - `background-image: none !important`로 그라디언트 강제 제거, hover `#2A56D1`
+- **인풋 필드**: 4px radius, focus 시 Electric Blue 18% alpha 링
+- **CSS 위치**: `styles.css` V37 §1 블록 (`.abnb-gate` 스코프, 약 250줄)
+
+### §2 — 앞으로의 일정 모바일 세로 4줄 분리
+- **기존**: `6/20(토) 10:00-11:00 [회의명] [공간]`이 한 줄/세 칸으로 압축되어 모바일에서 줄바꿈 깨짐
+- **변경**:
+  - `v34-today-row` 마크업을 **`.v34-today-date` / `.v34-today-time` / `.v34-today-title` / `.v34-today-space` 4개 span**으로 분리
+  - 모바일 `@media (max-width: 720px)`에서 `flex-direction: column` → 세로 4줄 출력
+  - 날짜 `6/20(토)` 13px Pewter / 시간 `10:00 - 11:00` 16px/600 Carbon Dark / 회의명 14px (ellipsis) / 공간 13px Pewter (앞에 점)
+- **PC**: 기존 가로 row 유지 (`min-width` 78/110/auto/auto)
+- **위치**: `app.js` `v34TodayCard` 렌더러 + `styles.css` V37 §2
+
+### §3 — 로고 영문 워드마크 제거 → 한글 단일
+- **기존**: SVG M 마크 + `MATEGROUND`(영문) + `메이트리그라운드`(한글) 2줄 워드마크
+- **변경**: SVG M 마크 + **`메이트리그라운드` 한 줄만** (`.tesla-logo-kor--solo` 16px/600 Carbon Dark)
+- **이중 방어**:
+  - `app.js` `renderShell()`에서 `.tesla-logo-eng` span 자체를 제거
+  - `styles.css`에 `.tesla-logo-eng { display: none }` 안전장치 추가
+- **위치**: `app.js` line ~138 + `styles.css` V37 §3
+
+### §4 — 멤버 페이지 정리
+
+#### §4-a 상단 액션 버튼 한 줄 정렬
+- **기존**: "본인 외 전체 삭제" / "선택 일괄 삭제" / "생성하기"가 세로로 쌓이고 폭이 들쭉날쭉
+- **변경**: `.admin-action-row`(flex nowrap) + 3개의 `.admin-action-btn`(38px 높이, 4px radius)
+  - **"전체 삭제"** (← "본인 외 전체 삭제"): Carbon Dark 보더, 아이콘 제거
+  - **"선택 삭제"** (← "선택 일괄 삭제"): Cloud Gray 보더, 카운트 라벨 `선택 삭제 (N)`
+  - **"생성하기"**: `.admin-action-btn--primary` Electric Blue 단색
+- **모바일**: `flex: 1 1 0` 균등 분배, 12px 폰트, 360px 이하에서 11px로 추가 축소
+- **위치**: `app.js` `MemberPage` 액션 row 렌더링 + `styles.css` V37 §4-a
+
+#### §4-b 모바일 멤버 카드 아코디언화
+- **기존(증상)**: 카드 자체가 자동으로 펼쳐져 있어 두 번째 카드의 상세 정보가 화면 하단에 "팝업"처럼 보임
+- **변경**:
+  - `.member-card--collapsible` 클래스 + `data-member-id` 추가
+  - `.member-card-body`(meta + actions 래퍼)는 기본 `display: none`
+  - 카드 클릭 시 `.is-expanded` 토글 → `.member-card-body { display: block }`로 노출
+  - **한 번에 하나만 열림**: 새 카드 클릭 시 다른 모든 카드의 `.is-expanded` 자동 해제
+  - `.member-card-chevron` 우측 아이콘이 펼침 시 180° 회전
+  - 펼친 카드는 Electric Blue 보더로 강조
+- **이벤트 가드**: 수정/삭제 버튼은 `e.stopPropagation()`로 카드 토글 방지 + `closest('.btn-card-action')` 가드도 동시 적용
+- **위치**: `app.js` `buildMemberTable()` 모바일 분기 + `styles.css` V37 §4-b
+
+### 📊 V37 빌드/배포 상태
+- 빌드: ✅ `vite build` 성공 (`dist/_worker.js` 93.67 kB, 63 modules)
+- PM2: ✅ `webapp` online
+- HTTP: `/login` 200 · `/`, `/spaces`, `/insights`, `/admin/members` 302 (인증 필요, 정상)
+- 정적: `app.js` 190 KB, `styles.css` 229 KB
+- Playwright: `/login` 콘솔 메시지 **0건**
+- 마커 검증: styles.css V37 마커 43건 · app.js V37 마커 15건 · `tesla-logo-eng` **0건 잔존**
+
+---
+
+## V36 (Tesla 스타일 전면 적용 — 로그인/접속 페이지 제외 모든 내부 페이지)
 
 > 사용자 V35 직후 요청:
 > 1. tesla.com/ko_kr 처럼 내부 페이지를 전부 Tesla 스타일로 변경 (기능/마크업은 그대로, 스타일만)
