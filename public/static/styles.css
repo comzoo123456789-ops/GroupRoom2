@@ -6625,3 +6625,853 @@ button.abnb-btn--gradient:active {
   }
 }
 /* === V35 END === */
+
+/* =========================================================================
+   ▣ V36 — Tesla-inspired Design System (로그인 페이지/.abnb-gate 제외, 내부 앱만)
+   =========================================================================
+   사용자 요청 (V35 → V36):
+     1. 모든 내부 페이지(홈/공간/인사이트/관리)를 Tesla 사이트(tesla.com/ko_kr)처럼 변경
+     2. 메인 로그인/접속 페이지는 그대로 유지 → .abnb-gate 스코프는 절대 건드리지 않음
+     3. 스타일만 변경 — 기능/마크업은 그대로
+     4. PC/모바일 최적화 — 짤림/이탈/터치 영역 모두 보정
+     5. 분홍색(#FF385C)을 다른 색으로 → Electric Blue (#3E6AE1)
+     6. 버튼/메뉴 글자 가시성 절대 강제
+     7. 로고도 완전히 새 디자인 (app.js .tesla-brand 마크업 + 아래 CSS)
+
+   디자인 토큰 (DESIGN-tesla.md 발췌):
+     - Electric Blue   #3E6AE1   primary CTA only
+     - Carbon Dark     #171A20   heading, nav text
+     - Graphite        #393C41   body text
+     - Pewter          #5C5E62   tertiary text
+     - Silver Fog      #8E8E8E   placeholder, disabled
+     - Cloud Gray      #EEEEEE   borders, dividers
+     - Pale Silver     #D0D1D2   subtle borders
+     - Light Ash       #F4F4F4   alternate surface
+     - Pure White      #FFFFFF   dominant background
+   원칙: 4px radius, no shadow, no gradient, 0.33s transitions, weight 400/500만
+   ========================================================================= */
+
+/* (V36-1) .app-shell 토큰 전체 재정의 — V32 에어비앤비 토큰 위로 덮어쓰기
+   ※ .abnb-gate(로그인 페이지)는 .app-shell이 아니라 영향 없음 */
+.app-shell {
+  --parchment:    #FFFFFF !important;   /* 본문 베이스 = 순백 (Tesla는 흰색 캔버스) */
+  --canvas:       #FFFFFF !important;
+  --hairline:     #EEEEEE !important;   /* Cloud Gray */
+  --divider-soft: #F4F4F4 !important;   /* Light Ash */
+  --primary:      #3E6AE1 !important;   /* Electric Blue */
+  --primary-focus:#2A56D1 !important;   /* darker Electric Blue */
+  --ink:          #171A20 !important;   /* Carbon Dark */
+  --ink-80:       #393C41 !important;   /* Graphite */
+  --ink-48:       #5C5E62 !important;   /* Pewter */
+  --shadow-product: none !important;
+  --shadow-soft:    none !important;
+  --r-xs: 4px !important;
+  --r-sm: 4px !important;
+  --r-md: 4px !important;
+  --r-lg: 4px !important;
+  /* Tesla 톤 캔버스 */
+  background: #FFFFFF !important;
+  color: #393C41;
+}
+.app-shell .page-wrap {
+  background: #FFFFFF !important;
+}
+
+/* (V36-2) 모든 카드/패널/박스 → Tesla flat 화이트 (그림자/라운드 제거) */
+.app-shell .home-hero,
+.app-shell .upcoming-section,
+.app-shell .timeline-container,
+.app-shell .timeline-card,
+.app-shell .insight-card,
+.app-shell .insight-heatmap,
+.app-shell .insight-stats-grid > .stat-card,
+.app-shell .stat-card,
+.app-shell .summary-card,
+.app-shell .summary-card-item,
+.app-shell .summary-card-grid-container,
+.app-shell .chart-card,
+.app-shell .data-table-wrapper,
+.app-shell .admin-content-card,
+.app-shell .admin-card,
+.app-shell .setting-card,
+.app-shell .setting-section-box,
+.app-shell .schedule-palette-box,
+.app-shell .color-palette-card,
+.app-shell .palette-management-wrapper,
+.app-shell .management-content-card,
+.app-shell .repeat-panel,
+.app-shell .org-panel,
+.app-shell .space-card,
+.app-shell .member-card,
+.app-shell .invite-card,
+.app-shell .invites-section,
+.app-shell .invite-status-banner,
+.app-shell .invite-action-banner,
+.app-shell .space-filter-panel,
+.app-shell .month-view-container,
+.app-shell .heatmap-card-panel,
+.app-shell .v34-card,
+.app-shell .v34-dashboard > * {
+  background: #FFFFFF !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  border-radius: 4px !important;
+  border: 1px solid #EEEEEE !important;
+  background-image: none !important;
+}
+
+/* 사이드/관리자 내비도 동일 */
+.app-shell .admin-side-nav,
+.app-shell .side-nav,
+.app-shell .admin-sidebar {
+  background: #FFFFFF !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  border: 1px solid #EEEEEE !important;
+}
+
+/* (V36-3) Global Nav — Tesla floating bar 느낌, no shadow, no border-bottom */
+.app-shell .global-nav,
+.app-shell .global-nav-inner {
+  background: #FFFFFF !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid #EEEEEE !important;
+}
+.app-shell .global-nav {
+  border-bottom: none !important;
+}
+.app-shell .global-nav-inner {
+  padding: 12px 24px !important;
+}
+
+/* 네비 텍스트: Carbon Dark, 4px radius, hover 시 Light Ash */
+.app-shell .global-nav .nav-brand,
+.app-shell .global-nav .nav-brand *,
+.app-shell .global-nav .nav-link,
+.app-shell .global-nav .nav-link *,
+.app-shell .global-nav .nav-link i,
+.app-shell .global-nav .nav-link span,
+.app-shell .global-nav .nav-user-name,
+.app-shell .global-nav .nav-hamburger,
+.app-shell .global-nav .nav-hamburger * {
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  text-shadow: none !important;
+}
+.app-shell .global-nav .nav-brand {
+  color: #171A20 !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  letter-spacing: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  text-decoration: none !important;
+}
+.app-shell .global-nav .nav-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+  background: transparent !important;
+  transition: background-color 0.33s, color 0.33s !important;
+  min-height: 32px !important;
+}
+.app-shell .global-nav .nav-link:hover {
+  background: #F4F4F4 !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+}
+.app-shell .global-nav .nav-link.is-active,
+.app-shell .global-nav .nav-link.active {
+  background: #F4F4F4 !important;
+  color: #3E6AE1 !important;
+  -webkit-text-fill-color: #3E6AE1 !important;
+}
+.app-shell .global-nav .nav-link.is-active i,
+.app-shell .global-nav .nav-link.active i {
+  color: #3E6AE1 !important;
+  -webkit-text-fill-color: #3E6AE1 !important;
+}
+
+/* 햄버거 바 = Carbon Dark */
+.app-shell .global-nav .nav-hamburger .hb-bar {
+  background: #171A20 !important;
+}
+.app-shell .global-nav .nav-hamburger:hover .hb-bar {
+  background: #3E6AE1 !important;
+}
+
+/* 아바타 → Electric Blue 단색 (그라디언트 제거) */
+.app-shell .global-nav .nav-avatar {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+/* (V36-4) ▣ 새 로고 (.tesla-brand) 스타일
+   기존 .brand-bars 막대 로고를 SVG 모노그램 + 자간 워드마크로 교체 */
+.app-shell .tesla-brand {
+  color: #171A20 !important;
+  text-decoration: none !important;
+}
+.app-shell .tesla-logo-mark {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  color: #171A20 !important;
+  flex-shrink: 0 !important;
+}
+.app-shell .tesla-logo-mark svg {
+  display: block !important;
+  width: 26px !important;
+  height: 26px !important;
+}
+.app-shell .tesla-logo-wordmark {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  gap: 2px !important;
+}
+.app-shell .tesla-logo-eng {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.32em !important;   /* Tesla 워드마크 식 자간 */
+  text-indent: 0.32em !important;       /* 마지막 자간 보정 */
+  color: #171A20 !important;
+  text-transform: uppercase !important;
+}
+.app-shell .tesla-logo-kor {
+  font-weight: 400 !important;
+  font-size: 10px !important;
+  letter-spacing: 0 !important;
+  color: #5C5E62 !important;
+  white-space: nowrap !important;
+}
+
+/* (V36-5) 본문 텍스트 컬러 통일 */
+.app-shell,
+.app-shell h1, .app-shell h2, .app-shell h3, .app-shell h4, .app-shell h5, .app-shell h6 {
+  color: #171A20 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+.app-shell p, .app-shell li, .app-shell td, .app-shell th, .app-shell label, .app-shell span, .app-shell div {
+  letter-spacing: 0 !important;
+}
+.app-shell .stat-label,
+.app-shell .stat-trend,
+.app-shell .summary-card-text,
+.app-shell .text-muted,
+.app-shell .muted,
+.app-shell small {
+  color: #5C5E62 !important;
+  -webkit-text-fill-color: #5C5E62 !important;
+}
+
+/* (V36-6) 모든 분홍/그라디언트/핑크 → Electric Blue 한 곳에서 박살내기 */
+.app-shell [style*="#FF385C"],
+.app-shell [style*="#E31C5F"],
+.app-shell [style*="rgb(255, 56, 92)"],
+.app-shell [style*="rgb(227, 28, 95)"] {
+  /* 인라인 style의 색은 직접 못 잡지만 동일 시각 효과 위해 보조 */
+}
+
+/* 그라디언트가 들어간 모든 헤더/배너/카드 → flat 화이트 */
+.app-shell .v34-card,
+.app-shell .v34-card--greet,
+.app-shell .v34-card--next,
+.app-shell .v34-card--stat,
+.app-shell .v34-card--stat2,
+.app-shell .v34-card--quick,
+.app-shell .v34-card--today {
+  background: #FFFFFF !important;
+  background-image: none !important;
+  border: 1px solid #EEEEEE !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  color: #171A20 !important;
+}
+.app-shell .v34-card *,
+.app-shell .v34-card h1,
+.app-shell .v34-card h2,
+.app-shell .v34-card h3,
+.app-shell .v34-card p,
+.app-shell .v34-card span {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}
+.app-shell .v34-card .v34-card__title,
+.app-shell .v34-card h2,
+.app-shell .v34-card h3 {
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  font-weight: 600 !important;
+}
+.app-shell .v34-card .v34-card__sub,
+.app-shell .v34-card .v34-card__meta {
+  color: #5C5E62 !important;
+  -webkit-text-fill-color: #5C5E62 !important;
+}
+
+/* greet 카드(분홍 그라디언트) → 흰 카드 + 좌측 Electric Blue 액센트 라인 */
+.app-shell .v34-card--greet {
+  position: relative !important;
+  padding-left: 24px !important;
+}
+.app-shell .v34-card--greet::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0; top: 12px; bottom: 12px;
+  width: 3px;
+  background: #3E6AE1 !important;
+  border-radius: 0 !important;
+}
+
+/* next 카드의 강조 텍스트가 분홍이면 → Electric Blue */
+.app-shell .v34-card--next .v34-next-time,
+.app-shell .v34-card--next strong,
+.app-shell .v34-card--next b {
+  color: #3E6AE1 !important;
+  -webkit-text-fill-color: #3E6AE1 !important;
+}
+
+/* 받은 초대(클릭 가능) 호버 → 분홍 그림자 대신 Electric Blue 보더 */
+.app-shell .v34-card.v34-invite-clickable {
+  cursor: pointer !important;
+  transition: border-color 0.33s, transform 0.33s !important;
+}
+.app-shell .v34-card.v34-invite-clickable:hover {
+  transform: none !important;
+  border-color: #3E6AE1 !important;
+  box-shadow: none !important;
+}
+.app-shell .v34-card.v34-invite-disabled {
+  cursor: default !important;
+  opacity: 0.85 !important;
+}
+
+/* (V36-7) 모든 버튼 — Tesla flat 4px radius */
+.app-shell .btn,
+.app-shell .btn-primary,
+.app-shell button:not(.nav-hamburger):not(.mobile-nav-close):not([class*="v35-invite"]),
+.app-shell .v34-card button,
+.app-shell .quick-action-btn,
+.app-shell .v34-quick-btn {
+  font-family: inherit !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  border-radius: 4px !important;
+  border: 1px solid #D0D1D2 !important;
+  background: #FFFFFF !important;
+  background-image: none !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  box-shadow: none !important;
+  min-height: 40px !important;
+  padding: 0 20px !important;
+  transition: background-color 0.33s, border-color 0.33s, color 0.33s !important;
+  cursor: pointer !important;
+  text-shadow: none !important;
+}
+.app-shell .btn:hover,
+.app-shell button:not(.nav-hamburger):not(.mobile-nav-close):not([class*="v35-invite"]):hover {
+  background: #F4F4F4 !important;
+  border-color: #5C5E62 !important;
+}
+
+/* Primary 버튼 = Electric Blue */
+.app-shell .btn-primary,
+.app-shell .btn.is-primary,
+.app-shell button.primary,
+.app-shell .v34-quick-btn--primary,
+.app-shell button[type="submit"]:not(.v35-invite-decline) {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  border-color: #3E6AE1 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+}
+.app-shell .btn-primary:hover,
+.app-shell .btn.is-primary:hover,
+.app-shell button.primary:hover,
+.app-shell .v34-quick-btn--primary:hover,
+.app-shell button[type="submit"]:not(.v35-invite-decline):hover {
+  background: #2A56D1 !important;
+  border-color: #2A56D1 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+}
+
+/* Danger/Delete 버튼은 회색으로 (Tesla는 빨강/분홍 안 씀) → 단, 텍스트만 살짝 어둡게 */
+.app-shell .btn-danger,
+.app-shell button.danger,
+.app-shell .btn-delete {
+  background: #FFFFFF !important;
+  border-color: #D0D1D2 !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+}
+.app-shell .btn-danger:hover,
+.app-shell button.danger:hover,
+.app-shell .btn-delete:hover {
+  background: #F4F4F4 !important;
+  border-color: #393C41 !important;
+}
+
+/* (V36-8) 모달 — V35 invite 모달 accept 버튼은 그라디언트 → flat Electric Blue */
+.v35-invite-accept,
+.app-shell .v35-invite-accept {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  border: 1px solid #3E6AE1 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+}
+.v35-invite-accept:hover,
+.app-shell .v35-invite-accept:hover {
+  background: #2A56D1 !important;
+  border-color: #2A56D1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.v35-invite-decline {
+  border-radius: 4px !important;
+  background: #FFFFFF !important;
+  border: 1px solid #D0D1D2 !important;
+  color: #393C41 !important;
+}
+.v35-invite-modal {
+  border-radius: 8px !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.18) !important;
+}
+
+/* 예약 모달(기존 #reservation-modal)도 Tesla 톤으로 — 단 모달은 .app-shell 밖에 있을 수 있어 보강 */
+.reservation-modal,
+.modal-content {
+  border-radius: 8px !important;
+}
+.reservation-modal .btn-primary,
+.modal-content .btn-primary,
+.reservation-modal button[type="submit"],
+.modal-content button[type="submit"] {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  border-color: #3E6AE1 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+/* (V36-9) 입력/폼 */
+.app-shell input[type="text"],
+.app-shell input[type="email"],
+.app-shell input[type="password"],
+.app-shell input[type="number"],
+.app-shell input[type="date"],
+.app-shell input[type="time"],
+.app-shell input[type="search"],
+.app-shell input[type="tel"],
+.app-shell input[type="url"],
+.app-shell select,
+.app-shell textarea {
+  background: #FFFFFF !important;
+  background-image: none !important;
+  border: 1px solid #D0D1D2 !important;
+  border-radius: 4px !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  font-size: 14px !important;
+  padding: 10px 12px !important;
+  min-height: 40px !important;
+  box-shadow: none !important;
+  transition: border-color 0.33s !important;
+}
+.app-shell input:focus,
+.app-shell select:focus,
+.app-shell textarea:focus {
+  outline: none !important;
+  border-color: #3E6AE1 !important;
+  box-shadow: 0 0 0 2px rgba(62,106,225,0.18) !important;
+}
+.app-shell input::placeholder,
+.app-shell textarea::placeholder {
+  color: #8E8E8E !important;
+  -webkit-text-fill-color: #8E8E8E !important;
+}
+
+/* (V36-10) 탭/필터 칩 — 분홍 활성 → Electric Blue */
+.app-shell .tab-btn.is-active,
+.app-shell .tab.is-active,
+.app-shell .filter-chip.is-active,
+.app-shell .chip.is-active,
+.app-shell .segment.is-active,
+.app-shell button.is-active {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border-color: #3E6AE1 !important;
+}
+.app-shell .tab-btn,
+.app-shell .tab,
+.app-shell .filter-chip,
+.app-shell .chip,
+.app-shell .segment {
+  border-radius: 4px !important;
+  background: #FFFFFF !important;
+  border: 1px solid #D0D1D2 !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+}
+
+/* (V36-11) 배지 — 분홍 → Electric Blue 또는 회색 */
+.app-shell .badge,
+.app-shell .pill,
+.app-shell .tag {
+  border-radius: 4px !important;
+  background: #F4F4F4 !important;
+  color: #393C41 !important;
+  -webkit-text-fill-color: #393C41 !important;
+  border: 1px solid #EEEEEE !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  padding: 2px 8px !important;
+}
+.app-shell .badge.is-primary,
+.app-shell .badge--primary,
+.app-shell .pill.is-primary,
+.app-shell .tag.is-primary {
+  background: #3E6AE1 !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  border-color: #3E6AE1 !important;
+}
+
+/* (V36-12) 타임라인 그리드 — 핑크 예약 블록 처리는 인라인 스타일이라 보강하기 어려움 →
+   대신 타임라인 컨테이너 자체를 flat 화이트로 통일, 헤더 보더만 회색 */
+.app-shell .timeline-container {
+  border-radius: 4px !important;
+}
+.app-shell .timeline-header-cell {
+  background: #FFFFFF !important;
+  border-bottom: none !important;
+  box-shadow: 0 1px 0 #EEEEEE !important;
+  color: #171A20 !important;
+}
+.app-shell .timeline-header-cell .space-name,
+.app-shell .timeline-header-cell .space-name-text {
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  font-weight: 500 !important;
+}
+/* 시간 셀(00:00 ...) */
+.app-shell .timeline-time-col {
+  background: #FFFFFF !important;
+  border-right: 1px solid #EEEEEE !important;
+}
+.app-shell .timeline-time-cell {
+  color: #5C5E62 !important;
+  -webkit-text-fill-color: #5C5E62 !important;
+  font-weight: 400 !important;
+}
+.app-shell .timeline-time-cell:first-child {
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  font-weight: 500 !important;
+}
+
+/* 예약 블록 — 호버 시 보더만 변경, 그림자 없음 */
+.app-shell .reservation-block,
+.app-shell .timeline-event,
+.app-shell .reservation-cell {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+/* (V36-13) 사이드 드로어(모바일 햄버거 메뉴) */
+.app-shell .mobile-nav-overlay {
+  background: rgba(23,26,32,0.55) !important;
+}
+.app-shell .mobile-nav-drawer,
+.mobile-nav-drawer {
+  background: #FFFFFF !important;
+  border-radius: 0 !important;
+}
+.mobile-nav-brand {
+  color: #171A20 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  font-size: 13px !important;
+}
+.mobile-nav-item {
+  color: #171A20 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+}
+.mobile-nav-item:hover {
+  background: #F4F4F4 !important;
+}
+.mobile-nav-item.is-active {
+  background: #F4F4F4 !important;
+  color: #3E6AE1 !important;
+}
+.mobile-nav-item.is-active i {
+  color: #3E6AE1 !important;
+}
+.mobile-nav-close {
+  color: #171A20 !important;
+  background: transparent !important;
+}
+
+/* (V36-14) 사이드 라벨(좌측 거대 텍스트 '메이트리그라운드') Tesla 톤으로 */
+.app-shell .side-label {
+  color: #EEEEEE !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2em !important;
+}
+
+/* (V36-15) 일반 링크/액션 텍스트 — 분홍 → Electric Blue */
+.app-shell a:not(.nav-brand):not(.nav-link):not(.mobile-nav-item):not(.tesla-brand) {
+  color: #3E6AE1 !important;
+  -webkit-text-fill-color: #3E6AE1 !important;
+  text-decoration: none !important;
+}
+.app-shell a:not(.nav-brand):not(.nav-link):not(.mobile-nav-item):not(.tesla-brand):hover {
+  text-decoration: underline !important;
+}
+
+/* (V36-16) 테이블 */
+.app-shell table {
+  background: #FFFFFF !important;
+  border-radius: 4px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+.app-shell table th {
+  background: #F4F4F4 !important;
+  color: #171A20 !important;
+  -webkit-text-fill-color: #171A20 !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid #EEEEEE !important;
+  letter-spacing: 0 !important;
+}
+.app-shell table td {
+  color: #393C41 !important;
+  -webkit-text-fill-color: #393C41 !important;
+  border-bottom: 1px solid #F4F4F4 !important;
+}
+
+/* (V36-17) 차트 카드 등 정렬 */
+.app-shell .chart-card canvas,
+.app-shell .insight-heatmap canvas {
+  background: transparent !important;
+}
+
+/* (V36-18) 입력/검색 바 */
+.app-shell .search-bar,
+.app-shell .filter-bar {
+  background: #FFFFFF !important;
+  border: 1px solid #EEEEEE !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+/* (V36-19) 토글/체크박스 — 분홍 → Electric Blue */
+.app-shell input[type="checkbox"],
+.app-shell input[type="radio"] {
+  accent-color: #3E6AE1 !important;
+}
+
+/* (V36-20) 모든 분홍 inline 컬러(boxes that set background:#FF385C via JS) 보강 */
+.app-shell [data-accent="primary"],
+.app-shell .accent-primary {
+  background: #3E6AE1 !important;
+  color: #FFFFFF !important;
+}
+
+/* (V36-21) 반응형 — 모바일 우선 보정
+   화면 짤림/이탈/터치 영역 모두 정상화 */
+@media (max-width: 768px) {
+  /* 글로벌 네비 좌우 패딩 축소 + 로고 자간 축소 */
+  .app-shell .global-nav-inner {
+    padding: 10px 14px !important;
+    gap: 8px !important;
+  }
+  .app-shell .tesla-logo-eng {
+    font-size: 11px !important;
+    letter-spacing: 0.24em !important;
+    text-indent: 0.24em !important;
+  }
+  .app-shell .tesla-logo-kor {
+    font-size: 9px !important;
+  }
+  .app-shell .tesla-logo-mark {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .app-shell .tesla-logo-mark svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* 본문 컨테이너 좌우 패딩이 너무 좁으면 보강 */
+  .app-shell .page-wrap,
+  .app-shell main,
+  .app-shell .content-wrap {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 카드/패널 가로 넘침 방지 */
+  .app-shell .v34-card,
+  .app-shell .stat-card,
+  .app-shell .summary-card,
+  .app-shell .timeline-container,
+  .app-shell .insight-card,
+  .app-shell .admin-content-card {
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+  .app-shell .timeline-container {
+    /* 타임라인은 가로 스크롤 허용 — 안에서 처리 */
+    overflow: visible !important;
+  }
+  .app-shell .timeline-container .timeline-scroll,
+  .app-shell .timeline-viewport-container {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 모든 버튼 최소 터치 영역 44px (WCAG) */
+  .app-shell .btn,
+  .app-shell button:not(.nav-hamburger) {
+    min-height: 44px !important;
+    padding: 0 18px !important;
+    font-size: 14px !important;
+  }
+
+  /* nav-link 모바일에선 숨김(햄버거에서 처리) - 기존 동작 유지하되 깨지지 않도록 */
+  .app-shell .global-nav .nav-link {
+    min-height: 40px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* 모바일 드로어 패딩 */
+  .mobile-nav-drawer {
+    padding: 16px !important;
+  }
+  .mobile-nav-item {
+    min-height: 48px !important;
+    font-size: 15px !important;
+  }
+
+  /* 입력 폼 모바일 최소 높이 */
+  .app-shell input,
+  .app-shell select,
+  .app-shell textarea {
+    min-height: 44px !important;
+    font-size: 16px !important;   /* iOS 자동 zoom 방지 */
+  }
+
+  /* 모달 모바일 안전 영역 */
+  .v35-invite-overlay,
+  .modal-overlay,
+  .reservation-modal-overlay {
+    padding: 12px !important;
+  }
+  .v35-invite-modal,
+  .reservation-modal,
+  .modal-content {
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* 표 모바일 가로 스크롤 */
+  .app-shell .data-table-wrapper,
+  .app-shell table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: block !important;
+  }
+
+  /* 받은 초대 모바일 버튼 행 정리 */
+  .v35-invite-item__actions {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .v35-invite-accept,
+  .v35-invite-decline {
+    flex: 1 !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+  }
+}
+
+/* (V36-22) 더 작은 화면(<420px) — 워드마크 영문 줄여서 줄바꿈 방지 */
+@media (max-width: 420px) {
+  .app-shell .tesla-logo-eng {
+    font-size: 10px !important;
+    letter-spacing: 0.18em !important;
+    text-indent: 0.18em !important;
+  }
+  .app-shell .tesla-logo-kor {
+    display: none !important;   /* 너무 좁으면 한글 숨김, 영문 워드마크만 */
+  }
+  .app-shell .global-nav-inner {
+    padding: 10px 10px !important;
+  }
+}
+
+/* (V36-23) 매우 큰 화면(>1440px) — 최대 폭 제한 */
+@media (min-width: 1441px) {
+  .app-shell .global-nav-inner {
+    max-width: 1383px !important;
+    margin: 0 auto !important;
+  }
+}
+
+/* (V36-24) 마지막 보강 — 기존 인라인 스타일이 분홍을 강제로 박는 경우를 위한 가능한 한 최대한
+   ⚠️ 인라인 style은 CSS로 100% 못 잡지만, JS가 컬러 클래스를 쓰는 경우는 잡힘 */
+.app-shell .text-primary,
+.app-shell .text-pink,
+.app-shell .text-rausch,
+.app-shell .text-accent {
+  color: #3E6AE1 !important;
+  -webkit-text-fill-color: #3E6AE1 !important;
+}
+.app-shell .bg-primary,
+.app-shell .bg-pink,
+.app-shell .bg-rausch,
+.app-shell .bg-accent {
+  background: #3E6AE1 !important;
+  background-image: none !important;
+  color: #FFFFFF !important;
+}
+
+/* === V36 END (Tesla Design System) === */

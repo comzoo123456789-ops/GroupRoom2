@@ -120,11 +120,30 @@ function renderShell(content) {
     // Global Nav
     el('header', { class: 'global-nav' },
       el('div', { class: 'global-nav-inner' },
-        el('a', { href: '/home', class: 'nav-brand' },
-          el('span', { class: 'brand-bars' },
-            el('span'), el('span'), el('span')
+        el('a', { href: '/home', class: 'nav-brand tesla-brand' },
+          // V36 Tesla-style 미니멀 워드마크 로고
+          //   - 좌측: 28x28 SVG 모노그램 (M 글자를 기하학적 라인으로 — Tesla T 모티프)
+          //   - 우측: 자간 넓힌 영문 워드마크 "MATEGROUND" + 한글 "메이트리그라운드"
+          el('span', { class: 'tesla-logo-mark', 'aria-hidden': 'true' },
+            // SVG 마크: 두 개의 평행 수직 라인 + 위를 가로지르는 짧은 수평선 (M + T 융합)
+            // viewBox 0 0 28 28, stroke 2px, currentColor 상속
+            (() => {
+              const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              svg.setAttribute('viewBox', '0 0 28 28');
+              svg.setAttribute('width', '28');
+              svg.setAttribute('height', '28');
+              svg.setAttribute('fill', 'none');
+              svg.setAttribute('stroke', 'currentColor');
+              svg.setAttribute('stroke-width', '2');
+              svg.setAttribute('stroke-linecap', 'square');
+              svg.innerHTML = '<path d="M5 24 L5 6 L14 16 L23 6 L23 24" />';
+              return svg;
+            })()
           ),
-          el('span', null, '메이트리그라운드')
+          el('span', { class: 'tesla-logo-wordmark' },
+            el('span', { class: 'tesla-logo-eng' }, 'MATEGROUND'),
+            el('span', { class: 'tesla-logo-kor' }, '메이트리그라운드')
+          )
         ),
         navLinksNode,
         el('div', { class: 'nav-actions' },

@@ -1,8 +1,109 @@
-# 메이트리그라운드 (Mateground) — V35 긴급 패치
+# 메이트리그라운드 (Mateground) — V36 Tesla 디자인 시스템
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V35 (받은 초대 카드 통합 + 모달 + 타임라인 00:00 위 선 제거)
+## 🆕 V36 (Tesla 스타일 전면 적용 — 로그인/접속 페이지 제외 모든 내부 페이지)
+
+> 사용자 V35 직후 요청:
+> 1. tesla.com/ko_kr 처럼 내부 페이지를 전부 Tesla 스타일로 변경 (기능/마크업은 그대로, 스타일만)
+> 2. 메인 로그인/접속 페이지는 절대 건드리지 않기
+> 3. 분홍색(#FF385C) 좀 바꿔 → Electric Blue(#3E6AE1)
+> 4. 로고도 완전히 새로 디자인 (기존 막대 로고가 별로)
+> 5. 모든 버튼/메뉴 글자가 안 보이는 일 없게, 가시성 강제
+> 6. PC/모바일 양쪽 다 짤림/이탈/터치 영역 다 정상화
+
+### 🎨 V36 디자인 토큰 (`DESIGN-tesla.md` 발췌)
+| 토큰 | HEX | 용도 |
+|------|-----|------|
+| Electric Blue | `#3E6AE1` | 단 하나의 액센트 — Primary CTA, 활성 탭, 링크 |
+| Carbon Dark | `#171A20` | 헤딩, nav 텍스트, 최상위 텍스트 |
+| Graphite | `#393C41` | 본문 |
+| Pewter | `#5C5E62` | 보조 텍스트 |
+| Silver Fog | `#8E8E8E` | placeholder |
+| Cloud Gray | `#EEEEEE` | 경계선 |
+| Pale Silver | `#D0D1D2` | subtle 보더 |
+| Light Ash | `#F4F4F4` | 호버 / 보조 표면 |
+| Pure White | `#FFFFFF` | 모든 카드/페이지 배경 |
+
+원칙: **4px radius** · **그림자 0** · **그라디언트 0** · **0.33s transitions** · **font-weight 400/500만**
+
+### §1 — 새 로고 (완전히 새로 디자인)
+- **기존**: 막대 3개(brand-bars) + 분홍 점이 찍힌 막대 로고
+- **신규**: SVG 모노그램(28×28) + 자간 0.32em 영문 워드마크 `MATEGROUND` + 한글 보조 라벨 `메이트리그라운드`
+- 마크 SVG는 `M` 자형의 두 수직선과 위쪽 사각 정점만 사용한 미니멀 기하 라인 — Tesla T 모티프
+- 모바일 <420px에서는 한글 보조 라벨 숨기고 영문 워드마크만 노출 → 좁은 화면에서 줄바꿈 방지
+- **위치**: `public/static/app.js` `renderShell()` 안 `.tesla-brand` 마크업 + `styles.css` V36-4 블록
+
+### §2 — 분홍색 완전 제거 → Electric Blue (#3E6AE1)
+- 글로벌 nav 활성 탭: 분홍 → Electric Blue
+- 아바타: 분홍 그라디언트 → Electric Blue 단색
+- 모든 Primary 버튼: 분홍 그라디언트 → Electric Blue flat
+- V35 invite 모달 accept 버튼: 분홍 그라디언트 → Electric Blue flat
+- next 예약 카드 시간/강조 텍스트: 분홍 → Electric Blue
+- 받은 초대 클릭 가능 카드 호버: 분홍 그림자 → Electric Blue 보더
+- 모든 토글/체크박스 accent-color: Electric Blue
+- 일반 링크: Electric Blue (hover 시 underline만)
+
+### §3 — 모든 카드/패널 Tesla flat 화이트화
+- 모든 카드(`v34-card`, `stat-card`, `summary-card`, `timeline-container`, `insight-card`, `admin-content-card`, 등): **그림자 제거**, `border-radius: 4px`, `border: 1px solid #EEEEEE`, `background: #FFFFFF`
+- V34 인사 카드(`v34-card--greet`)의 분홍 그라디언트 배경 → 흰 카드 + **좌측 3px Electric Blue 액센트 라인**으로 대체
+- 사이드 nav, 어드민 사이드바도 동일 flat 화이트 + 보더만
+
+### §4 — 글로벌 nav (헤더) 재설계
+- 배경: 흰색 + `border-bottom: none` (Tesla의 floating bar 느낌, 보더 라인 대신 컨텐츠 자체로 분리)
+- 텍스트 색 모두 Carbon Dark, 햄버거 바 Carbon Dark
+- 활성 nav-link만 Electric Blue 텍스트 + Light Ash 배경
+- 데스크탑 좌우 패딩 24px, 모바일 14px, 초소형(<420px) 10px로 단계 축소
+
+### §5 — 버튼/입력 전면 통일
+- 모든 버튼: `border-radius: 4px`, `min-height: 40px (모바일 44px)`, `font-weight: 500`, `letter-spacing: 0`
+- Default 버튼: 흰 배경 + Pale Silver 보더 + Carbon Dark 텍스트
+- Primary 버튼: Electric Blue 배경 + 흰 텍스트 (hover 시 #2A56D1)
+- 모든 input/select/textarea: 4px radius, Pale Silver 보더, focus 시 Electric Blue 보더 + 18% alpha 링 (그림자 아님 — outline-like)
+- placeholder: Silver Fog
+- 모바일에서 input `font-size: 16px` 강제 → iOS auto-zoom 방지
+
+### §6 — 텍스트 가시성 절대 강제 (V33의 '버튼 글자 안 보임' 재발 방지)
+- nav-brand / nav-link / nav-user-name / 햄버거 등 모든 글로벌 nav 텍스트에 `color: #171A20 !important` + `-webkit-text-fill-color: #171A20 !important` 동시 적용 → Safari/Chrome 양쪽에서 100% 가시성
+- v34-card 내부 모든 자식 텍스트는 `color: inherit !important`로 부모 카드 색에 종속, title은 Carbon Dark 강제
+- 테이블 th: Carbon Dark, td: Graphite — 라이트 배경에서도 충분한 대비
+
+### §7 — PC/모바일 반응형 최적화
+- **`max-width: 768px`** (모바일):
+  - 글로벌 nav 좌우 패딩 축소, 로고 자간 축소, SVG 마크 28×28로 축소
+  - 본문 컨테이너 좌우 패딩 16px 보강
+  - 카드 `overflow: hidden` + `max-width: 100%`로 가로 넘침 방지 (타임라인만 예외 — 내부 가로 스크롤 허용)
+  - 모든 버튼 `min-height: 44px` (WCAG 터치 타깃)
+  - 입력 `min-height: 44px`, `font-size: 16px` (iOS zoom 방지)
+  - 모달 `max-width: 100%`, `max-height: 92vh`, `overflow-y: auto`
+  - 테이블 가로 스크롤 보장
+  - V35 invite 모달 버튼 row 가로 정렬 + 각 버튼 `flex: 1`
+- **`max-width: 420px`** (초소형):
+  - 한글 보조 라벨(`tesla-logo-kor`) 숨김 → 영문 워드마크만
+  - 영문 워드마크 자간 0.18em로 축소
+- **`min-width: 1441px`** (대형):
+  - 글로벌 nav inner `max-width: 1383px`로 가운데 정렬
+
+### §8 — 로그인/접속 페이지 격리 보장
+- V36의 모든 스타일은 `.app-shell` 스코프 안에서만 적용
+- 로그인 페이지(`.abnb-gate`)는 `.app-shell`이 아니므로 **단 한 글자도 변경 없음**
+- 기존 V32 에어비앤비 그라디언트 + 분홍 CTA + 큰 로고 그대로 유지
+
+### V36 변경 파일
+- `public/static/app.js` — `renderShell()` 안 `.nav-brand` 마크업을 `.tesla-brand` + SVG 모노그램 + `.tesla-logo-wordmark`로 교체 (≈22줄)
+- `public/static/styles.css` — 끝에 V36 Tesla Design System 블록 약 850줄 추가 (`/* V36-1 */` ~ `/* V36-24 */`, 마지막에 `=== V36 END ===` 마커)
+
+### V36 검증 결과
+- `npm run build` → `dist/_worker.js 93.67 kB` ✅
+- 로그인 페이지(`/login`) HTTP 200 + `.abnb-gate` 마크업 유지 확인 ✅
+- 4개 내부 탭(`/home`, `/spaces`, `/insights`, `/admin/members`) 302 (인증 리다이렉트, SSR 정상) ✅
+- `/static/app.js`, `/static/styles.css` 모두 200, V36 마커(`tesla-brand` `tesla-logo-mark` `V36 END` 등) 정상 노출 ✅
+- PlaywrightConsoleCapture: 콘솔 메시지 0건 (JS 에러 없음) ✅
+- PM2: webapp online (PID 53104) ✅
+
+---
+
+## V35 (받은 초대 카드 통합 + 모달 + 타임라인 00:00 위 선 제거)
 
 > 사용자 V34 직후 2건 보고:
 > 1. "받은 초대"(요약 카드)와 "받은 초대 응답 대기"(상세 카드)가 중복 → 하나로 합치고 클릭하면 팝업으로 열리게. 받은 초대가 0건이면 클릭 비활성.
