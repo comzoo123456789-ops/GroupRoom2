@@ -429,21 +429,8 @@ async function renderHome() {
     return d.isAfter(today.subtract(1,'day')) && d.isBefore(today.add(7,'day'));
   }).length;
 
-  // 인사말 (시간대별)
-  const hour = today.hour();
-  const greeting = hour < 6 ? '늦은 시각이네요' : hour < 12 ? '좋은 아침입니다' : hour < 18 ? '오늘도 화이팅' : '오늘 하루도 수고하셨어요';
-
-  // ── 카드 1: 인사 (전체 폭, 핑크 그라디언트) ──
-  const greetCard = el('section', { class: 'v34-card v34-card--greet' },
-    el('div', { class: 'v34-greet-text' },
-      el('h2', null, `${State.user.name}님, ${greeting}`),
-      el('p', null, today.locale('ko').format('YYYY년 M월 D일 dddd') + ' · ' + (State.user?.tenant_id === 'WYLIE' ? '와일리' : '러쉬코리아'))
-    ),
-    el('div', { class: 'v34-greet-date' },
-      el('div', { class: 'v34-greet-date-month' }, today.locale('en').format('MMM')),
-      el('div', { class: 'v34-greet-date-day' }, today.format('D'))
-    )
-  );
+  // V43 §3: 인사말 헤더 박스 완전 제거 (사용자 요청 — 소스에서 모두 제거)
+  //   → 그 자리에 "퀵 메뉴" (이전 "빠른 진입") 카드를 배치 (아래쪽에 정의)
 
   // ── 카드 2: 다음 일정 ──
   const nextCard = el('section', {
@@ -470,46 +457,51 @@ async function renderHome() {
       : el('p', { class: 'v34-next-empty' }, '예정된 일정이 없습니다.')
   );
 
-  // ── 카드 3: 이번 주 일정 개수 ──
-  const weekCard = el('section', { class: 'v34-card v34-card--stat' },
-    el('div', { class: 'v34-card__head' },
-      el('h3', { class: 'v34-card__title' }, '이번 주 일정'),
-      el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-calendar-check' }))
-    ),
-    el('div', { class: 'v34-stat-row' },
-      el('h2', { class: 'v34-card__big' }, String(myWeekCount)),
-      el('span', { class: 'v34-stat-unit' }, '건')
-    ),
-    el('p', { class: 'v34-card__sub' }, `예정 ${upcomingList.length}건 · 오늘 ${todayList.length}건`)
-  );
-
-  // ── 카드 4: 받은 초대 (V35: 클릭하면 팝업 모달 / 0이면 비활성화) ──
+  // V43 §4: 이번 주 일정 + 받은 초대 → 좌 50% / 우 50% 분할 단일 카드로 병합
+  //   사용자 요청: "보는 용도로 크게 할 필요없으니" 콤팩트 모드
   const hasInvites = invitations.length > 0;
-  const inviteCard = el('section', {
-    class: 'v34-card v34-card--stat2' + (hasInvites ? ' is-clickable v34-invite-clickable' : ' v34-invite-disabled'),
-    style: hasInvites ? 'cursor:pointer;' : 'cursor:default;opacity:0.85;',
-    onclick: hasInvites ? () => openInviteModal(invitations) : null,
-    title: hasInvites ? '클릭하면 초대 상세를 확인할 수 있어요' : '',
-  },
-    el('div', { class: 'v34-card__head' },
-      el('h3', { class: 'v34-card__title' }, '받은 초대'),
-      el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-envelope-open-text' }))
+  const weekInviteCard = el('section', { class: 'v34-card v34-card--split' },
+    // 좌측 50%: 이번 주 일정
+    el('div', { class: 'v34-split-half' },
+      el('div', { class: 'v34-split-head' },
+        el('span', { class: 'v34-split-title' }, '이번 주 일정'),
+        el('i', { class: 'fa-solid fa-calendar-check v34-split-icon' })
+      ),
+      el('div', { class: 'v34-split-row' },
+        el('span', { class: 'v34-split-big' }, String(myWeekCount)),
+        el('span', { class: 'v34-split-unit' }, '건')
+      ),
+      el('p', { class: 'v34-split-sub' }, `예정 ${upcomingList.length} · 오늘 ${todayList.length}`)
     ),
-    el('div', { class: 'v34-stat-row' },
-      el('h2', { class: 'v34-card__big' }, String(invitations.length)),
-      el('span', { class: 'v34-stat-unit' }, '건')
-    ),
-    el('p', { class: 'v34-card__sub' },
-      hasInvites
-        ? el('span', null,
-            '클릭하여 응답하기 ',
-            el('i', { class: 'fa-solid fa-chevron-right', style: 'font-size:10px;margin-left:2px;' })
-          )
-        : '확인할 초대가 없습니다'
+    // 구분선
+    el('div', { class: 'v34-split-divider' }),
+    // 우측 50%: 받은 초대 (V35: 클릭하면 팝업 모달 / 0이면 비활성화)
+    el('div', {
+      class: 'v34-split-half' + (hasInvites ? ' is-clickable v34-invite-clickable' : ' v34-invite-disabled'),
+      style: hasInvites ? 'cursor:pointer;' : 'cursor:default;opacity:0.85;',
+      onclick: hasInvites ? () => openInviteModal(invitations) : null,
+      title: hasInvites ? '클릭하면 초대 상세를 확인할 수 있어요' : '',
+    },
+      el('div', { class: 'v34-split-head' },
+        el('span', { class: 'v34-split-title' }, '받은 초대'),
+        el('i', { class: 'fa-solid fa-envelope-open-text v34-split-icon', style: 'color:#FF385C;' })
+      ),
+      el('div', { class: 'v34-split-row' },
+        el('span', { class: 'v34-split-big' }, String(invitations.length)),
+        el('span', { class: 'v34-split-unit' }, '건')
+      ),
+      el('p', { class: 'v34-split-sub' },
+        hasInvites
+          ? el('span', null,
+              '클릭하여 응답 ',
+              el('i', { class: 'fa-solid fa-chevron-right', style: 'font-size:9px;margin-left:1px;' })
+            )
+          : '초대 없음'
+      )
     )
   );
 
-  // ── 카드 5: 빠른 진입 ──
+  // V43 §3: "빠른 진입" → "퀵 메뉴" rename + 위치를 인사말 카드 자리(상단)로 이동
   const quickItems = [
     { href: '/spaces', icon: 'fa-calendar-day', label: '공간 예약' },
     { href: '/spaces', icon: 'fa-plus-circle', label: '새 일정' },
@@ -519,7 +511,7 @@ async function renderHome() {
 
   const quickCard = el('section', { class: 'v34-card v34-card--quick' },
     el('div', { class: 'v34-card__head' },
-      el('h3', { class: 'v34-card__title' }, '빠른 진입'),
+      el('h3', { class: 'v34-card__title' }, '퀵 메뉴'),
       el('div', { class: 'v34-card__icon', style: 'background:#FFE4EA;color:#FF385C;' },
         el('i', { class: 'fa-solid fa-bolt' })
       )
@@ -606,14 +598,13 @@ async function renderHome() {
       )
     : null;
 
+  // V43 §3/§4: 인사말 카드 제거 + 퀵 메뉴를 최상단으로 + 이번주 일정/받은 초대 50:50 병합
   const dashboard = el('div', { class: 'v34-dashboard' },
-    greetCard,
-    nextCard,
-    weekCard,
-    inviteCard,
-    quickCard,
-    todayCard,
-    upcomingCard,
+    quickCard,        // 퀵 메뉴 (인사말 자리)
+    nextCard,         // 다음 일정
+    weekInviteCard,   // 이번주 일정 + 받은 초대 (50:50 분할)
+    todayCard,        // 오늘의 일정
+    upcomingCard,     // 앞으로의 일정
   );
 
   const main = el('main', { class: 'page-wrap' }, dashboard);

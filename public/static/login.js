@@ -158,15 +158,16 @@
       })
       .join('');
 
+    // V43 §2: 메타 라인이 헤더 바로 아래 한 줄로 작아짐 → 텍스트 콤팩트화
     if (updatedAt) {
       if (isToday && payload && payload.now) {
-        updatedAt.textContent = `현재 시각 ${payload.now.time} 기준 · 마지막 갱신 ${formatNowLabel()}`;
+        updatedAt.textContent = `${payload.now.time} 기준 · 갱신 ${formatNowLabel()}`;
       } else {
-        updatedAt.textContent = `${formatHumanDate(viewDate)} 예약 현황 · 마지막 갱신 ${formatNowLabel()}`;
+        updatedAt.textContent = `${formatHumanDate(viewDate)} · 갱신 ${formatNowLabel()}`;
       }
     }
     if (footNote) {
-      footNote.textContent = isToday ? '10초마다 자동 갱신' : '미래/과거 날짜 — 자동 갱신 중지';
+      footNote.textContent = isToday ? '10초마다 자동 갱신' : '자동 갱신 중지';
     }
   }
 

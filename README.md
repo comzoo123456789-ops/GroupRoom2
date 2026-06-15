@@ -1,8 +1,68 @@
-# 메이트리그라운드 (Mateground) — V42 예약 후 참석자 초대 + LIVE 날짜 네비게이션 + 로그인 도메인 셀렉트
+# 메이트리그라운드 (Mateground) — V43 홈/로그인 UI 정리 (모바일 한 줄 · LIVE 메타 상단 · 인사말 제거 · 카드 병합)
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V42 (예약 후 참석자 추가/제거 + LIVE 미래 날짜 조회 + 로그인 도메인 셀렉트)
+## 🆕 V43 (홈/로그인 화면 UI 정리 — 4건 한 번에)
+
+> 사용자 V42 직후 4가지 UI 정리 요청:
+> 1. **"스마트폰에서 아이디 + 메일 도메인이 두 줄로 wrap 되는 문제 — 한 줄로 압축"** (V42 §3 모바일 미디어쿼리가 원인)
+> 2. **"현재 시각 / 마지막 갱신 / 10초마다 자동갱신 푸터를 이용 가능한 공용 회의실 아래에 작게"** — 푸터가 너무 커서 안 보임
+> 3. **"XXX님, 오늘도 화이팅 인사말 박스 완전 삭제 + 그 자리에 빠른 진입 이동 + 빠른 진입을 퀵 메뉴로 rename"**
+> 4. **"이번 주 일정 + 받은 초대 두 카드를 좌 50% / 우 50% 분할 단일 카드로 병합 — 보는 용도라 크게 할 필요 없음"**
+
+### §1 모바일 로그인 이메일 한 줄 유지
+
+- **원인**: V42 §3에서 추가했던 `@media (max-width: 480px) { .login-email-row { flex-wrap: wrap; } .login-email-input { flex: 1 1 100%; } .login-email-domain { flex: 1 1 100%; } }` 가 두 줄로 분리
+- **수정**: `flex-wrap: nowrap` + `.login-email-input { flex: 1 1 auto }` + `.login-email-domain { flex: 0 0 auto; max-width: 130px; font-size: 11px; padding: 0 6px }` 로 한 줄 압축
+- 파일: `public/static/styles.css` L8821~8836
+
+### §2 LIVE 카드 푸터 → 헤더 바로 아래 작은 메타 한 줄
+
+- **Before**: 카드 맨 아래에 `<div class="abnb-card__foot">` 두 줄(`현재 시각 13:34 기준 · 마지막 갱신 13:34:43` + `10초마다 자동 갱신`)
+- **After**: 카드 헤더(`이용 가능한 공용 회의실`) 바로 아래 `<div class="live-card-meta">` 한 줄, 작은 회색 텍스트 + 핑크 노트
+  - 좌측: `13:34 기준 · 갱신 13:34:43` (콤팩트 포맷)
+  - 우측: `10초마다 자동 갱신`
+- 푸터 컨테이너(`abnb-card__foot`)는 완전히 제거 → 카드 하단 공간 절약
+- 파일:
+  - `src/pages/login.tsx`: 푸터 블록 제거, 헤더 바로 아래 `<div class="live-card-meta">` 추가
+  - `public/static/styles.css`: `.live-card-meta` / `.live-card-meta__text` / `.live-card-meta__note` 신규 스타일
+  - `public/static/login.js` L161~170: 텍스트 포맷 콤팩트화 (`현재 시각 ... 기준 · 마지막 갱신 ...` → `... 기준 · 갱신 ...`)
+
+### §3 인사말 헤더 박스 완전 삭제 + "빠른 진입" → "퀵 메뉴" 이동/rename
+
+- **Before**: 홈 페이지 상단에 `<section class="v34-card v34-card--greet">` 큰 인사 박스 (`마스터(WYLIE)님, 오늘도 화이팅` + 부제 + 우측 날짜 칩)
+- **After**: 인사말 카드 전체 코드 삭제 (소스에서 완전 제거). 그 자리에 기존 "빠른 진입" 카드를 이동, 제목을 **"퀵 메뉴"** 로 변경
+- 영향:
+  - `greetCard` 변수 / `v34-card--greet` 클래스 / `v34-greet-text` / `${greeting}` 로직 / `hour < 6 ...` 인사말 분기 모두 삭제
+  - dashboard 카드 순서: `quickCard(퀵 메뉴) → nextCard → weekInviteCard → todayCard → upcomingCard`
+- 파일: `public/static/app.js` L432~446 영역(인사말 카드) 삭제 + L522 "빠른 진입" → "퀵 메뉴" 변경 + L612 dashboard 조립 부분 재정렬
+
+### §4 이번 주 일정 + 받은 초대 → 좌 50% / 우 50% 분할 단일 카드
+
+- **Before**: `weekCard`(이번 주 일정) + `inviteCard`(받은 초대) 두 개의 별도 카드, 각각 grid 한 셀씩 차지
+- **After**: 한 카드 `<section class="v34-card v34-card--split">` 안에 좌 50% / 우 50% 로 분할
+  - 좌측 50%: `이번 주 일정` + 큰 숫자(예: `4건`) + 부제(`예정 3 · 오늘 1`)
+  - 가운데: 1px 회색 세로 구분선
+  - 우측 50%: `받은 초대` + 큰 숫자 + 부제(`클릭하여 응답 →` 또는 `초대 없음`) — 클릭 시 V35 받은 초대 모달 호출(기존 동작 유지)
+- 콤팩트 모드: 카드 패딩 24px → 18px, 숫자 폰트 36px → 28px, 모바일에서 24px
+- 파일:
+  - `public/static/app.js`: 두 카드 정의를 `weekInviteCard` 하나로 통합
+  - `public/static/styles.css`: `.v34-card--split` / `.v34-split-half` / `.v34-split-divider` / `.v34-split-big` 등 신규 스타일 일가족
+
+### 검증
+
+- `npm run build` ✅ (`dist/_worker.js 98.73 kB · 63 modules · 0.9s`)
+- `curl /login` → `live-card-meta` 가 헤더 바로 아래 위치 + `abnb-card__foot` 완전 제거 확인
+- `curl /static/app.js` 검증:
+  - `오늘도 화이팅` 0건 (완전 삭제)
+  - `퀵 메뉴` 5건 (rename + 위치 이동)
+  - `v34-card--split` 1건 (50:50 병합)
+  - `v34-greet-text` 0건 (인사말 박스 마크업 제거)
+- `curl /static/styles.css` 검증: V43 §2, §4 마커 모두 존재 + 모바일 `flex-wrap: nowrap` 적용
+
+---
+
+## V42 (예약 후 참석자 추가/제거 + LIVE 미래 날짜 조회 + 로그인 도메인 셀렉트)
 
 > 사용자 V41 직후 세 가지 요구:
 > 1. **"예약한 상태에서 참석자 초대할 수 있게 해줘 · 예약 생성 전, 후 둘 다 참석자 초대 할 수 있게"** — 기존엔 생성 시점에만 초대 가능

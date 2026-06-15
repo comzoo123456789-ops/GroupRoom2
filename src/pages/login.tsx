@@ -36,6 +36,12 @@ export const LoginPage = () => {
             <span class="abnb-card__badge" id="live-clock">LIVE</span>
           </div>
 
+          {/* V43 §2: LIVE 카드 메타 라인 — 헤더 바로 아래 한 줄 작게 (이전 푸터 위치에서 상단으로 이동) */}
+          <div class="live-card-meta">
+            <span id="live-updated-at" class="live-card-meta__text">곧 업데이트됩니다…</span>
+            <span class="live-card-meta__note" id="live-foot-note">10초마다 자동 갱신</span>
+          </div>
+
           {/* V42 §2: 날짜 네비게이션 — < > 화살표 + 오늘 버튼 + 캘린더 input */}
           <div class="live-date-nav" id="live-date-nav">
             <button type="button" class="live-date-nav__btn" id="live-date-prev" aria-label="이전 날짜">
@@ -69,11 +75,6 @@ export const LoginPage = () => {
             <div class="abnb-room abnb-room--skeleton">
               <div class="abnb-room__name">로딩 중…</div>
             </div>
-          </div>
-
-          <div class="abnb-card__foot">
-            <span id="live-updated-at" class="abnb-card__foot-text">곧 업데이트됩니다…</span>
-            <span class="abnb-card__foot-note" id="live-foot-note">10초마다 자동 갱신</span>
           </div>
         </section>
 
