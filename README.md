@@ -1,8 +1,134 @@
-# 메이트리그라운드 (Mateground) — V41 LIVE 실시간 반영 수정 + 멤버 생성 이메일 자동완성
+# 메이트리그라운드 (Mateground) — V42 예약 후 참석자 초대 + LIVE 날짜 네비게이션 + 로그인 도메인 셀렉트
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V41 (🔥 LIVE 실시간 반영 핵심 버그 수정 + 멤버 생성 이메일 도메인 자동 부착)
+## 🆕 V42 (예약 후 참석자 추가/제거 + LIVE 미래 날짜 조회 + 로그인 도메인 셀렉트)
+
+> 사용자 V41 직후 세 가지 요구:
+> 1. **"예약한 상태에서 참석자 초대할 수 있게 해줘 · 예약 생성 전, 후 둘 다 참석자 초대 할 수 있게"** — 기존엔 생성 시점에만 초대 가능
+> 2. **"6월 30일에 5시30분~18시30분까지 예약했는데 로그인 페이지에서 < > 또는 달력에서 해당 일자 누르면 회의실 사용 가능 여부 실시간 확인 가능하게"** — 오늘 외 미래 날짜도 보기
+> 3. **"로그인 페이지에 풀 이메일 적지 말고 bhmoon@ 까지 적고 옆에 wylie.co.kr / lush.co.kr 선택해서 간편 로그인"** — 도메인 셀렉트 UI
+
+### §1 예약 생성 후에도 참석자 추가/제거 가능
+
+**Before**: 참석자는 예약 **생성 시점에만** 초대 가능 → 이후 추가/제거 수단 없음
+**After**:
+- 예약 상세 모달의 **참석자 섹션 우상단에 `[+ 참석자 추가]` 버튼** 추가 (주최자/admin 만 노출)
+- 클릭 시 **별도의 참석자 추가 모달** 열림: 멤버 검색(`/api/members/search`) → 다중 선택(체크박스 UI) → `[초대하기]`
+- 이미 초대된 멤버는 검색 결과에서 자동 비활성 + "이미 초대됨" 라벨
+- 각 참석자 행 옆에 **X 버튼**으로 단건 제거 (`confirm` 후 DELETE)
+- 추가/제거 후 자동으로 예약 상세 모달이 새로 그려져 최신 참석자 목록 표시
+
+**신규 API 엔드포인트**:
+| Method | Endpoint | 동작 |
+|--------|----------|------|
+| `POST` | `/api/reservations/:id/attendees` | 다수 참석자 일괄 초대 (PENDING) |
+| `DELETE` | `/api/reservations/:id/attendees/:memberId` | 단건 참석자 제거 |
+| `PATCH` | `/api/reservations/:id` (확장) | body 에 `attendee_ids` 가 함께 오면 신규 초대 추가 |
+
+**권한**: 주최자(`reservation.user_id === user.id`) 또는 `admin` 만 호출 가능. 그 외 403.
+
+**검증** (curl + cookie jar 7단계 전체 사이클):
+| 단계 | 결과 |
+|------|------|
+| ① 참석자 없이 예약 생성 | 예약 ID 173 생성 ✅ |
+| ② 멤버 검색 | 문병훈(10616) 발견 ✅ |
+| ③ POST `/attendees` | `invited: 1, skipped: 0` ✅ |
+| ④ GET `/:id` 상세 | `[(10616, '문병훈', 'PENDING')]` ✅ |
+| ⑤ 중복 추가 시도 | `invited: 0, skipped: 1` + 안내 메시지 ✅ |
+| ⑥ DELETE `/attendees/10616` | `removed: 1` ✅ |
+| ⑦ 제거 후 상세 | 참석자 0명 ✅ |
+
+### §2 LIVE 보드 날짜 네비게이션 — 오늘 외 미래/과거 날짜 조회
+
+**Before**: 로그인 페이지 LIVE 보드는 **오직 오늘**만 조회 가능
+**After**:
+- LIVE 카드 헤더 아래에 **날짜 네비게이션 바** 추가:
+  ```
+  [<]  [6월 15일 (월) · 오늘]  [>]  [오늘로]
+  ```
+  - **`<` / `>`** : 하루씩 이동
+  - **날짜 라벨 클릭** : HTML5 `<input type="date">.showPicker()` 호출 → 달력 picker 노출
+  - **`[오늘로]`** 버튼: 오늘이 아닐 때만 노출, 즉시 오늘로 복귀
+- **오늘이 아닐 때 회의실 카드 표시 방식**:
+  - 예약 없음 → 🟢 "예약 없음 · 하루 종일 사용 가능"
+  - 예약 있음 → 🟧 "N건 예약됨" + 슬롯 칩 `[17:30–18:30]` 형태 나열
+- **오늘이 아닐 때 폴링 중지** — 비효율적 호출 방지, 푸터에 "미래/과거 날짜 — 자동 갱신 중지" 표시
+- **오늘로 돌아오면 자동 폴링 재개**
+
+**API 확장 (`GET /api/public/available-spaces?date=YYYY-MM-DD`)**:
+```jsonc
+{
+  "now": { "date": "2026-06-15", "time": "12:03" },  // 서버 현재(KST)
+  "query_date": "2026-06-30",                         // 조회한 날짜
+  "is_today": false,                                  // 오늘인지 여부
+  "rooms": [
+    {
+      "id": 1, "name": "Meeting Room A", "capacity": 8,
+      "available": true,           // is_today=false 면 항상 true (가용성 판정 불가)
+      "current_end_at": null,
+      "next_busy_at": "17:30",     // 그 날 첫 예약 시작 시각
+      "bookings_today": [
+        { "start": "17:30", "end": "18:30", "title": "..." }
+      ]
+    }
+  ]
+}
+```
+- `date` 미지정 → 오늘(KST) 기준 + 기존 가용성 판정 로직 그대로 (V41 호환)
+- 잘못된 날짜(`2026-02-30`, `2026-13-01` 등)는 **400 + "존재하지 않는 날짜입니다."** 반환
+
+**검증**:
+- 오늘 조회 → 기존 가용성 판정 정상 동작 ✅
+- 2026-06-30 조회 → Meeting Room A 17:30-18:30 예약 슬롯 정확히 반환 ✅
+- 2026-07-15 조회 → 예약 없음, 5/5 모두 빈 슬롯 ✅
+- 2026-02-30 조회 → HTTP 400 ✅
+- 2026-13-01 조회 → HTTP 400 ✅
+
+### §3 로그인 페이지 이메일 도메인 셀렉트
+
+**Before**: `bhmoon@wylie.co.kr` 풀 이메일을 매번 풀로 타이핑 필요
+**After**:
+```
+이메일 주소: [bhmoon          ] [@wylie.co.kr ▾]
+                                  @lush.co.kr
+                                  직접 입력
+아이디만 입력하고 옆에서 도메인을 선택하세요.
+```
+- 이메일 input은 `type="text"` (브라우저 email validator 우회), placeholder `bhmoon`
+- 도메인 셀렉트 옵션 3종:
+  - `@wylie.co.kr` (기본)
+  - `@lush.co.kr`
+  - `직접 입력` (값 없음 — 풀 이메일을 input에 직접 적을 때)
+- `login.js` 제출 직전에 결합 로직:
+  - 입력값에 `@`가 없고 도메인 선택값이 있으면 → `${input}${selected}` 결합
+  - 입력값에 이미 `@`가 있으면 → 입력값 그대로 (외부 이메일 호환)
+- 모바일 480px 이하에서는 셀렉트가 한 줄 아래로 떨어지는 반응형 처리
+
+**검증**:
+- HTML: `<select id="login-email-domain">` + 3개 옵션 정상 노출 ✅
+- JS: `login-email-domain` 참조 + 결합 로직 동작 ✅
+- 백엔드 호환: 풀 이메일(`admin@wylie.co.kr`) 그대로 받아서 정상 로그인 ✅
+- CSS: `.login-email-row` / `.login-email-domain` / 모바일 미디어쿼리 적용 ✅
+
+### 📁 V42 변경 파일
+- `src/api/reservations.ts` — §1 신규 엔드포인트 2개 + PATCH attendee_ids 동기화
+- `src/api/public.ts` — §2 `?date=YYYY-MM-DD` 지원 + 엄격 날짜 검증
+- `src/pages/login.tsx` — §2 날짜 네비 바 + §3 이메일 도메인 셀렉트 마크업
+- `public/static/login.js` — §2 날짜 네비 로직 + §3 결합 로직
+- `public/static/app.js` — §1 `openAddAttendeesModal()` / `removeAttendeeFromReservation()` 신규
+- `public/static/styles.css` — V42 §1/§2/§3 신규 스타일
+
+### 📊 V42 빌드/배포 상태
+- `npm run build` ✅ (`dist/_worker.js 98.73 kB` · 63 modules · 1.01s)
+- PM2 재기동 ✅ (webapp online)
+- §1 API 7단계 사이클 모두 통과 ✅
+- §2 API 미래 날짜·잘못된 날짜 검증 모두 통과 ✅
+- §3 HTML/JS/CSS 노출 + 백엔드 호환 모두 정상 ✅
+
+---
+
+## V41 (🔥 LIVE 실시간 반영 핵심 버그 수정 + 멤버 생성 이메일 도메인 자동 부착)
 
 > 사용자 V40 직후 두 가지 결정적 지적:
 > 1. **\"첫번째 예약 되어있는 방에 대해 일정이 취소되서 삭제했는데 실시간에는 전혀 반영이 안됨, 실시간 예약 현황에 B/E룸 적용 불가한 상태\"** — 예약 생성/수정/취소가 LIVE에 전혀 안 보이는 치명적 버그

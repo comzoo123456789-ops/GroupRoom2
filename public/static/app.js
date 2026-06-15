@@ -1745,6 +1745,156 @@ async function submitReservation(force = false) {
   });
 }
 
+/**
+ * V42 §1: 예약 생성 후 참석자 추가 모달
+ *   - 멤버 검색(/api/members/search) → 다중 선택 → 일괄 초대(POST /api/reservations/:id/attendees)
+ *   - 이미 초대된 멤버는 검색 결과에서 자동 비활성
+ */
+async function openAddAttendeesModal(reservationId, alreadyInvitedIds) {
+  const alreadySet = new Set(alreadyInvitedIds || []);
+  const state = {
+    query: '',
+    suggestions: [],
+    selected: [],  // {id, name, email, avatar_color, department, position}
+  };
+
+  const fetchSuggestions = async (q) => {
+    const res = await api(`/api/members/search?q=${encodeURIComponent(q || '')}&limit=30`);
+    state.suggestions = res.ok ? (res.data?.users || []) : [];
+    renderList();
+  };
+
+  const renderList = () => {
+    const list = $('#add-att-results');
+    if (!list) return;
+    list.innerHTML = '';
+    const selectedIds = new Set(state.selected.map(s => s.id));
+    if (state.suggestions.length === 0) {
+      list.append(el('div', { style: 'padding:24px;text-align:center;color:#7a7a7a;font-size:13px;' }, '검색 결과가 없습니다.'));
+      return;
+    }
+    state.suggestions.forEach(u => {
+      const already = alreadySet.has(u.id);
+      const picked = selectedIds.has(u.id);
+      const row = el('div', {
+        class: 'add-att-row' + (already ? ' is-already' : '') + (picked ? ' is-picked' : ''),
+        style: `display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:${already ? 'not-allowed' : 'pointer'};${already ? 'opacity:0.5;' : ''}${picked ? 'background:#eaf3ff;' : ''}`,
+        onclick: () => {
+          if (already) return;
+          if (picked) {
+            state.selected = state.selected.filter(s => s.id !== u.id);
+          } else {
+            state.selected.push({ id: u.id, name: u.name, email: u.email, avatar_color: u.avatar_color, department: u.department, position: u.position });
+          }
+          renderList();
+          renderSelected();
+        }
+      },
+        el('div', { class: 'avatar', style: `background:${u.avatar_color || '#7a7a7a'};width:30px;height:30px;font-size:12px;` }, initials(u.name)),
+        el('div', { style: 'flex:1;min-width:0;' },
+          el('div', { style: 'font-size:14px;font-weight:600;color:#1d1d1f;' }, u.name),
+          el('div', { style: 'font-size:12px;color:#7a7a7a;' },
+            [u.department, u.position].filter(Boolean).join(' · ') || u.email
+          )
+        ),
+        already
+          ? el('span', { style: 'font-size:12px;color:#7a7a7a;' }, '이미 초대됨')
+          : el('i', { class: picked ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle', style: `color:${picked ? '#0066cc' : '#cfcfcf'};font-size:18px;` })
+      );
+      list.append(row);
+    });
+  };
+
+  const renderSelected = () => {
+    const tagBox = $('#add-att-selected');
+    if (!tagBox) return;
+    tagBox.innerHTML = '';
+    if (state.selected.length === 0) {
+      tagBox.append(el('span', { style: 'font-size:12px;color:#7a7a7a;' }, '선택된 멤버가 없습니다.'));
+      return;
+    }
+    state.selected.forEach(s => {
+      tagBox.append(el('span', { class: 'attendee-chip', style: 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#eaf3ff;border-radius:14px;font-size:12px;color:#0066cc;margin:2px;' },
+        s.name,
+        el('button', { style: 'border:none;background:transparent;color:#0066cc;cursor:pointer;padding:0;font-size:13px;', onclick: () => { state.selected = state.selected.filter(x => x.id !== s.id); renderList(); renderSelected(); } }, '×')
+      ));
+    });
+  };
+
+  const submit = async () => {
+    if (state.selected.length === 0) {
+      toast('추가할 참석자를 선택해 주세요.', 'error');
+      return;
+    }
+    const res = await api(`/api/reservations/${reservationId}/attendees`, {
+      method: 'POST',
+      body: JSON.stringify({ attendee_ids: state.selected.map(s => s.id) })
+    });
+    if (!res.ok) { toast(res.data?.error || '참석자 추가 실패', 'error'); return; }
+    toast(`${res.data.invited}명 초대 완료${res.data.skipped ? ` · ${res.data.skipped}명은 이미 초대됨` : ''}`, 'success');
+    closeModal();
+    // 예약 상세 모달을 다시 열어서 최신 참석자 목록 반영
+    const detail = await api(`/api/reservations/${reservationId}`);
+    if (detail.ok && detail.data?.reservation) {
+      openReservationDetail(detail.data.reservation);
+    }
+  };
+
+  closeModal();
+  const backdrop = el('div', { class: 'modal-backdrop', id: 'reservation-modal' });
+  const modal = el('div', { class: 'modal', style: 'max-width:560px;' },
+    el('div', { class: 'modal-header' },
+      el('div', { class: 'modal-header-title' }, '참석자 추가'),
+      el('button', { class: 'btn-icon', onclick: closeModal }, el('i', { class: 'fa-solid fa-xmark' }))
+    ),
+    el('div', { class: 'modal-body' },
+      el('div', { class: 'modal-section' },
+        el('input', {
+          placeholder: '이름 · 이메일 · 부서 검색',
+          style: 'width:100%;padding:11px 14px;border-radius:11px;border:1px solid #e0e0e0;font-size:14px;',
+          oninput: (e) => { state.query = e.target.value; fetchSuggestions(state.query); }
+        })
+      ),
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'modal-section-title' }, '선택된 멤버'),
+        el('div', { id: 'add-att-selected', style: 'min-height:30px;padding:6px 4px;display:flex;flex-wrap:wrap;gap:4px;' })
+      ),
+      el('div', { class: 'modal-section' },
+        el('div', { class: 'modal-section-title' }, '멤버 검색 결과'),
+        el('div', { id: 'add-att-results', style: 'max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #f0f0f0;border-radius:11px;padding:6px;background:#fafafa;' })
+      )
+    ),
+    el('div', { class: 'modal-footer' },
+      el('button', { class: 'btn-secondary', onclick: closeModal }, '취소'),
+      el('button', { class: 'btn-primary', onclick: submit }, '초대하기')
+    )
+  );
+  backdrop.append(modal);
+  document.body.append(backdrop);
+  renderSelected();
+  await fetchSuggestions('');
+}
+
+/**
+ * V42 §1: 예약 상세에서 참석자 단건 제거
+ *   - DELETE /api/reservations/:id/attendees/:memberId
+ *   - 성공 시 예약 상세 모달을 새로 그려 최신 상태 표시
+ */
+async function removeAttendeeFromReservation(reservationId, memberId, memberName, originalReservation) {
+  if (!confirm(`${memberName}님을 참석자에서 제거할까요?\n(상대방에게 알림은 발송되지 않습니다.)`)) return;
+  const res = await api(`/api/reservations/${reservationId}/attendees/${memberId}`, { method: 'DELETE' });
+  if (!res.ok) { toast(res.data?.error || '참석자 제거 실패', 'error'); return; }
+  toast(`${memberName}님을 참석자에서 제거했습니다.`, 'success');
+  closeModal();
+  const detail = await api(`/api/reservations/${reservationId}`);
+  if (detail.ok && detail.data?.reservation) {
+    openReservationDetail(detail.data.reservation);
+  } else if (originalReservation) {
+    // 폴백: 원본 객체로 다시 열기
+    openReservationDetail(originalReservation);
+  }
+}
+
 async function openReservationDetail(r) {
   const canEdit = State.user.role === 'admin' || State.user.id === r.user_id;
   // V7 고도화 §3a: 상세 API로 attendees + my_invitation_status 동승 가져오기
@@ -1856,14 +2006,26 @@ async function openReservationDetail(r) {
         )
       ),
 
-      /* [V7 고도화 §3a] 참석자(attendees) — 별도 섹션. 수락/대기/거절 배지 노출 */
-      el('div', { class: 'modal-section' },
-        el('div', { class: 'modal-section-title' },
-          '참석자',
-          el('span', { class: 'detail-attendees-count' },
-            ` (${attendees.length}명${attendees.length > 0
-              ? ` · 수락 ${attendees.filter(a => a.status === 'ACCEPTED').length}`
-              : ''})`)
+      /* [V7 고도화 §3a / V42 §1] 참석자(attendees) — 별도 섹션
+         V42: 예약 주최자/admin은 생성 후에도 참석자 추가/제거 가능
+              우상단 [+ 참석자 추가] 버튼 + 각 행 X 버튼 */
+      el('div', { class: 'modal-section', id: 'detail-attendees-section' },
+        el('div', { class: 'modal-section-title', style: 'display:flex;align-items:center;justify-content:space-between;' },
+          el('span', null,
+            '참석자',
+            el('span', { class: 'detail-attendees-count' },
+              ` (${attendees.length}명${attendees.length > 0
+                ? ` · 수락 ${attendees.filter(a => a.status === 'ACCEPTED').length}`
+                : ''})`)
+          ),
+          // V42 §1: 주최자 / admin 만 노출. 클릭 시 참석자 추가 모달 오픈
+          canEdit
+            ? el('button', {
+                class: 'btn-ghost detail-add-attendee-btn',
+                style: 'padding:6px 12px;font-size:13px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;',
+                onclick: () => openAddAttendeesModal(r.id, attendees.map(a => a.member_id || a.id))
+              }, el('i', { class: 'fa-solid fa-user-plus' }), '참석자 추가')
+            : null
         ),
         attendees.length === 0
           ? el('div', { class: 'detail-attendees-empty' }, '초대된 참석자가 없습니다.')
@@ -1879,7 +2041,16 @@ async function openReservationDetail(r) {
                   ),
                   el('span', { class: `attendee-status-badge is-${(a.status || 'PENDING').toLowerCase()}` },
                     a.status === 'ACCEPTED' ? '수락' : a.status === 'DECLINED' ? '거절' : '대기'
-                  )
+                  ),
+                  // V42 §1: 주최자/admin 만 참석자 제거 가능
+                  canEdit
+                    ? el('button', {
+                        class: 'btn-icon detail-remove-attendee-btn',
+                        title: `${a.name} 참석자 제거`,
+                        style: 'margin-left:8px;color:#d33;padding:4px 8px;background:transparent;border:none;cursor:pointer;border-radius:6px;',
+                        onclick: () => removeAttendeeFromReservation(r.id, a.member_id || a.id, a.name, r)
+                      }, el('i', { class: 'fa-solid fa-xmark' }))
+                    : null
                 )
               )
             )

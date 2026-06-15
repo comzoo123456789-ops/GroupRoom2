@@ -8656,3 +8656,173 @@ button.abnb-btn--gradient:hover {
 }
 
 /* === V41 END === */
+
+/* ============================================================
+   V42 §1 — 예약 상세 모달 참석자 관리 (추가/제거 버튼)
+   ============================================================ */
+.detail-add-attendee-btn {
+  border: 1px solid #d6e4f5;
+  background: #f5f9ff;
+  color: #0066cc;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.detail-add-attendee-btn:hover {
+  background: #e8f1ff;
+  border-color: #0066cc;
+}
+.detail-remove-attendee-btn:hover {
+  background: #ffeded !important;
+}
+.add-att-row:hover:not(.is-already) {
+  background: #f5f9ff;
+}
+.add-att-row.is-picked:hover {
+  background: #d8e9ff !important;
+}
+
+/* ============================================================
+   V42 §2 — 로그인 페이지 LIVE 카드 날짜 네비게이션
+   ============================================================ */
+.live-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 14px;
+  flex-wrap: wrap;
+}
+.live-date-nav__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.live-date-nav__btn:hover {
+  background: #f5f7fa;
+  border-color: #0066cc;
+  color: #0066cc;
+}
+.live-date-nav__label {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.live-date-nav__label:hover {
+  background: #f5f9ff;
+  border-color: #0066cc;
+}
+.live-date-nav__input {
+  /* 시각적으로는 숨기되 클릭/포커스는 가능하게: showPicker() 호출용. 또한 직접 변경할 수도 있도록 작게 노출 */
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+}
+.live-date-nav__today {
+  padding: 7px 12px;
+  border-radius: 9px;
+  border: 1px solid #0066cc;
+  background: #fff;
+  color: #0066cc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.live-date-nav__today:hover {
+  background: #eaf3ff;
+}
+
+/* 미래/과거 날짜의 회의실 카드 — 예약 슬롯 리스트 */
+.abnb-room--scheduled {
+  background: #fffaf3;
+  border: 1px solid #f5d99c;
+}
+.abnb-room__chip--scheduled {
+  background: #ffd28a;
+  color: #7a4d00;
+}
+.abnb-room__slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.abnb-room__slot {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid #f0d8a8;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a5a00;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   V42 §3 — 로그인 페이지 이메일 도메인 선택 (input + select)
+   ============================================================ */
+.login-email-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.login-email-input {
+  flex: 1 1 60%;
+  min-width: 0;
+  /* 부모 .abnb-field input 스타일을 상속받아 동일한 룩앤필 유지 */
+}
+.login-email-domain {
+  flex: 0 0 auto;
+  min-width: 130px;
+  padding: 0 10px;
+  border-radius: 11px;
+  border: 1px solid #e0e0e0;
+  background: #f5f7fa;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.login-email-domain:hover, .login-email-domain:focus {
+  background: #fff;
+  border-color: #0066cc;
+  outline: none;
+}
+.abnb-field__hint {
+  font-size: 11px;
+  color: #7a7a7a;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* 모바일에서 도메인 셀렉트는 한 줄 아래로 */
+@media (max-width: 480px) {
+  .login-email-row { flex-wrap: wrap; }
+  .login-email-input { flex: 1 1 100%; }
+  .login-email-domain { flex: 1 1 100%; min-width: 0; padding: 11px 10px; }
+  .live-date-nav__today { padding: 7px 8px; }
+}
+
+/* === V42 END === */

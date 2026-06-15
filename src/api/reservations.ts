@@ -422,7 +422,8 @@ reservations.patch('/:id', async (c) => {
   const user = c.get('user');
   const id = Number(c.req.param('id'));
   const updateScope = c.req.query('update_scope') || 'single'; // 'single' | 'future'
-  const body = await c.req.json<{ title?: string; purpose?: string; start_time?: string; end_time?: string; date?: string; space_id?: number }>();
+  // V42 §1: attendee_ids 도 함께 PATCH 가능 — 예약 수정 모달에서 참석자 추가 가능
+  const body = await c.req.json<{ title?: string; purpose?: string; start_time?: string; end_time?: string; date?: string; space_id?: number; attendee_ids?: number[] }>();
 
   const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation & { purpose?: string | null }>();
   if (!existing) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
@@ -472,7 +473,33 @@ reservations.patch('/:id', async (c) => {
       WHERE id = ?
     `).bind(body.title ?? existing.title, newPurpose, newDate, newStart, newEnd, newSpaceId, id).run();
 
-    return c.json({ ok: true, updated: 1 });
+    // V42 §1: attendee_ids 가 함께 전송된 경우 신규 초대(PENDING)로 추가
+    //   - 기존 참석자는 유지 (수락/거절 상태 보존), 새로 들어온 ID만 PENDING으로 INSERT OR IGNORE
+    //   - 예약자 본인은 자동 제외
+    let invitedNow = 0;
+    if (Array.isArray(body.attendee_ids) && body.attendee_ids.length > 0) {
+      const filtered = body.attendee_ids
+        .map(n => Number(n))
+        .filter(n => Number.isFinite(n) && n > 0 && n !== existing.user_id);
+      if (filtered.length > 0) {
+        const placeholders = filtered.map(() => '?').join(',');
+        const okRows = await c.env.DB.prepare(
+          `SELECT id FROM users WHERE id IN (${placeholders})`
+        ).bind(...filtered).all<{ id: number }>();
+        const okIds = (okRows.results || []).map(r => r.id);
+        if (okIds.length > 0) {
+          const stmts = okIds.map(mid =>
+            c.env.DB.prepare(
+              "INSERT OR IGNORE INTO reservation_attendees (reservation_id, member_id, status) VALUES (?, ?, 'PENDING')"
+            ).bind(id, mid)
+          );
+          await c.env.DB.batch(stmts);
+          invitedNow = okIds.length;
+        }
+      }
+    }
+
+    return c.json({ ok: true, updated: 1, invited: invitedNow });
   }
 
   // V7 통합본 §5: update_scope=future — 동일 recurring_rule_id, date >= existing.date 인 모든 예약 일괄 갱신
@@ -542,6 +569,100 @@ reservations.delete('/:id', async (c) => {
   }
 
   return c.json({ error: '알 수 없는 scope 값입니다.' }, 400);
+});
+
+/**
+ * V42 §1: 예약 생성 후 참석자 추가 (단건 또는 다수)
+ *   POST /api/reservations/:id/attendees
+ *   body: { attendee_ids: number[] }
+ *   - 예약 주최자(owner) 또는 admin 만 호출 가능
+ *   - 이미 초대된 멤버는 INSERT OR IGNORE 로 중복 방지
+ *   - 새로 추가된 멤버는 PENDING 상태로 초대 → 알림 영역(/api/reservations/invitations)에 노출
+ */
+reservations.post('/:id/attendees', async (c) => {
+  const user = c.get('user');
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json<{ attendee_ids?: number[] }>();
+  if (!Array.isArray(body.attendee_ids) || body.attendee_ids.length === 0) {
+    return c.json({ error: '추가할 참석자를 선택해 주세요.' }, 400);
+  }
+
+  const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation>();
+  if (!existing) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
+  if (user.role !== 'admin' && existing.user_id !== user.id) {
+    return c.json({ error: '권한이 없습니다. 예약 주최자만 참석자를 추가할 수 있습니다.' }, 403);
+  }
+
+  // 본인(주최자)는 자동 제외
+  const filtered = body.attendee_ids
+    .map(n => Number(n))
+    .filter(n => Number.isFinite(n) && n > 0 && n !== existing.user_id);
+  if (filtered.length === 0) {
+    return c.json({ error: '주최자 본인은 참석자로 추가할 수 없습니다.' }, 400);
+  }
+
+  // 존재하는 user 만 필터
+  const placeholders = filtered.map(() => '?').join(',');
+  const okRows = await c.env.DB.prepare(
+    `SELECT id FROM users WHERE id IN (${placeholders}) AND status = 'active'`
+  ).bind(...filtered).all<{ id: number }>();
+  const okIds = (okRows.results || []).map(r => r.id);
+  if (okIds.length === 0) {
+    return c.json({ error: '유효한 참석자가 없습니다.' }, 400);
+  }
+
+  // 이미 초대돼 있는 ID 확인 (INSERT OR IGNORE 이후 invited count 정확화용)
+  const existsRows = await c.env.DB.prepare(
+    `SELECT member_id FROM reservation_attendees WHERE reservation_id = ? AND member_id IN (${okIds.map(() => '?').join(',')})`
+  ).bind(id, ...okIds).all<{ member_id: number }>();
+  const alreadyInvited = new Set((existsRows.results || []).map(r => r.member_id));
+  const newlyInvited = okIds.filter(mid => !alreadyInvited.has(mid));
+
+  if (newlyInvited.length === 0) {
+    return c.json({ ok: true, invited: 0, skipped: okIds.length, message: '선택한 멤버는 이미 모두 초대되었습니다.' });
+  }
+
+  const stmts = newlyInvited.map(mid =>
+    c.env.DB.prepare(
+      "INSERT OR IGNORE INTO reservation_attendees (reservation_id, member_id, status) VALUES (?, ?, 'PENDING')"
+    ).bind(id, mid)
+  );
+  await c.env.DB.batch(stmts);
+
+  return c.json({ ok: true, invited: newlyInvited.length, skipped: alreadyInvited.size });
+});
+
+/**
+ * V42 §1: 예약 참석자 제거 (단건)
+ *   DELETE /api/reservations/:id/attendees/:memberId
+ *   - 예약 주최자 또는 admin 만 호출 가능
+ *   - 자기 자신은 제거 불가 (주최자)
+ *   - reservation_attendees 레코드 1건 삭제 (수락/거절 무관)
+ */
+reservations.delete('/:id/attendees/:memberId', async (c) => {
+  const user = c.get('user');
+  const id = Number(c.req.param('id'));
+  const memberId = Number(c.req.param('memberId'));
+
+  const existing = await c.env.DB.prepare('SELECT * FROM reservations WHERE id = ?').bind(id).first<Reservation>();
+  if (!existing) return c.json({ error: '예약을 찾을 수 없습니다.' }, 404);
+  if (user.role !== 'admin' && existing.user_id !== user.id) {
+    return c.json({ error: '권한이 없습니다. 예약 주최자만 참석자를 제거할 수 있습니다.' }, 403);
+  }
+  if (memberId === existing.user_id) {
+    return c.json({ error: '주최자는 제거할 수 없습니다.' }, 400);
+  }
+
+  const res = await c.env.DB.prepare(
+    'DELETE FROM reservation_attendees WHERE reservation_id = ? AND member_id = ?'
+  ).bind(id, memberId).run();
+
+  // D1 의 meta.changes 가 D1Result에 존재
+  const changes = (res.meta as any)?.changes ?? 0;
+  if (!changes) {
+    return c.json({ error: '해당 참석자를 찾을 수 없습니다.' }, 404);
+  }
+  return c.json({ ok: true, removed: 1 });
 });
 
 export default reservations;

@@ -26,21 +26,54 @@ function nowKstHHMM(): { date: string; hhmm: string } {
 }
 
 /**
- * GET /api/public/available-spaces
+ * GET /api/public/available-spaces?date=YYYY-MM-DD
+ *
+ * V42 §2: 임의 날짜 조회 지원
+ *   - date 미지정 → 오늘(KST) 기준 "지금 가용한지" 판정
+ *   - date 지정 → 그 날짜의 모든 예약 목록을 반환 (회의실별 bookings_today)
+ *     · 오늘 < date (미래) : "현재 시각" 개념이 무의미하므로 available=true 로 표시하되,
+ *                            bookings_today 의 (start, end) 슬롯들을 모두 응답해서 클라이언트가
+ *                            "당일 예약 슬롯들"을 바 형태로 그릴 수 있게 함
+ *     · 오늘 == date       : 기존 로직 그대로 (지금 사용 중 / 가용 판정)
+ *     · date < 오늘 (과거) : 단순 조회 — 모두 available=false 처럼 표시할 수도 있으나
+ *                            기록 조회용으로 bookings_today 만 반환, available 은 항상 true
  *
  * 응답:
  *   {
- *     now: { date: '2026-06-11', time: '14:30' },
+ *     now: { date: '2026-06-11', time: '14:30' },          // 서버 현재(KST)
+ *     query_date: '2026-06-30',                            // 조회한 날짜
+ *     is_today: false,                                     // 조회 날짜가 오늘인지
  *     rooms: [
- *       { id, name, capacity, available, next_busy_at, current_end_at }
+ *       {
+ *         id, name, capacity,
+ *         available,           // is_today=true일 때만 의미 — 그 외엔 true 고정
+ *         current_end_at,      // is_today=true일 때만 유효
+ *         next_busy_at,        // is_today=true일 때만 유효
+ *         bookings_today: [{ start, end }, ...]
+ *       }
  *     ]
  *   }
- *
- *   available=true  → 즉시 사용 가능 (next_busy_at에 다음 예약 시작 시각 동봉, 없으면 null)
- *   available=false → 현재 예약 중   (current_end_at에 종료 예정 시각)
  */
 publicApi.get('/available-spaces', async (c) => {
-  const { date, hhmm } = nowKstHHMM();
+  const now = nowKstHHMM();
+  const queryDate = c.req.query('date') || now.date;
+  // 날짜 형식 검증 — YYYY-MM-DD + 실제 유효한 달력 날짜인지 확인
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(queryDate)) {
+    return c.json({ error: '잘못된 날짜 형식입니다. YYYY-MM-DD 로 입력하세요.' }, 400);
+  }
+  {
+    const [y, m, d] = queryDate.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (
+      dt.getUTCFullYear() !== y ||
+      dt.getUTCMonth() !== m - 1 ||
+      dt.getUTCDate() !== d
+    ) {
+      return c.json({ error: '존재하지 않는 날짜입니다.' }, 400);
+    }
+  }
+  const isToday = queryDate === now.date;
+  const hhmm = now.hhmm;
 
   // 1) 공용 공간(tenant_scope IS NULL) 중 Meeting Room A~E만
   const PUBLIC_ROOMS = ['Meeting Room A', 'Meeting Room B', 'Meeting Room C', 'Meeting Room D', 'Meeting Room E'];
@@ -54,41 +87,45 @@ publicApi.get('/available-spaces', async (c) => {
 
   const spaces = spacesRes.results || [];
   if (!spaces.length) {
-    return c.json({ now: { date, time: hhmm }, rooms: [] });
+    return c.json({ now: { date: now.date, time: hhmm }, query_date: queryDate, is_today: isToday, rooms: [] });
   }
 
-  // 2) 오늘자 유효 예약 일괄 조회
-  //   V41 §1 🔥 핵심 버그 수정:
-  //     - 이전: status = 'active'  ❌ (DB 실제 값은 'confirmed' / 'cancelled', 'active'는 존재하지 않음)
-  //     - 결과: 사용자가 정상 예약 → status='confirmed'로 저장되는데 LIVE API는 'active'만 찾아
-  //             영원히 "전부 가용"으로 나오던 치명적 버그
-  //     - 다른 모든 API (reservations.ts L36/57/93/138/167)는 일관되게 'confirmed' 사용
-  //   수정: status = 'confirmed' 로 통일 → 정상 예약만 LIVE에 반영, 취소된(cancelled) 예약은 자동 제외
+  // 2) 해당 날짜의 유효 예약(confirmed) 일괄 조회
+  //   V41 §1: status = 'confirmed' (DB 실제 값과 정확히 일치)
   const spaceIds = spaces.map((s) => s.id);
   const reservRes = await c.env.DB.prepare(
-    `SELECT space_id, start_time, end_time
+    `SELECT space_id, start_time, end_time, title
        FROM reservations
        WHERE date = ?
          AND status = 'confirmed'
          AND space_id IN (${spaceIds.map(() => '?').join(',')})
        ORDER BY start_time ASC`
-  ).bind(date, ...spaceIds).all<{ space_id: number; start_time: string; end_time: string }>();
+  ).bind(queryDate, ...spaceIds).all<{ space_id: number; start_time: string; end_time: string; title: string }>();
 
-  const byRoom = new Map<number, Array<{ start: string; end: string }>>();
+  const byRoom = new Map<number, Array<{ start: string; end: string; title: string }>>();
   for (const row of reservRes.results || []) {
     if (!byRoom.has(row.space_id)) byRoom.set(row.space_id, []);
-    byRoom.get(row.space_id)!.push({ start: row.start_time, end: row.end_time });
+    byRoom.get(row.space_id)!.push({ start: row.start_time, end: row.end_time, title: row.title });
   }
 
   // 3) 가용성 판정
-  //   V40 §1: 경계 조건 명확화
-  //     - 현재 사용 중: start <= hhmm < end   (시작 시각 포함, 종료 시각 미포함)
-  //     - "지금이 종료 시각과 정확히 같은 순간"(예: 10:00, end=10:00) → 가용으로 본다
-  //     - 다음 예약: start > hhmm (가까운 시작 시각 하나만)
-  //   추가로 디버깅을 위해 raw 예약 목록도 응답에 포함시켜 클라이언트에서 검증 가능
+  //   V40 §1: 경계 조건 명확화 — start <= hhmm < end (시작 포함, 종료 미포함)
+  //   V42 §2: 미래/과거 날짜는 가용성 판정 불가 → available=true 고정, bookings 만 반환
   const rooms = spaces.map((s) => {
     const list = byRoom.get(s.id) || [];
-    // start <= hhmm < end 인 예약이 있으면 "사용 중"
+    if (!isToday) {
+      // 미래/과거 날짜 — 그 날의 예약 슬롯만 반환
+      return {
+        id: s.id,
+        name: s.name,
+        capacity: s.capacity,
+        available: true,          // 클라이언트는 bookings_today 로 막대그래프 표시
+        current_end_at: null,
+        next_busy_at: list[0]?.start || null,   // 그 날 첫 예약 시작 시각
+        bookings_today: list,
+      };
+    }
+    // 오늘 — 기존 실시간 가용성 판정
     const current = list.find((r) => r.start <= hhmm && hhmm < r.end);
     if (current) {
       return {
@@ -98,11 +135,9 @@ publicApi.get('/available-spaces', async (c) => {
         available: false,
         current_end_at: current.end,
         next_busy_at: null,
-        // V40 디버그: 이 회의실의 오늘 예약 전체 목록 (시작순)
         bookings_today: list,
       };
     }
-    // 다음으로 가까운 예약 시작 시각
     const next = list.find((r) => r.start > hhmm);
     return {
       id: s.id,
@@ -115,12 +150,17 @@ publicApi.get('/available-spaces', async (c) => {
     };
   });
 
-  // V40: 캐시 방지 헤더 강화 — 어떤 중간 캐시도 끼지 못하게
+  // V40: 캐시 방지 헤더 — 미래 날짜도 누군가 예약하면 즉시 반영돼야 함
   c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   c.header('Pragma', 'no-cache');
   c.header('Expires', '0');
 
-  return c.json({ now: { date, time: hhmm }, rooms });
+  return c.json({
+    now: { date: now.date, time: hhmm },
+    query_date: queryDate,
+    is_today: isToday,
+    rooms,
+  });
 });
 
 export default publicApi;

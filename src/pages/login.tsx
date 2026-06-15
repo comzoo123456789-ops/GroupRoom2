@@ -36,6 +36,23 @@ export const LoginPage = () => {
             <span class="abnb-card__badge" id="live-clock">LIVE</span>
           </div>
 
+          {/* V42 §2: 날짜 네비게이션 — < > 화살표 + 오늘 버튼 + 캘린더 input */}
+          <div class="live-date-nav" id="live-date-nav">
+            <button type="button" class="live-date-nav__btn" id="live-date-prev" aria-label="이전 날짜">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button type="button" class="live-date-nav__label" id="live-date-label">
+              오늘
+            </button>
+            <input type="date" id="live-date-input" class="live-date-nav__input" />
+            <button type="button" class="live-date-nav__btn" id="live-date-next" aria-label="다음 날짜">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button type="button" class="live-date-nav__today" id="live-date-today" title="오늘로 이동">
+              오늘
+            </button>
+          </div>
+
           <div id="live-rooms-grid" class="abnb-rooms-grid" aria-live="polite">
             <div class="abnb-room abnb-room--skeleton">
               <div class="abnb-room__name">로딩 중…</div>
@@ -56,7 +73,7 @@ export const LoginPage = () => {
 
           <div class="abnb-card__foot">
             <span id="live-updated-at" class="abnb-card__foot-text">곧 업데이트됩니다…</span>
-            <span class="abnb-card__foot-note">10초마다 자동 갱신</span>
+            <span class="abnb-card__foot-note" id="live-foot-note">10초마다 자동 갱신</span>
           </div>
         </section>
 
@@ -65,9 +82,30 @@ export const LoginPage = () => {
           <h2 class="abnb-card__title abnb-card__title--solo">로그인</h2>
 
           <form id="login-form" class="abnb-form">
+            {/* V42 §3: 이메일 input + 도메인 셀렉트 분리
+                - 사용자: 'bhmoon' 만 입력하고 옆에서 @wylie.co.kr / @lush.co.kr 선택
+                - input type="text" 로 변경 (브라우저 email validator가 '@' 없는 값을 거부하기 때문)
+                - 도메인 선택값이 비어있으면(직접 입력 모드) input 에 풀 이메일을 직접 적을 수도 있음
+            */}
             <label class="abnb-field">
               <span class="abnb-field__label">이메일 주소</span>
-              <input type="email" name="email" required placeholder="example@wylie.co.kr" autoComplete="email" />
+              <div class="login-email-row">
+                <input
+                  type="text"
+                  name="email"
+                  required
+                  placeholder="bhmoon"
+                  autoComplete="username"
+                  inputMode="email"
+                  class="login-email-input"
+                />
+                <select id="login-email-domain" class="login-email-domain" aria-label="이메일 도메인 선택">
+                  <option value="@wylie.co.kr">@wylie.co.kr</option>
+                  <option value="@lush.co.kr">@lush.co.kr</option>
+                  <option value="">직접 입력</option>
+                </select>
+              </div>
+              <span class="abnb-field__hint">아이디만 입력하고 옆에서 도메인을 선택하세요.</span>
             </label>
             <label class="abnb-field">
               <span class="abnb-field__label">비밀번호</span>
