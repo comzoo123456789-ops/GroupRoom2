@@ -57,13 +57,19 @@ publicApi.get('/available-spaces', async (c) => {
     return c.json({ now: { date, time: hhmm }, rooms: [] });
   }
 
-  // 2) 오늘자 active 예약 일괄 조회
+  // 2) 오늘자 유효 예약 일괄 조회
+  //   V41 §1 🔥 핵심 버그 수정:
+  //     - 이전: status = 'active'  ❌ (DB 실제 값은 'confirmed' / 'cancelled', 'active'는 존재하지 않음)
+  //     - 결과: 사용자가 정상 예약 → status='confirmed'로 저장되는데 LIVE API는 'active'만 찾아
+  //             영원히 "전부 가용"으로 나오던 치명적 버그
+  //     - 다른 모든 API (reservations.ts L36/57/93/138/167)는 일관되게 'confirmed' 사용
+  //   수정: status = 'confirmed' 로 통일 → 정상 예약만 LIVE에 반영, 취소된(cancelled) 예약은 자동 제외
   const spaceIds = spaces.map((s) => s.id);
   const reservRes = await c.env.DB.prepare(
     `SELECT space_id, start_time, end_time
        FROM reservations
        WHERE date = ?
-         AND status = 'active'
+         AND status = 'confirmed'
          AND space_id IN (${spaceIds.map(() => '?').join(',')})
        ORDER BY start_time ASC`
   ).bind(date, ...spaceIds).all<{ space_id: number; start_time: string; end_time: string }>();

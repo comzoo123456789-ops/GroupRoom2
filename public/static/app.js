@@ -3236,6 +3236,28 @@ const inputStyle = () => 'width:100%;padding:12px 16px;border-radius:11px;border
 async function openMemberCreateModal() {
   await loadOrgLists();
   let mode = 'single';
+  // V41 §2: 테넌트별 이메일 도메인 자동 결정
+  // WYLIE → @wylie.co.kr / LUSH → @lush.co.kr
+  // 어드민은 본인이 속한 테넌트의 멤버만 만들 수 있으므로 본인 테넌트 도메인을 자동 적용
+  const tenantDomain = State.user?.tenant_id === 'LUSH' ? '@lush.co.kr' : '@wylie.co.kr';
+  // 입력된 username 부분(@ 앞쪽)을 추출하고, 같은 테넌트 도메인이 이미 붙어있으면 잘라낸다
+  const stripDomain = (val) => {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (!s.includes('@')) return s;
+    const [user, domain] = s.split('@');
+    // 같은 테넌트 도메인이면 사용자 부분만 반환, 다른 도메인이면 원본 그대로 (관리자가 명시적으로 외부 도메인 사용 가능)
+    if (('@' + (domain || '').toLowerCase()) === tenantDomain) return user;
+    return s; // 다른 도메인이거나 비정상 형태면 그대로 두어 사용자가 확인할 수 있게 함
+  };
+  // 저장 시 username만 들어있으면 자동으로 테넌트 도메인 추가
+  const composeEmail = (val) => {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (!s) return '';
+    if (s.includes('@')) return s; // 이미 @가 있다면 사용자가 명시한 형태 유지
+    return s + tenantDomain;
+  };
   const state = {
     name: '', email: '', department: '', position: '', role: 'member',
     bulkRows: Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })),
@@ -3304,7 +3326,19 @@ async function openMemberCreateModal() {
         // ① 이름
         el('input', { placeholder: '이름 *', value: state.name, oninput: e => state.name = e.target.value, style: inputStyle() }),
         // ② 이메일 (로그인 계정 ID 겸용)
-        el('input', { type: 'email', placeholder: '이메일 주소 * (로그인 ID 겸용)', value: state.email, oninput: e => state.email = e.target.value, style: inputStyle() }),
+        // V41 §2: username 입력 + 잠긴 테넌트 도메인 suffix
+        //   사용자는 'bhmoon' 만 입력하면 자동으로 '@wylie.co.kr' / '@lush.co.kr' 부착
+        //   기존 호환: '@'가 포함된 풀 이메일을 붙여넣어도 동일 테넌트 도메인이면 username만 표시
+        el('div', { class: 'email-suffix-wrap', title: `로그인 ID로 사용됩니다 · 도메인은 ${tenantDomain} 로 자동 설정` },
+          el('input', {
+            type: 'text',
+            class: 'email-suffix-input',
+            placeholder: '아이디 입력 (예: bhmoon)',
+            value: stripDomain(state.email),
+            oninput: e => { state.email = e.target.value; },
+          }),
+          el('span', { class: 'email-suffix-tag' }, tenantDomain)
+        ),
         // ③ 부서 / 직책 — 한 줄 50:50
         el('div', { class: 'form-row-2col', style: 'display:flex;gap:8px;' },
           el('div', { style: 'flex:1 1 50%;min-width:0;' }, deptSelect(state.department, v => state.department = v)),
@@ -3431,13 +3465,22 @@ async function openMemberCreateModal() {
       el('div', { style: 'overflow:auto;max-height:300px;border:1px solid #e0e0e0;border-radius:11px;' },
         el('table', { class: 'data-table', style: 'font-size:13px;' },
           el('thead', null, el('tr', null,
-            el('th', null, '이름 *'), el('th', null, '이메일 *'), el('th', null, '부서'), el('th', null, '직책')
+            el('th', null, '이름 *'),
+            // V41 §2: 헤더에 도메인 자동 부착 안내 표시
+            el('th', null, el('span', null, '아이디 *'), el('span', { style: 'color:#7a7a7a;font-weight:500;margin-left:4px;font-size:11px;' }, tenantDomain + ' 자동')),
+            el('th', null, '부서'), el('th', null, '직책')
           )),
           el('tbody', null,
             ...state.bulkRows.map((row, i) =>
               el('tr', null,
                 el('td', null, el('input', { value: row.name, oninput: e => state.bulkRows[i].name = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
-                el('td', null, el('input', { value: row.email, oninput: e => state.bulkRows[i].email = e.target.value, style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;' })),
+                // V41 §2: 일괄 입력에서도 username만 입력하면 자동 도메인 부착 (placeholder + 미리보기)
+                el('td', null, el('input', {
+                  value: stripDomain(row.email),
+                  placeholder: 'bhmoon',
+                  oninput: e => state.bulkRows[i].email = e.target.value,
+                  style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;'
+                })),
                 el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].department = e.target.value },
                   el('option', { value: '' }, '—'),
                   ...OrgCache.departments.map(d => el('option', { value: d.name, selected: row.department === d.name ? 'selected' : null }, d.name)),
@@ -3461,18 +3504,23 @@ async function openMemberCreateModal() {
 
   const submit = async () => {
     if (mode === 'single') {
-      if (!state.name || !state.email) { toast('이름과 이메일은 필수입니다.', 'error'); return; }
+      // V41 §2: 입력값에 @가 없으면 자동으로 테넌트 도메인 부착
+      const finalEmail = composeEmail(state.email);
+      if (!state.name || !finalEmail) { toast('이름과 아이디는 필수입니다.', 'error'); return; }
       // V7 최종본 §3: 초기 비밀번호는 백엔드에서 user1234 로 자동 할당
       const payload = {
-        name: state.name, email: state.email,
+        name: state.name, email: finalEmail,
         department: state.department || null, position: state.position || null,
         role: state.role,
       };
       const res = await api('/api/members', { method: 'POST', body: JSON.stringify(payload) });
       if (!res.ok) { toast(res.data?.error || '생성 실패', 'error'); return; }
-      toast('멤버 계정이 생성되었습니다. (초기 비밀번호: user1234)', 'success');
+      toast(`멤버 계정이 생성되었습니다. (${finalEmail} · 초기 비밀번호 user1234)`, 'success');
     } else {
-      const members = state.bulkRows.filter(r => r.name && r.email);
+      // V41 §2: 일괄 생성에서도 각 행 이메일에 도메인 자동 부착
+      const members = state.bulkRows
+        .map(r => ({ ...r, email: composeEmail(r.email) }))
+        .filter(r => r.name && r.email);
       if (members.length === 0) { toast('생성할 멤버를 입력해 주세요.', 'error'); return; }
       const res = await api('/api/members/bulk', { method: 'POST', body: JSON.stringify({ members }) });
       if (!res.ok) { toast('생성 실패', 'error'); return; }

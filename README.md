@@ -1,8 +1,92 @@
-# 메이트리그라운드 (Mateground) — V40 LIVE 가용성 정확도 + 모바일 로그인 압축
+# 메이트리그라운드 (Mateground) — V41 LIVE 실시간 반영 수정 + 멤버 생성 이메일 자동완성
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V40 (로그인 LIVE 가용성 진단·강화 + 모바일 한 화면 압축)
+## 🆕 V41 (🔥 LIVE 실시간 반영 핵심 버그 수정 + 멤버 생성 이메일 도메인 자동 부착)
+
+> 사용자 V40 직후 두 가지 결정적 지적:
+> 1. **\"첫번째 예약 되어있는 방에 대해 일정이 취소되서 삭제했는데 실시간에는 전혀 반영이 안됨, 실시간 예약 현황에 B/E룸 적용 불가한 상태\"** — 예약 생성/수정/취소가 LIVE에 전혀 안 보이는 치명적 버그
+> 2. **\"이메일 주소에 `bhmoon` 만 넣으면 뒤에 `@wylie.co.kr` 자동 부착, 러쉬는 `ll` 만 넣으면 `@lush.co.kr` 자동 부착\"**
+
+### §1 🔥 LIVE 실시간 반영 핵심 버그 수정 (status 값 불일치)
+
+**근본 원인 (DB 데이터로 정확히 진단)**:
+```sql
+SELECT status, COUNT(*) FROM reservations GROUP BY status;
+-- confirmed: 46   ← 실제 예약은 모두 이 값
+-- cancelled: 50
+-- active:    0    ← 절대 존재하지 않는 값!
+```
+- `src/api/public.ts` 의 LIVE board API 가 **유일하게** `WHERE status = 'active'` 로 필터링 중
+- 다른 모든 API(`src/api/reservations.ts` L36/57/93/138/167)는 `status = 'confirmed'` 사용 — 사실상 LIVE만 잘못된 컬럼값으로 조회 중이어서 **실제 예약을 영원히 못 찾음**
+- V40 진단 때 내가 직접 INSERT한 테스트 데이터는 `'active'`로 넣었어서 통과했던 것 (실 사용자 데이터는 전부 `'confirmed'`라 보이지 않음) — 사용자가 "B/E는 잡혀있는데 LIVE는 A/D를 잡혀있다고 표시" 라고 신고한 **완전히 뒤집힌 표시**의 진짜 이유
+
+**수정**:
+```typescript
+// src/api/public.ts L66 (BEFORE)  ❌
+//   AND status = 'active'
+// (AFTER)  ✅
+const reservRes = await c.env.DB.prepare(
+  \`SELECT space_id, start_time, end_time
+     FROM reservations
+     WHERE date = ?
+       AND status = 'confirmed'  // ← V41 §1 CRITICAL FIX
+       AND space_id IN (...)\`
+).bind(date, ...spaceIds).all();
+```
+
+**부수 작업**:
+- V40 테스트로 남은 `'active'` 더미 예약 50건 + `진단용 예약%` 정리 → DB가 실제 사용자 예약 46건만 보유
+- 사용자가 LUSH 등 다른 테넌트 회의실을 봤다 → 본인 테넌트 회의실로 가이드
+
+**검증 (내가 직접 curl + cookie jar로 전체 사이클 실행)**:
+
+| 단계 | 작업 | LIVE 즉시 반영 |
+|------|------|---------------|
+| ① CREATE | `POST /api/reservations` Meeting Room C 09:30-10:30 | 🔴 (종료 10:30) ✅ |
+| ② EDIT | `PATCH /api/reservations/:id` 종료 10:30→11:30 | 🔴 (종료 11:30) ✅ |
+| ③ CANCEL | `DELETE /api/reservations/:id` | 🟢 (가용) ✅ |
+
+또한 사용자가 캡처한 **공간 캘린더 사진과 LIVE 사진이 일치**하는지도 확인: Meeting Room B(08:30-13:30) + E(08:00-15:00) 점유 ↔ LIVE 에서 정확히 B/E 만 🔴 표시.
+
+### §2 멤버 생성 이메일 도메인 자동 부착 (UX 개선)
+
+**Before** — 매번 풀 이메일을 타이핑해야 함:
+```
+이메일 주소: [bhmoon@wylie.co.kr]   ← 짜증나고 오타 위험
+```
+
+**After** — username만 입력하면 자동으로 본인 테넌트 도메인 부착:
+```
+WYLIE 어드민:  [bhmoon       ] @wylie.co.kr   ← suffix 잠금 표시
+LUSH 어드민:   [ll           ] @lush.co.kr    ← 테넌트별 자동 결정
+```
+
+**구현 (`public/static/app.js` 멤버 생성 모달)**:
+- `State.user.tenant_id` 로 자동 도메인 결정 (`WYLIE → @wylie.co.kr`, `LUSH → @lush.co.kr`)
+- 새 헬퍼 `stripDomain(value)` — 풀 이메일을 붙여넣어도 같은 테넌트 도메인이면 username만 표시
+- 새 헬퍼 `composeEmail(value)` — submit 시 `@`가 없으면 테넌트 도메인 자동 append, 이미 있으면 존중
+- **단일 생성**: 새 `.email-suffix-wrap` 컴포넌트 (입력란 + 잠긴 회색 suffix 칩)
+- **일괄 생성**: 표 헤더에 \"아이디 \* @wylie.co.kr 자동\" 라벨, placeholder 단순화 (`bhmoon`), 각 행 자동 처리
+- 외부 도메인 입력 (예: 외부 협업자 `vendor@partner.com`) 도 명시적으로 `@`를 입력하면 그대로 통과 — 호환성 유지
+- 신규 CSS: `.email-suffix-wrap` / `.email-suffix-input` / `.email-suffix-tag` (Tesla 톤 라이트 그레이 칩, focus 시 파란 ring)
+
+**검증 (양 테넌트 어드민으로 직접 POST)**:
+
+| 어드민 | 입력 | DB 저장된 email | tenant_id |
+|--------|------|----------------|----------|
+| WYLIE  | `bhmoonV41`  | `bhmoonV41@wylie.co.kr` | WYLIE ✅ |
+| LUSH   | `llV41`      | `llV41@lush.co.kr`      | LUSH ✅  |
+
+### 📊 V41 빌드/배포 상태
+- `npm run build` ✅ (dist/_worker.js 94.05 kB · 63 modules · 888ms)
+- PM2 재기동 ✅ (webapp online)
+- LIVE 사이클 검증 (curl) ✅ — 생성/수정/취소 모두 1초 내 LIVE 반영
+- 멤버 생성 API 검증 ✅ — WYLIE/LUSH 양쪽 자동 도메인 부착 동작
+
+---
+
+## V40 (로그인 LIVE 가용성 진단·강화 + 모바일 한 화면 압축)
 
 > 사용자 V39 직후 의심:
 > 1. **"공간 페이지엔 회의실 시간이 잔뜩 잡혀있는데 왜 로그인 LIVE는 즉시 사용 가능이라고 나와?"** — 실시간 연동 불신

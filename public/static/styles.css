@@ -8601,3 +8601,58 @@ button.abnb-btn--gradient:hover {
 }
 
 /* === V40 END === */
+
+/* ============================================================
+   V41 §2 — 멤버 생성 모달 이메일 입력 (테넌트 도메인 자동 부착)
+   ============================================================
+   "bhmoon" 입력 → 자동으로 "bhmoon@wylie.co.kr" 저장
+   "ll" 입력 → 자동으로 "ll@lush.co.kr" 저장
+   입력란과 잠긴 도메인 suffix를 한 줄로 표시 (Tesla-style)
+*/
+.email-suffix-wrap {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border-radius: 11px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.email-suffix-wrap:focus-within {
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.12);
+}
+.email-suffix-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: transparent;
+  color: #1d1d1f;
+  font-family: inherit;
+}
+.email-suffix-input::placeholder { color: #b0b0b0; }
+.email-suffix-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  background: #f5f7fa;
+  color: #555;
+  font-size: 13px;
+  font-weight: 600;
+  border-left: 1px solid #e0e0e0;
+  letter-spacing: -0.1px;
+  user-select: none;
+}
+
+/* 모바일에서는 suffix가 짧아 보이도록 패딩 축소 */
+@media (max-width: 600px) {
+  .email-suffix-input { padding: 11px 12px; font-size: 13px; }
+  .email-suffix-tag { padding: 0 10px; font-size: 12px; }
+}
+
+/* === V41 END === */
