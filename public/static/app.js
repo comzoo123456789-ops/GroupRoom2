@@ -420,13 +420,33 @@ async function renderHome() {
   const todayStr = today.format('YYYY-MM-DD');
   const isAdmin = State.user?.role === 'admin';
 
-  // V34 §5: 데이터 가공
-  const todayList = reservations.filter(r => r.date === todayStr);
+  // V43.2: 이미 종료된 일정 자동 숨김 헬퍼
+  //   사용자 보고: 16:48 현재 09:00~10:00, 10:30~14:30 등 이미 끝난 일정이 그대로 노출
+  //   → end_time 기준으로 현재 시각보다 이전이면 "완료된 일정"으로 제외
+  //   * 과거 날짜(date < todayStr)는 무조건 완료 처리
+  //   * 오늘 날짜의 경우 end_time(HH:MM) 을 분으로 환산해서 현재 분과 비교
+  const nowMinutes = today.hour() * 60 + today.minute();
+  const isFinished = (r) => {
+    // 날짜가 이미 지났으면 완료
+    if (r.date < todayStr) return true;
+    // 오늘 일정이면 end_time 으로 비교
+    if (r.date === todayStr) {
+      const [eh, em] = String(r.end_time || '00:00').split(':').map(Number);
+      const endMin = (eh || 0) * 60 + (em || 0);
+      return endMin <= nowMinutes;
+    }
+    // 미래 날짜는 완료 아님
+    return false;
+  };
+
+  // V34 §5: 데이터 가공 (V43.2: 완료된 일정 자동 제외)
+  const todayList = reservations.filter(r => r.date === todayStr && !isFinished(r));
   const upcomingList = reservations.filter(r => r.date > todayStr).slice(0, 5);
   const nextOne = todayList[0] || upcomingList[0] || null;
+  // 이번 주 카운트도 완료된 일정 제외
   const myWeekCount = reservations.filter(r => {
     const d = dayjs(r.date);
-    return d.isAfter(today.subtract(1,'day')) && d.isBefore(today.add(7,'day'));
+    return d.isAfter(today.subtract(1,'day')) && d.isBefore(today.add(7,'day')) && !isFinished(r);
   }).length;
 
   // V43 §3: 인사말 헤더 박스 완전 제거 (사용자 요청 — 소스에서 모두 제거)
@@ -1320,7 +1340,10 @@ function startPolling() {
       try {
         const upRes = await api('/api/reservations/upcoming');
         const newUpcoming = upRes?.data?.reservations || [];
-        const sig = JSON.stringify(newUpcoming.map(r => r.id + ':' + r.updated_at + ':' + r.status));
+        // V43.2: 시그니처에 "현재 분(YYYY-MM-DD HH:MM)" 포함
+        //   → 분이 바뀔 때마다 자동 재렌더 → 끝난 일정이 자동으로 사라짐
+        const nowMin = dayjs().format('YYYY-MM-DD HH:mm');
+        const sig = nowMin + '|' + JSON.stringify(newUpcoming.map(r => r.id + ':' + r.updated_at + ':' + r.status + ':' + r.date + ':' + r.end_time));
         if (sig !== State._homeUpcomingSig) {
           State._homeUpcomingSig = sig;
           // 첫 호출이 아닐 때만 재렌더 (초기 마운트 직후 중복 방지)

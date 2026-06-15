@@ -1,8 +1,75 @@
-# 메이트리그라운드 (Mateground) — V43.1 PC 퀵메뉴 숨김 + 오늘/앞으로 통합(PC 50:50 / 모바일 탭)
+# 메이트리그라운드 (Mateground) — V43.2 끝난 일정 자동 숨김
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V43.1 (반응형 추가 정리 — PC vs 모바일 차별화)
+## 🆕 V43.2 (종료된 일정 자동 숨김)
+
+> 사용자 보고: **"현재 시간이 16:48인데 아침에 있던 09:00~10:00 일정이 왜 안 사라져? 오늘의 일정도 09:00~10:00 안 사라지고, 10:30~14:30 일정도 안 사라지고. 일정 완료된 거는 삭제되게끔 해줘"**
+
+### 원인
+- V34 §5의 `todayList = reservations.filter(r => r.date === todayStr)` 가 **날짜만** 비교
+- end_time 체크가 없어서 이미 종료된 일정도 "오늘의 일정"에 그대로 노출
+- "다음 일정" 카드도 `todayList[0]` 을 그대로 사용 → 이미 끝난 09:00~10:00 이 첫 번째로 잡힘
+
+### 수정
+
+**`isFinished(r)` 헬퍼 신설** (`public/static/app.js` L423~436):
+```javascript
+const nowMinutes = today.hour() * 60 + today.minute();
+const isFinished = (r) => {
+  if (r.date < todayStr) return true;          // 과거 날짜는 무조건 완료
+  if (r.date === todayStr) {                    // 오늘 일정은 end_time 비교
+    const [eh, em] = String(r.end_time || '00:00').split(':').map(Number);
+    const endMin = (eh || 0) * 60 + (em || 0);
+    return endMin <= nowMinutes;
+  }
+  return false;                                 // 미래 날짜는 완료 아님
+};
+```
+
+**적용 위치**:
+| 항목 | Before | After |
+|------|--------|-------|
+| `todayList` | `r.date === todayStr` | `r.date === todayStr && !isFinished(r)` |
+| `nextOne` | `todayList[0] || upcomingList[0]` | (자동) 완료된 일정 제외 후 첫번째 |
+| `myWeekCount` (이번주 카운트) | 7일 범위 | 7일 범위 + 완료 제외 |
+| `upcomingList` | `r.date > todayStr` | 변경 없음 (미래 날짜는 항상 표시) |
+
+**시뮬레이션 검증** (현재 16:48 기준):
+| 일정 | 결과 |
+|------|------|
+| 09:00 ~ 10:00 (아침 회의) | ❌ 숨김 (종료된 지 6h 48m) |
+| 10:30 ~ 14:30 (점심 미팅) | ❌ 숨김 (종료된 지 2h 18m) |
+| 13:00 ~ 20:00 (진행 중) | ✅ 표시 |
+| 16:30 ~ 21:30 (방금 시작) | ✅ 표시 |
+| 19:00 ~ 23:30 (저녁 예정) | ✅ 표시 |
+| 6/16 09:00 ~ 10:00 (내일) | ✅ 표시 |
+
+→ 오늘 5건 → 3건으로 자동 정리, `nextOne` 도 "진행 중 회의 (13:00-20:00)" 로 자동 갱신
+
+### 시간 흐름에 따른 자동 갱신
+
+기존 폴링 시그니처는 `id + updated_at + status` 만 비교 → 시간이 흘러도 데이터가 안 바뀌면 재렌더 안 됨.
+
+**수정**: 시그니처에 `현재 분(YYYY-MM-DD HH:MM)` 포함
+```javascript
+const nowMin = dayjs().format('YYYY-MM-DD HH:mm');
+const sig = nowMin + '|' + JSON.stringify(newUpcoming.map(r => ...));
+```
+→ **분이 바뀔 때마다 자동 재렌더** → 종료 시각이 지나는 순간 해당 일정이 화면에서 사라짐 (수동 새로고침 불필요)
+
+### 영향 범위 (수정 안 한 곳)
+- **공간 예약 페이지(spaces 타임라인)**: 끝난 일정도 시각적으로 보여야 함 (스크롤 이력) → 의도적으로 변경 없음
+- **인사이트/통계**: 과거 데이터 누적이라 변경 없음
+- **DB 데이터**: 일정은 DB에 그대로 남음 (자료 보존), 화면 표시만 필터링
+
+### 검증
+- `npm run build` ✅ (`98.73 kB · 63 modules · 1.26s`)
+- Node.js 시뮬레이션 ✅ (위 표 6건 모두 예상대로 동작)
+
+---
+
+## V43.1 (반응형 추가 정리 — PC vs 모바일 차별화)
 
 > V43 직후 사용자 후속 요청:
 > 1. **"PC 화면에서는 퀵 메뉴가 안 보이게, 스마트폰/모바일 환경에서만 보이게"** — 데스크탑은 네비바에 이미 진입 메뉴 있어서 중복
