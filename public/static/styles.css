@@ -8951,3 +8951,183 @@ button.abnb-btn--gradient:hover {
   .app-shell .v34-card--split .v34-split-sub { font-size: 10px; }
 }
 /* === V43 §4 END === */
+
+/* ============================================================
+   V43.1 §1 — PC에서 퀵 메뉴 숨김 (모바일에서만 노출)
+   - 사용자 요청: "PC 화면에서는 퀵 메뉴가 안 보이게, 스마트폰/모바일 환경에서만"
+   ============================================================ */
+.app-shell .v34-card--quick {
+  display: none !important;
+}
+@media (max-width: 768px) {
+  .app-shell .v34-card--quick {
+    display: block !important;
+  }
+}
+/* === V43.1 §1 END === */
+
+/* ============================================================
+   V43.1 §2/§3 — 오늘의 일정 + 앞으로의 일정 통합 카드
+   - PC(>768px): 좌 50% 오늘 / 우 50% 앞으로, 가운데 구분선
+   - 모바일(<=768px): 탭(라디오) 으로 둘 중 하나만 표시
+   - 헤더와 본문 간격 최소화 → 콤팩트 모드
+   ============================================================ */
+.app-shell .v34-card--schedule {
+  grid-column: 1 / -1;
+  padding: 16px 18px !important;
+}
+
+/* 헤더(탭 영역) */
+.app-shell .v34-card--schedule .v34-sched-head {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 10px;
+}
+.app-shell .v34-card--schedule .v34-sched-tab {
+  flex: 1 1 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+  user-select: none;
+}
+.app-shell .v34-card--schedule .v34-sched-tab__radio {
+  /* PC에서는 라디오 버튼 숨김 (제목/아이콘 클릭으로 전환) */
+  display: none;
+}
+.app-shell .v34-card--schedule .v34-sched-tab__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  color: #555;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.app-shell .v34-card--schedule .v34-sched-tab__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+  letter-spacing: -0.2px;
+}
+.app-shell .v34-card--schedule .v34-sched-head-divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: #ececec;
+  margin: 4px 4px;
+}
+
+/* 본문 — PC: flex row, 모바일: 활성 패널만 */
+.app-shell .v34-card--schedule .v34-sched-body {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.app-shell .v34-card--schedule .v34-sched-panel {
+  flex: 1 1 50%;
+  min-width: 0;
+  padding: 0 10px;
+}
+.app-shell .v34-card--schedule .v34-sched-panel:first-of-type { padding-left: 0; }
+.app-shell .v34-card--schedule .v34-sched-panel:last-of-type { padding-right: 0; }
+.app-shell .v34-card--schedule .v34-sched-divider {
+  flex: 0 0 1px;
+  background: #ececec;
+  margin: 2px 0;
+}
+.app-shell .v34-card--schedule .v34-sched-empty {
+  margin: 0;
+  padding: 16px 4px;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+}
+
+/* 통합 카드 내부 행 간격 콤팩트 */
+.app-shell .v34-card--schedule .v34-today-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-shell .v34-card--schedule .v34-today-row {
+  padding: 8px 10px !important;
+  font-size: 13px;
+}
+
+/* ── 모바일(<=768px): 탭 전환 모드 ── */
+@media (max-width: 768px) {
+  .app-shell .v34-card--schedule { padding: 14px 14px !important; }
+  .app-shell .v34-card--schedule .v34-sched-head {
+    background: #f5f7fa;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+    margin-bottom: 10px;
+  }
+  .app-shell .v34-card--schedule .v34-sched-head-divider { display: none; }
+  .app-shell .v34-card--schedule .v34-sched-tab {
+    flex: 1 1 50%;
+    justify-content: center;
+    padding: 8px 6px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  /* 모바일에서는 라디오 표시(왼쪽에 체크 표시) */
+  .app-shell .v34-card--schedule .v34-sched-tab__radio {
+    display: inline-block;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #c0c0c0;
+    margin: 0 2px 0 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    background: #fff;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .app-shell .v34-card--schedule .v34-sched-tab__radio:checked {
+    border-color: #FF385C;
+    background: #FF385C;
+    box-shadow: inset 0 0 0 3px #fff;
+  }
+  .app-shell .v34-card--schedule .v34-sched-tab__icon { display: none; }
+  .app-shell .v34-card--schedule .v34-sched-tab__title { font-size: 13px; font-weight: 600; }
+  /* 활성 탭 강조 */
+  .app-shell .v34-card--schedule[data-active-tab="today"] .v34-sched-tab--today,
+  .app-shell .v34-card--schedule[data-active-tab="upcoming"] .v34-sched-tab--upcoming {
+    background: #fff;
+    border-color: #FF385C;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .app-shell .v34-card--schedule[data-active-tab="today"] .v34-sched-tab--today .v34-sched-tab__title,
+  .app-shell .v34-card--schedule[data-active-tab="upcoming"] .v34-sched-tab--upcoming .v34-sched-tab__title {
+    color: #FF385C;
+  }
+  /* 본문: flex 해제 + 활성 패널만 표시 */
+  .app-shell .v34-card--schedule .v34-sched-body {
+    display: block;
+  }
+  .app-shell .v34-card--schedule .v34-sched-divider { display: none; }
+  .app-shell .v34-card--schedule .v34-sched-panel {
+    flex: none;
+    width: 100%;
+    padding: 0;
+    display: none;
+  }
+  .app-shell .v34-card--schedule[data-active-tab="today"] .v34-sched-panel[data-side="today"],
+  .app-shell .v34-card--schedule[data-active-tab="upcoming"] .v34-sched-panel[data-side="upcoming"] {
+    display: block;
+  }
+}
+/* === V43.1 §2/§3 END === */

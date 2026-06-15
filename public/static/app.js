@@ -526,85 +526,108 @@ async function renderHome() {
     )
   );
 
-  // ── 카드 6: 오늘의 일정 (있을 때만, 전체 폭) ──
-  const todayCard = todayList.length > 0
-    ? el('section', { class: 'v34-card v34-card--today' },
-        el('div', { class: 'v34-card__head' },
-          el('h3', { class: 'v34-card__title' }, `오늘의 일정 · ${todayList.length}건`),
-          el('div', { class: 'v34-card__icon' }, el('i', { class: 'fa-solid fa-list-check' }))
-        ),
-        el('div', { class: 'v34-today-list' },
-          ...todayList.map(r =>
-            el('div', {
-              class: 'v34-today-row',
-              onclick: () => goToSpace(r.date, r.start_time)
-            },
-              el('span', { class: 'v34-today-time' }, `${r.start_time} - ${r.end_time}`),
-              el('span', { class: 'v34-today-title' },
-                r.title || '새로운 일정',
-                r.my_role === 'ATTENDEE'
-                  ? el('span', { class: 'role-badge is-attendee', style: 'margin-left:8px;' }, '참석')
-                  : el('span', { class: 'role-badge is-owner', style: 'margin-left:8px;' }, '주최')
-              ),
-              el('span', { class: 'v34-today-space' },
-                el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
-                r.space_name
-              )
-            )
+  // V43.1 §2/§3: 오늘의 일정 + 앞으로의 일정 통합 카드
+  //   PC: 좌 50% 오늘 / 우 50% 앞으로 (콤팩트 분할)
+  //   모바일: 탭(체크박스 스타일) 으로 둘 중 하나만 표시 → 공간 절약
+  //   * 데이터가 양쪽 모두 0건이면 카드 자체 미표시
+  const hasToday = todayList.length > 0;
+  const hasUpcoming = upcomingList.length > 0;
+  const hasAnySchedule = hasToday || hasUpcoming;
+
+  // 행 렌더 헬퍼 — 기존 로직 유지 (날짜/시간/제목/공간)
+  const renderRow = (r, includeDate) => el('div', {
+    class: 'v34-today-row',
+    onclick: () => goToSpace(r.date, r.start_time)
+  },
+    includeDate
+      ? el('span', { class: 'v34-today-date' }, dayjs(r.date).locale('ko').format('M/D(dd)'))
+      : null,
+    el('span', { class: 'v34-today-time' }, `${r.start_time} - ${r.end_time}`),
+    el('span', { class: 'v34-today-title' },
+      r.title || '새로운 일정',
+      r.my_role === 'ATTENDEE'
+        ? el('span', { class: 'role-badge is-attendee', style: 'margin-left:8px;' }, '참석')
+        : el('span', { class: 'role-badge is-owner', style: 'margin-left:8px;' }, '주최')
+    ),
+    el('span', { class: 'v34-today-space' },
+      el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
+      r.space_name
+    )
+  );
+
+  // 오늘 쪽 패널 — 0건이면 안내문
+  const todayPanel = el('div', { class: 'v34-sched-panel', 'data-side': 'today' },
+    hasToday
+      ? el('div', { class: 'v34-today-list' }, ...todayList.map(r => renderRow(r, false)))
+      : el('p', { class: 'v34-sched-empty' }, '오늘은 예정된 일정이 없습니다.')
+  );
+
+  // 앞으로 쪽 패널 — 0건이면 안내문
+  const upcomingPanel = el('div', { class: 'v34-sched-panel', 'data-side': 'upcoming' },
+    hasUpcoming
+      ? el('div', { class: 'v34-today-list' }, ...upcomingList.map(r => renderRow(r, true)))
+      : el('p', { class: 'v34-sched-empty' }, '예정된 일정이 없습니다.')
+  );
+
+  // 통합 카드 (PC: 50:50 분할, 모바일: 탭으로 전환)
+  // 토글 핸들러 — 모바일 탭 클릭 시 활성 패널 전환
+  const handleTabClick = (side) => (evt) => {
+    const card = evt.currentTarget.closest('.v34-card--schedule');
+    if (!card) return;
+    card.setAttribute('data-active-tab', side);
+    // 라디오 버튼 시각 동기화
+    const radios = card.querySelectorAll('input[name="v34-sched-tab"]');
+    radios.forEach(r => { r.checked = (r.value === side); });
+  };
+
+  const todayUpcomingCard = hasAnySchedule
+    ? el('section', { class: 'v34-card v34-card--schedule', 'data-active-tab': hasToday ? 'today' : 'upcoming' },
+        // 헤더 — PC: 좌우 두 제목 / 모바일: 탭 라디오로 전환
+        el('div', { class: 'v34-sched-head' },
+          // 좌측 헤더 (오늘)
+          el('label', { class: 'v34-sched-tab v34-sched-tab--today', onclick: handleTabClick('today') },
+            el('input', {
+              type: 'radio',
+              name: 'v34-sched-tab',
+              value: 'today',
+              checked: hasToday,
+              class: 'v34-sched-tab__radio'
+            }),
+            el('span', { class: 'v34-sched-tab__icon' }, el('i', { class: 'fa-solid fa-list-check' })),
+            el('span', { class: 'v34-sched-tab__title' }, `오늘의 일정${hasToday ? ` · ${todayList.length}` : ''}`)
+          ),
+          // 가운데 구분선 (PC에서만 표시 — CSS 처리)
+          el('span', { class: 'v34-sched-head-divider' }),
+          // 우측 헤더 (앞으로)
+          el('label', { class: 'v34-sched-tab v34-sched-tab--upcoming', onclick: handleTabClick('upcoming') },
+            el('input', {
+              type: 'radio',
+              name: 'v34-sched-tab',
+              value: 'upcoming',
+              checked: !hasToday,
+              class: 'v34-sched-tab__radio'
+            }),
+            el('span', { class: 'v34-sched-tab__icon', style: 'background:#E8F5FF;color:#0066cc;' },
+              el('i', { class: 'fa-solid fa-calendar-days' })
+            ),
+            el('span', { class: 'v34-sched-tab__title' }, `앞으로의 일정${hasUpcoming ? ` · ${upcomingList.length}` : ''}`)
           )
+        ),
+        // 본문 — PC: 좌우 분할 / 모바일: 활성 패널만 표시
+        el('div', { class: 'v34-sched-body' },
+          todayPanel,
+          el('div', { class: 'v34-sched-divider' }),
+          upcomingPanel
         )
       )
     : null;
 
-  // V35 §1: 받은 초대 응답 대기 카드 제거 — '받은 초대' 카드(④)를 클릭하면 모달 팝업
-  //   사용자 보고: 스크롤 번거로움 → 통합 + 0건이면 비활성화
-
-  // ── 카드 7: 앞으로의 일정 (오늘 외 다가오는 5건, 전체 폭) ──
-  const upcomingCard = upcomingList.length > 0
-    ? el('section', { class: 'v34-card v34-card--today' },
-        el('div', { class: 'v34-card__head' },
-          el('h3', { class: 'v34-card__title' }, '앞으로의 일정'),
-          el('div', { class: 'v34-card__icon', style: 'background:#E8F5FF;color:#0066cc;' },
-            el('i', { class: 'fa-solid fa-calendar-days' })
-          )
-        ),
-        el('div', { class: 'v34-today-list' },
-          ...upcomingList.map(r =>
-            // V37 §2: 모바일에서 4줄(날짜 / 시간 / 회의명 / 위치)로 분리되도록
-            //   date와 time을 별도 span으로 나눠 렌더 → CSS @media에서 flex-direction:column으로 세로 배치
-            el('div', {
-              class: 'v34-today-row',
-              onclick: () => goToSpace(r.date, r.start_time)
-            },
-              el('span', { class: 'v34-today-date' },
-                dayjs(r.date).locale('ko').format('M/D(dd)')
-              ),
-              el('span', { class: 'v34-today-time' },
-                r.start_time + ' - ' + r.end_time
-              ),
-              el('span', { class: 'v34-today-title' },
-                r.title || '새로운 일정',
-                r.my_role === 'ATTENDEE'
-                  ? el('span', { class: 'role-badge is-attendee', style: 'margin-left:8px;' }, '참석')
-                  : el('span', { class: 'role-badge is-owner', style: 'margin-left:8px;' }, '주최')
-              ),
-              el('span', { class: 'v34-today-space' },
-                el('span', { class: 'space-dot', style: `background:${r.space_color || '#7a7a7a'};` }),
-                r.space_name
-              )
-            )
-          )
-        )
-      )
-    : null;
-
-  // V43 §3/§4: 인사말 카드 제거 + 퀵 메뉴를 최상단으로 + 이번주 일정/받은 초대 50:50 병합
+  // V43 §3/§4 + V43.1: 인사말 카드 제거 + 퀵 메뉴(모바일 전용) + 이번주/초대 50:50 + 오늘/앞으로 통합
   const dashboard = el('div', { class: 'v34-dashboard' },
-    quickCard,        // 퀵 메뉴 (인사말 자리)
-    nextCard,         // 다음 일정
-    weekInviteCard,   // 이번주 일정 + 받은 초대 (50:50 분할)
-    todayCard,        // 오늘의 일정
-    upcomingCard,     // 앞으로의 일정
+    quickCard,             // 퀵 메뉴 (모바일에서만 노출 — CSS .v34-card--quick @media 처리)
+    nextCard,              // 다음 일정
+    weekInviteCard,        // 이번주 일정 + 받은 초대 (50:50 분할)
+    todayUpcomingCard,     // 오늘의 일정 + 앞으로의 일정 (PC 50:50 · 모바일 탭)
   );
 
   const main = el('main', { class: 'page-wrap' }, dashboard);
