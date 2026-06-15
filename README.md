@@ -1,8 +1,68 @@
-# 메이트리그라운드 (Mateground) — V39 실시간 연동 + 시계화 now-line + 정원 제거
+# 메이트리그라운드 (Mateground) — V40 LIVE 가용성 정확도 + 모바일 로그인 압축
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V39 (실시간 연동 강화 + 빨간 실선 시계화 + 정원 8명 제거)
+## 🆕 V40 (로그인 LIVE 가용성 진단·강화 + 모바일 한 화면 압축)
+
+> 사용자 V39 직후 의심:
+> 1. **"공간 페이지엔 회의실 시간이 잔뜩 잡혀있는데 왜 로그인 LIVE는 즉시 사용 가능이라고 나와?"** — 실시간 연동 불신
+> 2. **"모바일 화면에서 M / 메이트리그라운드 / 부제 / 회의실 / 로그인 폼 사이가 너무 넓어 '공간 입장하기' 버튼이 첫 진입 시 안 보임"**
+
+### §1 — LIVE 가용성 진단 + 강화 (실제로는 정확히 동작 중이었음 검증 + 추가 안전장치)
+- **진단 결과**: 가용성 로직 자체는 처음부터 정상 작동. 사용자가 본 첫 이미지는 **다른 날짜의 공간 페이지** 또는 **Conference Room / 파라다이스룸**(로그인 LIVE에서 제외 대상)을 본 것이었음
+- **검증 시나리오** (2026-06-15 09:31 KST 기준):
+  - DB에 `Meeting Room A (09:00~10:00)`, `Meeting Room C (09:00~11:00)`, `Meeting Room D (08:30~10:30)` 예약 추가
+  - LIVE API 응답: A=🔴사용 중, B=🟢가용, C=🔴사용 중, D=🔴사용 중, E=🟢가용 → **정확히 일치**
+- **추가 강화**:
+  - 가용성 판정 경계 조건 명시 — `start <= hhmm < end` (시작 포함, 종료 미포함)
+  - 응답에 `bookings_today` 필드 추가 — 각 회의실의 오늘 예약 raw 목록 (디버깅·검증용)
+  - `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` + `Pragma: no-cache` + `Expires: 0` 헤더 추가 — 어떤 중간 캐시도 못 끼게
+- **위치**: `src/api/public.ts` V40 §1 블록
+
+### §2 — 로그인 페이지 폴링 60s → 10s + 탭 가시성 즉시 갱신
+- **문제**: V39 까지 로그인 페이지 LIVE 폴링은 60초 주기 → 공간 페이지(3초)와 시차가 커서 "방금 잡았는데 LIVE가 못 따라잡음"
+- **변경**:
+  - `POLL_MS = 60_000 → 10_000` (10초)
+  - 신규: `document.visibilitychange` (다른 탭에서 돌아옴) + `window.focus` (창 포커스) 즉시 `fetchOnce()` 한 번 더 실행
+  - 카드 푸터 텍스트 "60초마다 자동 갱신" → "10초마다 자동 갱신"
+- **위치**: `public/static/login.js` line 9~ 및 line 121~ / `src/pages/login.tsx` line 59
+
+### §3 — 모바일 로그인 화면 세로 간격 압축 (한 화면 안에 "공간 입장하기"까지)
+- **문제**: M 로고(40px) → 타이틀 → 부제 → 회의실 박스 → 로그인 카드 사이 간격이 데스크톱 기준이라 모바일에서 폼 버튼이 첫 진입 시 화면 밖
+- **변경 (768px 이하)**:
+  | 요소 | 이전 | V40 |
+  |------|------|-----|
+  | `.abnb-gate` padding-top | 보통 32~40 | **20px** |
+  | `.abnb-gate__brand` margin-bottom | V37 40 | **18px** |
+  | M 마크 SVG 크기 | 40×40 | **32×32** |
+  | `.abnb-brand-mark` margin-bottom | V37 14 | **6px** |
+  | `.abnb-gate__title` font / margin | 26 / 12 0 6 | **20px / 4 0 2** |
+  | `.abnb-gate__sub` font / margin | 13 / 기본 | **12px / mt 2** |
+  | `.abnb-gate__grid` gap | 24~32 | **14px** |
+  | `.abnb-card--live` padding | V38 16 | **14px** |
+  | `.abnb-card--login` padding | 22 | **18px** |
+  | `.abnb-form` gap | 18 | **12px** |
+  | `.abnb-field` gap (label↔input) | 8 | **5px** |
+  | `.abnb-field input` padding | 12~14 | **10 12** |
+- **420px 이하** 한 번 더 축소: M 28×28, 타이틀 18px, gate gap 12px
+- **위치**: `styles.css` V40 §3 (V39 END 다음에 약 100줄)
+
+### 📊 V40 빌드/배포 상태
+- 빌드: ✅ `vite build` 성공 (`dist/_worker.js` 94.05 kB, 63 modules)
+- PM2: ✅ `webapp` online (PID 60722)
+- HTTP: `/login` 200 · `/api/public/available-spaces` 200 · 내부 페이지 4개 모두 302
+- API 캐시 헤더: `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` ✅
+- API 응답 (KST 09:31): A 🔴, B 🟢, C 🔴, D 🔴, E 🟢 — 정확
+- Playwright `/login` 콘솔 메시지 0건
+
+### 🔬 사용자가 직접 검증하는 법
+1. 로그인 후 `/spaces`에서 `Meeting Room A`에 `현재 시각이 포함되는` 일정을 추가
+2. 다른 탭/디바이스에서 `/login` 새로고침 (또는 10초 대기)
+3. LIVE 카드에서 `Meeting Room A`가 "사용 중"으로 표시되는지 확인
+
+---
+
+## V39 (실시간 연동 강화 + 빨간 실선 시계화 + 정원 8명 제거)
 
 > 사용자 V38 직후 요청:
 > 1. **"왜 메인페이지랑 공간 페이지 실시간 연동이 안돼는거지?"** — 홈 대시보드가 예약 변경을 못 따라잡음

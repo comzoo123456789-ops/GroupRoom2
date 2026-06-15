@@ -56,7 +56,7 @@ export const LoginPage = () => {
 
           <div class="abnb-card__foot">
             <span id="live-updated-at" class="abnb-card__foot-text">곧 업데이트됩니다…</span>
-            <span class="abnb-card__foot-note">60초마다 자동 갱신</span>
+            <span class="abnb-card__foot-note">10초마다 자동 갱신</span>
           </div>
         </section>
 

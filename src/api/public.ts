@@ -75,8 +75,14 @@ publicApi.get('/available-spaces', async (c) => {
   }
 
   // 3) 가용성 판정
+  //   V40 §1: 경계 조건 명확화
+  //     - 현재 사용 중: start <= hhmm < end   (시작 시각 포함, 종료 시각 미포함)
+  //     - "지금이 종료 시각과 정확히 같은 순간"(예: 10:00, end=10:00) → 가용으로 본다
+  //     - 다음 예약: start > hhmm (가까운 시작 시각 하나만)
+  //   추가로 디버깅을 위해 raw 예약 목록도 응답에 포함시켜 클라이언트에서 검증 가능
   const rooms = spaces.map((s) => {
     const list = byRoom.get(s.id) || [];
+    // start <= hhmm < end 인 예약이 있으면 "사용 중"
     const current = list.find((r) => r.start <= hhmm && hhmm < r.end);
     if (current) {
       return {
@@ -86,8 +92,11 @@ publicApi.get('/available-spaces', async (c) => {
         available: false,
         current_end_at: current.end,
         next_busy_at: null,
+        // V40 디버그: 이 회의실의 오늘 예약 전체 목록 (시작순)
+        bookings_today: list,
       };
     }
+    // 다음으로 가까운 예약 시작 시각
     const next = list.find((r) => r.start > hhmm);
     return {
       id: s.id,
@@ -96,8 +105,14 @@ publicApi.get('/available-spaces', async (c) => {
       available: true,
       current_end_at: null,
       next_busy_at: next?.start || null,
+      bookings_today: list,
     };
   });
+
+  // V40: 캐시 방지 헤더 강화 — 어떤 중간 캐시도 끼지 못하게
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
 
   return c.json({ now: { date, time: hhmm }, rooms });
 });

@@ -6,7 +6,10 @@
 (function () {
   'use strict';
 
-  const POLL_MS = 60 * 1000;
+  // V40 §2: 폴링 주기 60초 → 10초로 단축
+  //   - 공간 페이지(3초)와의 시차를 줄여 "한 곳에서 예약 만들었는데 로그인 페이지가 못 따라잡음" 현상 완화
+  //   - 비로그인 사용자 화면이라 너무 자주 호출하지 않도록 10초 정도가 균형점
+  const POLL_MS = 10 * 1000;
 
   // ───── 1. 폼 제출 ─────
   const form = document.getElementById('login-form');
@@ -117,7 +120,12 @@
     }
   }
 
-  // 초기 fetch + 60초 폴링
+  // V40 §2: 초기 fetch + 10초 폴링 + 탭 가시성 변경 시 즉시 갱신
   fetchOnce();
   setInterval(fetchOnce, POLL_MS);
+  // 사용자가 다른 탭에서 돌아오거나, 브라우저 창에 포커스가 들어오면 즉시 한 번 더 fetch
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') fetchOnce();
+  });
+  window.addEventListener('focus', fetchOnce);
 })();
