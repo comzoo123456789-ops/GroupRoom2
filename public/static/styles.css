@@ -8786,14 +8786,15 @@ button.abnb-btn--gradient:hover {
   gap: 6px;
   align-items: stretch;
 }
+/* V45 §2: 60:40 비율 명시 (아이디 60% / 도메인 40%) — 사용자 요청 */
 .login-email-input {
-  flex: 1 1 60%;
+  flex: 6 1 0;   /* 60% */
   min-width: 0;
   /* 부모 .abnb-field input 스타일을 상속받아 동일한 룩앤필 유지 */
 }
 .login-email-domain {
-  flex: 0 0 auto;
-  min-width: 130px;
+  flex: 4 1 0;   /* 40% */
+  min-width: 0;
   padding: 0 10px;
   border-radius: 11px;
   border: 1px solid #e0e0e0;
@@ -8820,16 +8821,15 @@ button.abnb-btn--gradient:hover {
 /* V43 §1: 모바일에서도 input + domain select 한 줄 유지 (사용자 요청)
    - 아이디는 길지 않으므로 wrap 없이 한 줄 압축
    - 도메인 셀렉트는 폭 축소 + 폰트 축소로 공간 확보 */
+/* V45 §2: 모바일에서도 60:40 비율 유지 (사용자 요청) */
 @media (max-width: 480px) {
   .login-email-row { flex-wrap: nowrap; gap: 4px; }
-  .login-email-input { flex: 1 1 auto; min-width: 0; }
+  .login-email-input { flex: 6 1 0; min-width: 0; }
   .login-email-domain {
-    flex: 0 0 auto;
+    flex: 4 1 0;
     min-width: 0;
-    width: auto;
-    max-width: 130px;
-    padding: 0 6px;
-    font-size: 11px;
+    padding: 0 8px;
+    font-size: 12px;
     font-weight: 600;
   }
   .live-date-nav__today { padding: 7px 8px; }
