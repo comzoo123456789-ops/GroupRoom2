@@ -7,9 +7,10 @@ import type { Bindings } from '../types';
  * 로그인 페이지의 "실시간 예약 가능 공용 회의실" 현황판용.
  * 인증 미들웨어를 거치지 않고 접근 가능해야 하므로 별도 라우터로 분리.
  *
- * 정책:
- *  - 대상 공간: 공용(tenant_scope IS NULL) 중 'Meeting Room A~E' 5개만
- *  - 제외 공간: 'Conference Room'(WYLIE 전용), '파라다이스룸'(LUSH 전용), 그 외 Lounge/Recharging Zone
+ * 정책 (V44 §3 — 동적 매칭으로 변경):
+ *  - 대상 공간: type='meeting_room' AND (tenant_scope IS NULL OR tenant_scope='')
+ *    → 룸 이름이 바뀌어도, 새 룸이 추가되어도, 삭제되어도 즉시 LIVE에 반영
+ *  - 제외 공간: 테넌트 전용 룸 (WYLIE/LUSH 등), Lounge/Recharging Zone (type != meeting_room)
  *  - 가용성 판정: 현재 시간(KST 기준 HH:MM)이 어느 active 예약 [start_time, end_time) 구간에도 들어가지 않으면 "가용"
  */
 const publicApi = new Hono<{ Bindings: Bindings }>();
@@ -75,15 +76,16 @@ publicApi.get('/available-spaces', async (c) => {
   const isToday = queryDate === now.date;
   const hhmm = now.hhmm;
 
-  // 1) 공용 공간(tenant_scope IS NULL) 중 Meeting Room A~E만
-  const PUBLIC_ROOMS = ['Meeting Room A', 'Meeting Room B', 'Meeting Room C', 'Meeting Room D', 'Meeting Room E'];
-  const placeholders = PUBLIC_ROOMS.map(() => '?').join(',');
+  // 1) V44 §3: 공용 미팅룸을 동적으로 매칭
+  //    - type='meeting_room' AND (tenant_scope IS NULL OR tenant_scope='')
+  //    - 하드코딩된 이름 의존성 제거 → 룸 이름 변경/삭제/추가가 즉시 LIVE에 반영
+  //    - tenant_scope 빈 문자열 변칙 데이터도 흡수
   const spacesRes = await c.env.DB.prepare(
     `SELECT id, name, capacity FROM spaces
-       WHERE name IN (${placeholders})
-         AND tenant_scope IS NULL
+       WHERE type = 'meeting_room'
+         AND (tenant_scope IS NULL OR tenant_scope = '')
        ORDER BY name ASC`
-  ).bind(...PUBLIC_ROOMS).all<{ id: number; name: string; capacity: number }>();
+  ).all<{ id: number; name: string; capacity: number }>();
 
   const spaces = spacesRes.results || [];
   if (!spaces.length) {

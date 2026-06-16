@@ -1,8 +1,86 @@
-# 메이트리그라운드 (Mateground) — V43.2 끝난 일정 자동 숨김
+# 메이트리그라운드 (Mateground) — V44 공간/타임라인 정합성 정비
 
 WYLIE/LUSH 통합 예약 관리 플랫폼. Cloudflare Pages + Hono + D1(SQLite).
 
-## 🆕 V43.2 (종료된 일정 자동 숨김)
+## 🆕 V44 (타임라인 06:00 시작 + 공간 정렬/삭제/LIVE 정합성)
+
+> 사용자 5개 요청 일괄 처리:
+> 1. `"00:00시 ~ 05:00까지 삭제해 그 시간에 사람들이 회의실 쓸 일이 없으니깐 06시부터 시작하게 해줘"`
+> 2. `"공간에 미팅룸 이름바꾸니깐 공간에 미팅룸 사라지고 Room이라는 룸은 삭제도 불가하고 와일리 전용인데 맨뒤로 보내줘야하는데 그렇지도 않고..."`
+> 3. `"룸이 삭제 및 이름 수정이 되어도 실시간 반영이 되어야함 삭제되면 삭제 이름 수정되면 수정되어야하고"` (LIVE 카드)
+> 4. `"Room 삭제할려고해도 삭제 불가함 이거 문제해결해주고"`
+> 5. `"5F room은 와일리 전용이라 a,c,d,f 이거 끝부분 라운지 사이에 들어가야하는 부분이야 공용부분이니깐"`
+
+### §1 타임라인 06:00 시작
+- 새 상수: `TIMELINE_START_HOUR=6`, `TIMELINE_END_HOUR=24`, `TIMELINE_HOURS=18`
+- 좌표 헬퍼 `MIN_TO_PX(m) = max(0, (m - 360) * (40/60))` 도입 — 06:00 이전은 자동 0 클램프
+- **수정 호출부 7곳**: 시간 컬럼 루프(L912), 셀 그리드 루프(L920), 이벤트 top(L946), now-line(L1333), 홈→공간 스크롤(L784), 시간 select 드롭다운 × 2 (L1718, L1989)
+- **드래그/리사이즈 좌표계 보정**:
+  - 컬럼 좌표(top=0)가 06:00을 의미 → `(top/40)*60 + TIMELINE_START_MIN` 로 변환
+  - 리사이즈 `minStartMin = MIN_START_MIN` (06:00 이전 차단)
+  - `eventEl.style.height` 는 길이(차이값)이라 `MIN_TO_PX` 가 아닌 `PX_PER_MIN`만 곱함 (이전 코드의 잠재 버그도 함께 수정)
+- 컬럼 총 높이: 18 × 40 = **720px** (이전 960px → 240px 축소)
+
+### §2/§5 공간 정렬 로직 전면 재설계 (`src/api/spaces.ts`)
+**이전 (하드코딩 매칭 — 룸 이름 변경 시 깨짐)**
+```ts
+const PRIMARY_ORDER = ['Meeting Room A',...,'Meeting Room E']; // 정확 매칭
+sorted = [...primary, ...rest, ...pinnedTail];
+```
+**현재 (동적 type/tenant_scope 기반)**
+```ts
+// 1) 공용 미팅룸 (tenant_scope IS NULL/'') — name ASC
+// 2) 테넌트 전용 미팅룸 (tenant_scope = 사용자 테넌트) — name ASC
+// 3) 라운지/Recharging Zone (type != 'meeting_room') — display_order ASC
+const sorted = [...publicRooms, ...tenantRooms, ...tail];
+```
+→ 룸 이름을 자유롭게 변경해도 정렬 무너지지 않음. **5F Room (WYLIE 전용) 은 공용 룸 다음, 라운지 앞** 위치로 자동 배치.
+
+### §3 LIVE 카드 동적 매칭 (`src/api/public.ts`)
+**이전**: `WHERE name IN ('Meeting Room A',...,'Meeting Room E') AND tenant_scope IS NULL` → 이름 바꾸면 LIVE 에서 사라짐.
+
+**현재**:
+```sql
+WHERE type = 'meeting_room'
+  AND (tenant_scope IS NULL OR tenant_scope = '')
+```
+→ 룸 이름 변경/삭제/추가가 모두 즉시 LIVE 카드에 반영됨. tenant_scope 빈 문자열 변칙 데이터도 흡수.
+
+### §4 Room 삭제 불가 해결
+**원인**: `reservations.space_id REFERENCES spaces(id)` (NO CASCADE). 이전 코드는 `UPDATE reservations SET status='cancelled'` 만 했어서 잔존 row가 spaces DELETE 를 막음 (`D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT_FOREIGNKEY`).
+
+**수정**: `DELETE FROM reservations WHERE space_id = ?` 로 변경. `reservation_attendees` 는 `ON DELETE CASCADE` 라 자동 정리됨.
+
+**검증**:
+```bash
+DELETE /api/spaces/8  → {"ok":true} HTTP 200   # 이전엔 500
+```
+
+### tenant_scope 정규화 (프론트 + 백엔드)
+- POST/PATCH `/api/spaces` 에서 `tenant_scope === '' || undefined` → `NULL` 로 저장
+- 프론트 `openSpaceModal.submit()` 도 payload 의 `tenant_scope` 를 정규화
+- DB 정화 1회 실행: `UPDATE spaces SET tenant_scope = NULL WHERE tenant_scope = ''`
+
+### V44 후 정렬 결과 (검증됨)
+```
+공용 미팅룸 (name ASC):      Room → Room A → Room B → Room C → Room D → Room E → Room F
+테넌트 전용 미팅룸:          5F Room (WYLIE)
+공용공간 (display_order):    Lounge → Recharging Zone
+```
+
+### 검증 시나리오
+| 시나리오 | 결과 |
+|---------|------|
+| 룸 이름을 "Room A" → "회의실1" 변경 | LIVE 카드에 "회의실1"로 즉시 반영 ✅ |
+| 새 룸 "Room G" 추가 | LIVE/관리/타임라인 모두 즉시 반영 ✅ |
+| `Room` (id=8) 삭제 | FOREIGN KEY 에러 없이 성공 ✅ |
+| 5F Room (WYLIE 전용) 위치 | Room F 다음, Lounge 앞 ✅ |
+| 06:00 이전 영역 | 화면에 없음 (00~05시 제거) ✅ |
+| 23:30 이벤트 | `MIN_TO_PX(1410) = 700px` 정확 위치 ✅ |
+
+---
+
+## V43.2 (종료된 일정 자동 숨김)
 
 > 사용자 보고: **"현재 시간이 16:48인데 아침에 있던 09:00~10:00 일정이 왜 안 사라져? 오늘의 일정도 09:00~10:00 안 사라지고, 10:30~14:30 일정도 안 사라지고. 일정 완료된 거는 삭제되게끔 해줘"**
 

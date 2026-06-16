@@ -780,7 +780,8 @@ function focusOnRequestedTime() {
   if (isNaN(h)) return;
   const scroller = $('.timeline-scroll');
   if (!scroller) return;
-  const topPx = (h * 60 + (m || 0)) * (40 / 60);
+  // V44 §1: 홈→공간 이동 시 시간 좌표도 06:00 오프셋 적용
+  const topPx = MIN_TO_PX(h * 60 + (m || 0));
   // 헤더 높이를 빼고 살짝 여유
   scroller.scrollTo({ top: Math.max(0, topPx - 80), behavior: 'smooth' });
 }
@@ -906,17 +907,17 @@ function buildTimelineGrid() {
     ));
   }
 
-  // Time column
+  // Time column — V44 §1: 06:00 ~ 23:00 (18시간) 만 표시 (이전 00~05시 영역 제거)
   const timeCol = el('div', { class: 'timeline-time-col' });
-  for (let h = 0; h < 24; h++) {
+  for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
     timeCol.append(el('div', { class: 'timeline-time-cell' }, `${String(h).padStart(2, '0')}:00`));
   }
   grid.append(timeCol);
 
-  // Space columns (24 hours x 30min slots = 48 cells, but we use 24 hour-cells for simplicity)
+  // Space columns — V44 §1: 동일하게 06~23시 18셀 (40px * 18 = 720px)
   for (const s of State.spaces) {
     const col = el('div', { class: 'timeline-space-col', 'data-space-id': s.id });
-    for (let h = 0; h < 24; h++) {
+    for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
       const cell = el('div', { class: 'timeline-cell is-hour-mark', 'data-hour': h, 'data-space-id': s.id });
       col.append(cell);
     }
@@ -941,8 +942,9 @@ function buildEventEl(r) {
   const startTotal = sh * 60 + sm;
   let endTotal = eh * 60 + em;
   if (endTotal <= startTotal) endTotal = startTotal + 30; // 최소 30분 보장
-  const top = startTotal * (40 / 60); // 40px per hour
-  const height = Math.max(20, (endTotal - startTotal) * (40 / 60));
+  // V44 §1: top은 06:00 오프셋 적용 (MIN_TO_PX), height는 길이라 오프셋 무관
+  const top = MIN_TO_PX(startTotal);
+  const height = Math.max(20, (endTotal - startTotal) * PX_PER_MIN);
   // V13 §NEW: 크로스테넌트 격리 — 본인 소속이 아닌 일정은 상세보기 차단(관리자는 예외)
   const isAdmin = State.user.role === 'admin';
   const isCrossTenant = !isAdmin && r.tenant_id !== State.user.tenant_id;
@@ -1043,7 +1045,8 @@ function bindGlobalTimelineListeners() {
 function onDragMove(e) {
   if (!dragState) return;
   const rect = dragState.col.getBoundingClientRect();
-  dragState.currentY = Math.max(0, Math.min(24 * 40, e.clientY - rect.top));
+  // V44 §1: 컬럼 높이가 18시간 × 40px 이므로 최대 720px까지만 이동 허용
+  dragState.currentY = Math.max(0, Math.min(TIMELINE_HOURS * 40, e.clientY - rect.top));
   updateDragPreview();
 }
 
@@ -1053,15 +1056,16 @@ function onDragUp(e) {
   preview.remove();
   const top = Math.min(startY, currentY);
   const bottom = Math.max(startY, currentY);
-  // snap to 30-min slots
-  let startMin = Math.round((top / 40) * 60 / 30) * 30;
-  let endMin = Math.round((bottom / 40) * 60 / 30) * 30;
+  // V44 §1: 컬럼 상단(top=0)이 06:00을 의미 → TIMELINE_START_MIN 오프셋 가산
+  let startMin = Math.round((top / 40) * 60 / 30) * 30 + TIMELINE_START_MIN;
+  let endMin = Math.round((bottom / 40) * 60 / 30) * 30 + TIMELINE_START_MIN;
   // V13 §2-A: end_time이 절대 24:00이 되지 않도록 23:30(=1410)이 최대 상한
   //   ── minutesToTime(1440) === '24:00' 은 HH:mm 규격 위반 → DB에 들어가면 buildEventEl이 eh=24를 만들어
   //      거대한 보라색 블록이 화면 맨 아래에 노출됨
   const MAX_END_MIN = 23 * 60 + 30; // 1410
   if (endMin > MAX_END_MIN) endMin = MAX_END_MIN;
   if (startMin >= MAX_END_MIN) startMin = MAX_END_MIN - 30;
+  if (startMin < TIMELINE_START_MIN) startMin = TIMELINE_START_MIN; // V44 §1: 06시 이전 차단
   if (endMin <= startMin) endMin = startMin + 30;
   dragState = null;
   if (endMin - startMin < 30) return;
@@ -1089,10 +1093,18 @@ function onDragUp(e) {
    ============================================================================ */
 
 const PX_PER_MIN = 40 / 60;          // 1시간(60분) = 40px → 1분 ≈ 0.6667px
-const MIN_TO_PX = (m) => m * PX_PER_MIN;
-const PX_TO_MIN = (p) => p / PX_PER_MIN;
+// V44 §1: 타임라인을 06:00부터 시작 (00:00~05:00 제거)
+//   사용자 요청: "그 시간에 사람들이 회의실 쓸 일이 없으니깐 06시부터 시작"
+//   모든 시각→픽셀 변환은 minutes - TIMELINE_START_MIN 으로 오프셋
+const TIMELINE_START_HOUR = 6;
+const TIMELINE_START_MIN = TIMELINE_START_HOUR * 60;     // 360분
+const TIMELINE_END_HOUR = 24;                            // 24시까지 그림(23:30 예약 가능)
+const TIMELINE_HOURS = TIMELINE_END_HOUR - TIMELINE_START_HOUR; // 18시간
+const MIN_TO_PX = (m) => Math.max(0, (m - TIMELINE_START_MIN) * PX_PER_MIN);
+const PX_TO_MIN = (p) => (p / PX_PER_MIN) + TIMELINE_START_MIN;
 const SNAP_MIN = 30;                  // 30분 단위 스냅
 const MIN_DURATION = 30;              // 최소 30분 길이
+const MIN_START_MIN = TIMELINE_START_MIN;  // 06:00 이전 예약 차단
 const MAX_END_MIN = 23 * 60 + 30;     // 23:30이 끝점 절대 상한 (24:00 차단)
 
 let R = null;  // V14 통합 리사이즈 상태 (null이면 비활성)
@@ -1132,8 +1144,8 @@ function attachResizeHandlers() {
         return { startMin: a * 60 + b, endMin: c * 60 + d };
       });
 
-    // 상한/하한 결정
-    let minStartMin = 0;
+    // 상한/하한 결정 — V44 §1: 06:00 이전으로 리사이즈 차단
+    let minStartMin = MIN_START_MIN;
     let maxEndMin = MAX_END_MIN;
 
     if (topHandle) {
@@ -1172,8 +1184,9 @@ function attachResizeHandlers() {
       maxEndMin,
     };
     // 시작 좌표를 진리원천 기준으로 다시 그어놓기 (혹시 흔들렸다면 보정)
+    // V44 §1: height는 길이(차이값)이라 오프셋 안 적용 — PX_PER_MIN 만 곱함
     eventEl.style.top = MIN_TO_PX(startMin) + 'px';
-    eventEl.style.height = MIN_TO_PX(endMin - startMin) + 'px';
+    eventEl.style.height = ((endMin - startMin) * PX_PER_MIN) + 'px';
   });
 
   bindGlobalTimelineListeners();
@@ -1204,8 +1217,9 @@ function onResizeMove(e) {
   }
 
   // DOM 반영 (raw — 스냅 전 부드러운 추적)
+  // V44 §1: top은 오프셋 적용(MIN_TO_PX), height는 길이(차이값)이라 오프셋 안 쓰이므로 PX_PER_MIN 사용
   R.eventEl.style.top = MIN_TO_PX(R.curStartMin) + 'px';
-  R.eventEl.style.height = MIN_TO_PX(R.curEndMin - R.curStartMin) + 'px';
+  R.eventEl.style.height = ((R.curEndMin - R.curStartMin) * PX_PER_MIN) + 'px';
 
   // 시간 라벨 갱신 (30분 스냅된 표시 시각)
   const previewStart = Math.round(R.curStartMin / SNAP_MIN) * SNAP_MIN;
@@ -1242,7 +1256,7 @@ async function onResizeUp(e) {
   // 변경 없음 → 원복하고 종료
   if (newStart === rs.reservation.start_time && newEnd === rs.reservation.end_time) {
     rs.eventEl.style.top = MIN_TO_PX(rs.origStartMin) + 'px';
-    rs.eventEl.style.height = MIN_TO_PX(rs.origEndMin - rs.origStartMin) + 'px';
+    rs.eventEl.style.height = ((rs.origEndMin - rs.origStartMin) * PX_PER_MIN) + 'px';
     return;
   }
 
@@ -1258,7 +1272,7 @@ async function onResizeUp(e) {
     toast(res.data?.error || '시간 조정에 실패했습니다.', 'error');
     // 실패 시 원복
     rs.eventEl.style.top = MIN_TO_PX(rs.origStartMin) + 'px';
-    rs.eventEl.style.height = MIN_TO_PX(rs.origEndMin - rs.origStartMin) + 'px';
+    rs.eventEl.style.height = ((rs.origEndMin - rs.origStartMin) * PX_PER_MIN) + 'px';
     return;
   }
 
@@ -1288,8 +1302,9 @@ function updateDragPreview() {
   const bottom = Math.max(startY, currentY);
   preview.style.top = top + 'px';
   preview.style.height = (bottom - top) + 'px';
-  const startMin = Math.round((top / 40) * 60 / 30) * 30;
-  let endMin = Math.round((bottom / 40) * 60 / 30) * 30;
+  // V44 §1: 컬럼 기준 픽셀 → 시각 변환 시 TIMELINE_START_MIN 오프셋 가산
+  const startMin = Math.round((top / 40) * 60 / 30) * 30 + TIMELINE_START_MIN;
+  let endMin = Math.round((bottom / 40) * 60 / 30) * 30 + TIMELINE_START_MIN;
   if (endMin <= startMin) endMin = startMin + 30;
   preview.textContent = `${minutesToTime(startMin)} - ${minutesToTime(endMin)}`;
 }
@@ -1314,7 +1329,8 @@ function drawNowLine() {
   const now = dayjs();
   // 분 단위 정밀: 11:16 이면 11~12 사이 16/60 위치
   const minutesFromMidnight = now.hour() * 60 + now.minute() + (now.second() / 60);
-  const top = minutesFromMidnight * (40 / 60);
+  // V44 §1: now-line도 06:00 오프셋 적용. 06시 이전이면 음수 → MIN_TO_PX가 0으로 클램프
+  const top = MIN_TO_PX(minutesFromMidnight);
   const line = el('div', { class: 'timeline-now-line', style: `top:${56 + top}px;` });
   grid.append(line);
 }
@@ -1698,7 +1714,8 @@ function rerenderAttendeesSection() {
 
 function buildTimeSelect(name, value) {
   const options = [];
-  for (let h = 0; h < 24; h++) {
+  // V44 §1: 시간 드롭다운도 06:00부터 시작
+  for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
     for (let m = 0; m < 60; m += 30) {
       const v = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
       options.push(el('option', { value: v, selected: v === value ? 'selected' : null }, v));
@@ -1968,7 +1985,8 @@ async function openReservationDetail(r) {
 
   const buildTimeSelectInline = (key, value) => {
     const options = [];
-    for (let h = 0; h < 24; h++) {
+    // V44 §1: 시간 드롭다운도 06:00부터 시작
+    for (let h = TIMELINE_START_HOUR; h < TIMELINE_END_HOUR; h++) {
       for (let m = 0; m < 60; m += 30) {
         const v = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         options.push(el('option', { value: v, selected: v === value ? 'selected' : null }, v));
@@ -4385,7 +4403,12 @@ function openSpaceModal(space) {
 
   const submit = async () => {
     if (!state.name.trim()) { toast('공간명을 입력해 주세요.', 'error'); return; }
-    const payload = { ...state, name: state.name.trim() };
+    // V44 §2: tenant_scope 빈 문자열은 NULL 로 정규화 (백엔드 정렬/필터 정상화)
+    const payload = {
+      ...state,
+      name: state.name.trim(),
+      tenant_scope: state.tenant_scope === '' ? null : state.tenant_scope,
+    };
     const res = isEdit
       ? await api(`/api/spaces/${space.id}`, { method: 'PATCH', body: JSON.stringify(payload) })
       : await api('/api/spaces', { method: 'POST', body: JSON.stringify(payload) });
@@ -4399,7 +4422,8 @@ function openSpaceModal(space) {
 }
 
 async function deleteSpace(space) {
-  if (!confirm(`'${space.name}' 공간을 삭제하시겠습니까?\n해당 공간의 모든 예약이 함께 취소됩니다.`)) return;
+  // V44 §4: 백엔드가 관련 예약을 실제 DELETE 하므로 메시지를 정확히 갱신
+  if (!confirm(`'${space.name}' 공간을 삭제하시겠습니까?\n해당 공간의 모든 예약 기록도 함께 삭제됩니다. (복구 불가)`)) return;
   const res = await api(`/api/spaces/${space.id}`, { method: 'DELETE' });
   if (!res.ok) { toast(res.data?.error || '삭제 실패', 'error'); return; }
   toast('공간이 삭제되었습니다.', 'success');
