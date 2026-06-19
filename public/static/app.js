@@ -2828,19 +2828,32 @@ async function renderInsightOverview(body) {
 // ───── 내역 탭 ─────
 async function renderInsightHistory(body) {
   const res = await api(`/api/insights/history?${rangeQuery()}`);
-  const rows = res?.data?.history || [];
-  InsightState.lastResponse = res?.data || { history: rows }; // V10 §4-2
+  const allRows = res?.data?.history || [];
+  // V46 §2: 취소된 예약은 내역에서 제외
+  const rows = allRows.filter(r => r.status !== 'cancelled');
+  InsightState.lastResponse = { ...(res?.data || {}), history: rows }; // V10 §4-2 + V46 §2
 
   body.innerHTML = '';
 
-  const table = el('table', { class: 'admin-table history-table' },
+  // V46 §3: insight-history-table 클래스 + colgroup으로 폭 재배분 + 가운데 정렬
+  const table = el('table', { class: 'admin-table history-table insight-history-table' },
+    el('colgroup', null,
+      el('col', { style: 'width:10%;' }),  // 날짜
+      el('col', { style: 'width:11%;' }),  // 시간
+      el('col', { style: 'width:11%;' }),  // 공간
+      el('col', { style: 'width:13%;' }),  // 제목
+      el('col', { style: 'width:25%;' }),  // 회의 목적 (넉넉히)
+      el('col', { style: 'width:12%;' }),  // 예약자
+      el('col', { style: 'width:9%;' }),   // 소속
+      el('col', { style: 'width:9%;' })    // 상태
+    ),
     el('thead', null,
       el('tr', null,
         el('th', null, '날짜'),
         el('th', null, '시간'),
         el('th', null, '공간'),
         el('th', null, '제목'),
-        el('th', null, '회의 목적'), // V13 §NEW
+        el('th', null, '회의 목적'),
         el('th', null, '예약자'),
         el('th', null, '소속'),
         el('th', null, '상태'),
@@ -2854,22 +2867,26 @@ async function renderInsightHistory(body) {
               el('td', null, r.date),
               el('td', null, `${(r.start_time || '').slice(0, 5)} ~ ${(r.end_time || '').slice(0, 5)}`),
               el('td', null,
-                el('span', { class: 'space-chip', style: `background:${r.space_color || '#999'}` }),
-                el('span', null, ' ' + (r.space_name || '-'))
+                el('span', { class: 'col-space-name' },
+                  el('span', { class: 'space-chip', style: `background:${r.space_color || '#999'}` }),
+                  el('span', null, r.space_name || '-')
+                )
               ),
               el('td', null, r.title || '(제목 없음)'),
-              // V13 §NEW: 회의 목적 — 길면 잘림(...) 처리, hover 시 전체 표시
-              el('td', { class: 'history-purpose-cell', title: r.purpose || '' },
+              // V46 §3: col-purpose — 한 줄 ellipsis, hover 시 전체 표시
+              el('td', { class: 'col-purpose', title: r.purpose || '' },
                 r.purpose
-                  ? (r.purpose.length > 40 ? r.purpose.slice(0, 40) + '…' : r.purpose)
+                  ? r.purpose
                   : el('span', { style: 'color:#bbb;' }, '-')
               ),
               el('td', null,
-                el('span', {
-                  class: 'avatar-mini',
-                  style: `background:${r.avatar_color || '#999'}`
-                }, (r.user_name || '?').slice(0, 1)),
-                el('span', null, ' ' + (r.user_name || '-'))
+                el('span', { class: 'col-space-name' },
+                  el('span', {
+                    class: 'avatar-mini',
+                    style: `background:${r.avatar_color || '#999'}`
+                  }, (r.user_name || '?').slice(0, 1)),
+                  el('span', null, r.user_name || '-')
+                )
               ),
               el('td', null, r.tenant_name || '-'),
               el('td', null,
@@ -3692,12 +3709,21 @@ async function openMemberCreateModal() {
           el('button', { class: 'btn-ghost', onclick: () => { state.bulkRows = Array.from({ length: 5 }, () => ({ name: '', email: '', department: '', position: '' })); state.bulkSource = ''; render(); } }, '초기화')
         )
       ),
-      el('div', { style: 'overflow:auto;max-height:300px;border:1px solid #e0e0e0;border-radius:11px;' },
-        el('table', { class: 'data-table', style: 'font-size:13px;' },
+      // V46 §1: 컬럼 폭 최적화 + 도메인 안내 헤더 제거 (사용자 요청)
+      //   - "아이디 * @WYLIE.CO.KR 자동" → "아이디 *" 로 간결화 (이미 인지 중)
+      //   - 컬럼 폭: 이름 22% / 아이디 22% / 부서 28% / 직책 28%
+      //   - 셀렉트의 ▼ 화살표가 잘리지 않도록 padding-right 24px + appearance 보장
+      el('div', { class: 'bulk-member-table-wrap', style: 'overflow:auto;max-height:300px;border:1px solid #e0e0e0;border-radius:11px;' },
+        el('table', { class: 'data-table bulk-member-table', style: 'font-size:13px;table-layout:fixed;width:100%;' },
+          el('colgroup', null,
+            el('col', { style: 'width:22%;' }),
+            el('col', { style: 'width:22%;' }),
+            el('col', { style: 'width:28%;' }),
+            el('col', { style: 'width:28%;' })
+          ),
           el('thead', null, el('tr', null,
             el('th', null, '이름 *'),
-            // V41 §2: 헤더에 도메인 자동 부착 안내 표시
-            el('th', null, el('span', null, '아이디 *'), el('span', { style: 'color:#7a7a7a;font-weight:500;margin-left:4px;font-size:11px;' }, tenantDomain + ' 자동')),
+            el('th', null, '아이디 *'),
             el('th', null, '부서'), el('th', null, '직책')
           )),
           el('tbody', null,
@@ -3711,14 +3737,14 @@ async function openMemberCreateModal() {
                   oninput: e => state.bulkRows[i].email = e.target.value,
                   style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;'
                 })),
-                el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].department = e.target.value },
+                el('td', null, el('select', { class: 'bulk-row-select', onchange: e => state.bulkRows[i].department = e.target.value },
                   el('option', { value: '' }, '—'),
                   ...OrgCache.departments.map(d => el('option', { value: d.name, selected: row.department === d.name ? 'selected' : null }, d.name)),
                   // 엑셀에서 들어온 부서가 마스터에 없으면 그대로 보존
                   row.department && !OrgCache.departments.some(d => d.name === row.department)
                     ? el('option', { value: row.department, selected: 'selected' }, row.department + ' (미등록)') : null
                 )),
-                el('td', null, el('select', { style: 'width:100%;border:none;background:transparent;outline:none;font-size:13px;', onchange: e => state.bulkRows[i].position = e.target.value },
+                el('td', null, el('select', { class: 'bulk-row-select', onchange: e => state.bulkRows[i].position = e.target.value },
                   el('option', { value: '' }, '—'),
                   ...OrgCache.positions.map(p => el('option', { value: p.name, selected: row.position === p.name ? 'selected' : null }, p.name)),
                   row.position && !OrgCache.positions.some(p => p.name === row.position)

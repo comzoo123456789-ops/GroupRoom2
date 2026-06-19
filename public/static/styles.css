@@ -9131,3 +9131,84 @@ button.abnb-btn--gradient:hover {
   }
 }
 /* === V43.1 §2/§3 END === */
+
+/* ============================================================
+   V46 §1 — 멤버 일괄 추가 모달 테이블 (컬럼 폭/셀렉트 화살표 최적화)
+   ============================================================ */
+.bulk-member-table th,
+.bulk-member-table td {
+  padding: 8px 10px;
+  overflow: hidden;
+}
+.bulk-member-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  background: #fafafc;
+  text-align: left;
+  white-space: nowrap;
+}
+/* V46 §1: 일괄 행의 셀렉트 — ▼ 화살표가 잘리지 않도록 padding-right 확보 */
+.bulk-row-select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  padding: 4px 22px 4px 4px;  /* 오른쪽에 ▼ 공간 확보 */
+  -webkit-appearance: auto;
+  -moz-appearance: auto;
+  appearance: auto;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+.bulk-row-select:focus {
+  outline: 2px solid #0066cc;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   V46 §3 — 인사이트 예약 내역 테이블 (가운데 정렬 + 폭 재배분)
+   ============================================================ */
+.insight-history-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.insight-history-table th,
+.insight-history-table td {
+  text-align: center;
+  vertical-align: middle;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+.insight-history-table th {
+  font-weight: 600;
+  color: #1d1d1f;
+  background: #fafafc;
+  border-bottom: 1px solid #e6e6e6;
+}
+.insight-history-table td {
+  border-bottom: 1px solid #f0f0f2;
+}
+/* 회의 목적을 한 줄에 보이게: word-break + ellipsis 적용 */
+.insight-history-table .col-purpose {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.insight-history-table .col-space-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* ============================================================
+   V46 §4 — 타임라인 06:00 라벨 시각적 분리
+   기본 .timeline-time-cell은 top: -6px (라벨이 셀 위 경계에 정렬)
+   첫 셀(06:00)만 top을 양수로 두어 07:00과 시각적으로 분리
+   ============================================================ */
+.timeline-time-col .timeline-time-cell:first-child {
+  top: 6px;
+}

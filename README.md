@@ -2202,3 +2202,29 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 | §3 admin → bulk-delete 7건(admin 1, 본인 1 포함) | `deleted:5, skipped:1` (admin 보호) ✅ |
 | §3 member → bulk-delete | HTTP 403 `관리자만 접근할 수 있습니다.` ✅ |
 | §3 헤더 [전체 선택] 클릭 시 admin 행 체크박스 강제 unchecked | 코드 검증 ✅ |
+
+---
+
+## V46 — 멤버 모달 컬럼 최적화 + 인사이트 내역 개선 + 타임라인 06:00 분리
+
+### V46 변경 요약
+1. **§1 멤버 일괄 추가 모달**: 헤더에서 `@WYLIE.CO.KR 자동` 안내 제거, 컬럼 폭 재배분(이름/아이디 22% · 부서/직책 28%), `bulk-row-select` 클래스로 우측 22px padding 확보 → 부서/직책 select의 ▼ 화살표가 더 이상 잘리지 않음
+2. **§2 인사이트 내역 — 취소된 예약 제외**: `renderInsightHistory`에서 `rows.filter(r => r.status !== 'cancelled')` 적용. `예약 내역 (N건)` 카운트도 필터 후 길이로 표시. XLSX 다운로드용 `lastResponse.history`도 동일하게 필터된 데이터 사용
+3. **§3 인사이트 예약 내역 — 가운데 정렬 + 폭 재배분**: 테이블에 `insight-history-table` 클래스 부착, `colgroup`로 명시적 폭 지정(날짜 10% · 시간 11% · 공간 11% · 제목 13% · **회의 목적 25%** · 예약자 12% · 소속 9% · 상태 9%). 모든 th/td `text-align:center`, 회의 목적은 `.col-purpose` (`white-space:nowrap` + ellipsis) → 한 줄 표시, hover 시 `title` 속성으로 전체 보임
+4. **§4 타임라인 06:00 라벨 분리**: 기본 `.timeline-time-cell`은 `top:-6px`로 라벨이 셀 위 경계에 정렬되는데, 첫 셀(06:00)만 `top:6px`로 양수화하여 07:00과 12px 이상의 시각적 간격 확보
+
+### V46 파일 변경
+| 파일 | 변경 내용 |
+|---|---|
+| `public/static/app.js` L3695-L3732 | 멤버 일괄 추가 모달 테이블: colgroup(22/22/28/28%) + 헤더 단순화 + `bulk-row-select` 클래스 |
+| `public/static/app.js` L2829-L2895 | `renderInsightHistory` — cancelled 필터 + `insight-history-table` 클래스 + colgroup + `col-purpose` |
+| `public/static/styles.css` (말미) | `.bulk-member-table`/`.bulk-row-select` (▼ padding 22px), `.insight-history-table`/`.col-purpose`/`.col-space-name`, `.timeline-time-cell:first-child{top:6px}` |
+
+### V46 빌드/검증
+| 항목 | 값 |
+|---|---|
+| `dist/_worker.js` | 98.83 kB |
+| Vite 빌드 시간 | 1.65s ✅ |
+| PM2 재시작 | online ✅ |
+| `GET /` | HTTP 302 (로그인 리다이렉트) ✅ |
+| `GET /static/app.js` | HTTP 200 ✅ |
