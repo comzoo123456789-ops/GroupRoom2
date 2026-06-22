@@ -2228,3 +2228,49 @@ npx wrangler d1 execute webapp-production --local --command="SELECT name, tenant
 | PM2 재시작 | online ✅ |
 | `GET /` | HTTP 302 (로그인 리다이렉트) ✅ |
 | `GET /static/app.js` | HTTP 200 ✅ |
+
+---
+
+## V47 — LIVE 카드 클릭 타임테이블 모달 + 과거 이동 제거 + 06:00 라벨 숨김
+
+### V47 변경 요약
+
+**§1 LIVE 카드 클릭 → 간략 타임테이블 모달**
+- 로그인 페이지의 공용 회의실 카드(Room A~E 등)를 클릭하면 모달 표시
+- 모달은 제목/상세내용 없이 **단순 리스트**:
+  - `10:00 ~ 12:00   Wylie`
+  - `13:00 ~ 16:00   Lush`
+- 소속(tenant_id)은 `WYLIE` → `Wylie`, `LUSH` → `Lush`로 카멜케이스 표기
+- **실시간 연동**: 카드 자체가 10초 폴링으로 최신 데이터 보유 → 클릭 시 즉시 최신 상태 표시
+- ESC / 배경 클릭 / × 버튼으로 닫기, Enter/Space 키보드 지원
+
+**§1 추가 — 과거 이동 차단**
+- 이전 날짜 화살표(`<` 버튼) 마크업 자체 제거
+- 캘린더 input에 `min=오늘` 속성 → 과거 날짜 선택 불가
+- 우회 입력 방어: change 이벤트에서 과거 날짜 감지 시 오늘로 강제 복귀
+- 다음(`>`), 오늘, 캘린더(미래만) 동작은 유지
+
+**§2 타임라인 06:00 라벨 숨김**
+- 메인 타임라인 좌측 시간 컬럼의 첫 셀(06:00) 라벨만 `visibility:hidden` 처리
+- 셀 영역은 유지되어 07:00 셀 위치/그리드 정렬은 그대로 (위로 끌려 올라오지 않음)
+- 시각적으로 "07:00부터 시작"하는 것처럼 보임
+- 예약 생성 모달의 시간 선택 옵션 06:00은 별도 컴포넌트라 영향 없음 (요청대로 회의실 예약 시에만 06:00 노출)
+
+### V47 파일 변경
+| 파일 | 변경 내용 |
+|---|---|
+| `src/api/public.ts` | `bookings_today`에 `tenant_id` 필드 추가 (SELECT에 tenant_id 포함, 응답 객체에 반영) |
+| `src/pages/login.tsx` | `live-date-prev` 버튼(`<` 화살표) 마크업 제거 |
+| `public/static/login.js` | `prevBtn` 참조/이벤트 바인딩 제거, `dateInput.min=todayStr()` 추가, 카드 클릭→`openRoomTimetableModal()` 추가, `tenantLabel()` 헬퍼 추가 |
+| `public/static/styles.css` | `.timeline-time-col .timeline-time-cell:first-child { visibility:hidden !important; }` (V46 §4 top:6px 규칙을 교체) + `.abnb-room.is-clickable`, `.room-tt-overlay`, `.room-tt-modal`, `.room-tt__row/__time/__tenant` 모달 스타일 |
+
+### V47 빌드/검증
+| 항목 | 값 |
+|---|---|
+| `dist/_worker.js` | 98.71 kB |
+| Vite 빌드 시간 | 1.81s ✅ |
+| PM2 재시작 | online ✅ |
+| `GET /` | HTTP 302 (로그인 리다이렉트) ✅ |
+| `GET /static/login.js` | HTTP 200 ✅ |
+| `GET /api/public/available-spaces?date=2026-06-19` | `bookings_today[]`에 `tenant_id: 'WYLIE'` 확인 ✅ |
+| Playwright `/login` 콘솔 에러 | 0건 ✅ |

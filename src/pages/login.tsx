@@ -42,11 +42,8 @@ export const LoginPage = () => {
             <span class="live-card-meta__note" id="live-foot-note">10초마다 자동 갱신</span>
           </div>
 
-          {/* V42 §2: 날짜 네비게이션 — < > 화살표 + 오늘 버튼 + 캘린더 input */}
+          {/* V42 §2 + V47 §1: 날짜 네비게이션 — 과거 이동 제거. 오늘/내일/미래만 표시 */}
           <div class="live-date-nav" id="live-date-nav">
-            <button type="button" class="live-date-nav__btn" id="live-date-prev" aria-label="이전 날짜">
-              <i class="fa-solid fa-chevron-left"></i>
-            </button>
             <button type="button" class="live-date-nav__label" id="live-date-label">
               오늘
             </button>

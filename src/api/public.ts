@@ -95,19 +95,25 @@ publicApi.get('/available-spaces', async (c) => {
   // 2) 해당 날짜의 유효 예약(confirmed) 일괄 조회
   //   V41 §1: status = 'confirmed' (DB 실제 값과 정확히 일치)
   const spaceIds = spaces.map((s) => s.id);
+  // V47 §1: tenant_id 도 함께 조회 → 클라이언트 모달에서 "Wylie / Lush" 소속 구분 표시
   const reservRes = await c.env.DB.prepare(
-    `SELECT space_id, start_time, end_time, title
+    `SELECT space_id, start_time, end_time, title, tenant_id
        FROM reservations
        WHERE date = ?
          AND status = 'confirmed'
          AND space_id IN (${spaceIds.map(() => '?').join(',')})
        ORDER BY start_time ASC`
-  ).bind(queryDate, ...spaceIds).all<{ space_id: number; start_time: string; end_time: string; title: string }>();
+  ).bind(queryDate, ...spaceIds).all<{ space_id: number; start_time: string; end_time: string; title: string; tenant_id: string }>();
 
-  const byRoom = new Map<number, Array<{ start: string; end: string; title: string }>>();
+  const byRoom = new Map<number, Array<{ start: string; end: string; title: string; tenant_id: string }>>();
   for (const row of reservRes.results || []) {
     if (!byRoom.has(row.space_id)) byRoom.set(row.space_id, []);
-    byRoom.get(row.space_id)!.push({ start: row.start_time, end: row.end_time, title: row.title });
+    byRoom.get(row.space_id)!.push({
+      start: row.start_time,
+      end: row.end_time,
+      title: row.title,
+      tenant_id: row.tenant_id,
+    });
   }
 
   // 3) 가용성 판정

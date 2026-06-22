@@ -58,12 +58,12 @@
   }
 
   // ───── 2. 실시간 가용 회의실 폴링 + V42 §2: 날짜 네비게이션 ─────
+  // V47 §1: 과거 이동 삭제 (prevBtn 마크업 제거됨) + 카드 클릭 시 타임테이블 모달 + 캘린더 min=today
   const grid = document.getElementById('live-rooms-grid');
   const updatedAt = document.getElementById('live-updated-at');
   const liveClock = document.getElementById('live-clock');
   const dateLabel = document.getElementById('live-date-label');
   const dateInput = document.getElementById('live-date-input');
-  const prevBtn = document.getElementById('live-date-prev');
   const nextBtn = document.getElementById('live-date-next');
   const todayBtn = document.getElementById('live-date-today');
   const footNote = document.getElementById('live-foot-note');
@@ -107,21 +107,30 @@
 
   function isViewToday() { return viewDate === todayStr(); }
 
+  // V47 §1: 최신 rooms 데이터 캐시 — 카드 클릭 모달에서 즉시 사용
+  let lastRoomsData = [];
+  let lastIsToday = true;
+
   function renderRooms(rooms, payload) {
     if (!Array.isArray(rooms) || rooms.length === 0) {
       grid.innerHTML = '<div class="abnb-room abnb-room--empty">표시할 공용 회의실이 없습니다.</div>';
+      lastRoomsData = [];
       return;
     }
     const isToday = payload && payload.is_today;
+    lastRoomsData = rooms;
+    lastIsToday = !!isToday;
 
     grid.innerHTML = rooms
       .map((r) => {
         const bookings = (r.bookings_today || []);
+        // V47 §1: 카드 전체에 클릭 가능 표시 + data-room-id 부여
+        const clickAttrs = `data-room-id="${escapeHtml(String(r.id))}" role="button" tabindex="0"`;
         // 오늘이 아닌 경우 — 가용성 판정이 없으므로 그 날 예약 슬롯 리스트로 표시
         if (!isToday) {
           if (bookings.length === 0) {
             return `
-              <div class="abnb-room abnb-room--ok">
+              <div class="abnb-room abnb-room--ok is-clickable" ${clickAttrs}>
                 <div class="abnb-room__name">${escapeHtml(r.name)}</div>
                 <span class="abnb-room__chip abnb-room__chip--ok">예약 없음</span>
                 <div class="abnb-room__sub">하루 종일 사용 가능</div>
@@ -131,7 +140,7 @@
             .map((b) => `<span class="abnb-room__slot">${escapeHtml(b.start)}–${escapeHtml(b.end)}</span>`)
             .join('');
           return `
-            <div class="abnb-room abnb-room--scheduled">
+            <div class="abnb-room abnb-room--scheduled is-clickable" ${clickAttrs}>
               <div class="abnb-room__name">${escapeHtml(r.name)}</div>
               <span class="abnb-room__chip abnb-room__chip--scheduled">${bookings.length}건 예약됨</span>
               <div class="abnb-room__slots">${slotsHtml}</div>
@@ -143,14 +152,14 @@
             ? `${r.next_busy_at}까지 가용`
             : '오늘 남은 시간 모두 가용';
           return `
-            <div class="abnb-room abnb-room--ok">
+            <div class="abnb-room abnb-room--ok is-clickable" ${clickAttrs}>
               <div class="abnb-room__name">${escapeHtml(r.name)}</div>
               <span class="abnb-room__chip abnb-room__chip--ok">즉시 사용 가능</span>
               <div class="abnb-room__sub">${escapeHtml(sub)}</div>
             </div>`;
         }
         return `
-          <div class="abnb-room abnb-room--busy">
+          <div class="abnb-room abnb-room--busy is-clickable" ${clickAttrs}>
             <div class="abnb-room__name">${escapeHtml(r.name)}</div>
             <span class="abnb-room__chip abnb-room__chip--busy">사용 중</span>
             <div class="abnb-room__sub">${escapeHtml(r.current_end_at || '')}에 종료 예정</div>
@@ -178,6 +187,92 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  // ───── V47 §1: 카드 클릭 시 간략 타임테이블 모달 ─────
+  // 표시 형식: "10:00 ~ 12:00  Wylie" / "13:00 ~ 16:00  Lush"
+  // 제목·상세 정보는 표시하지 않음. 소속(tenant_id)만 노출.
+  // 'WYLIE' → 'Wylie', 'LUSH' → 'Lush' 로 카멜케이스 변환
+  function tenantLabel(tid) {
+    if (!tid) return '-';
+    const t = String(tid).trim();
+    if (!t) return '-';
+    // 사용자 요청대로 Wylie / Lush 형식 (앞글자만 대문자)
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  }
+  function trimSec(hhmm) {
+    // 'HH:MM:SS' → 'HH:MM', 'HH:MM' 은 그대로
+    return String(hhmm || '').slice(0, 5);
+  }
+
+  function openRoomTimetableModal(roomId) {
+    const room = lastRoomsData.find((r) => String(r.id) === String(roomId));
+    if (!room) return;
+
+    const dateText = formatHumanDate(viewDate);
+    const bookings = (room.bookings_today || []).slice().sort((a, b) =>
+      String(a.start).localeCompare(String(b.start))
+    );
+
+    const listHtml = bookings.length === 0
+      ? `<div class="room-tt__empty">이 날은 예약이 없습니다 · 하루 종일 사용 가능</div>`
+      : bookings
+          .map((b) => `
+            <div class="room-tt__row">
+              <div class="room-tt__time">${escapeHtml(trimSec(b.start))} ~ ${escapeHtml(trimSec(b.end))}</div>
+              <div class="room-tt__tenant">${escapeHtml(tenantLabel(b.tenant_id))}</div>
+            </div>`)
+          .join('');
+
+    // 모달 overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'room-tt-overlay';
+    overlay.innerHTML = `
+      <div class="room-tt-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(room.name)} 타임테이블">
+        <div class="room-tt-modal__head">
+          <div>
+            <div class="room-tt-modal__title">${escapeHtml(room.name)}</div>
+            <div class="room-tt-modal__date">${escapeHtml(dateText)}</div>
+          </div>
+          <button type="button" class="room-tt-modal__close" aria-label="닫기">×</button>
+        </div>
+        <div class="room-tt-modal__body">${listHtml}</div>
+      </div>
+    `;
+
+    function close() {
+      overlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+    }
+    function onOverlayClick(e) {
+      if (e.target === overlay || (e.target instanceof Element && e.target.classList.contains('room-tt-modal__close'))) {
+        close();
+      }
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+
+    overlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+  }
+
+  // 카드 클릭 위임 — grid 내부 .is-clickable
+  if (grid) {
+    grid.addEventListener('click', (e) => {
+      const card = e.target instanceof Element ? e.target.closest('[data-room-id]') : null;
+      if (!card) return;
+      const roomId = card.getAttribute('data-room-id');
+      if (roomId) openRoomTimetableModal(roomId);
+    });
+    grid.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target instanceof Element ? e.target.closest('[data-room-id]') : null;
+      if (!card) return;
+      e.preventDefault();
+      const roomId = card.getAttribute('data-room-id');
+      if (roomId) openRoomTimetableModal(roomId);
+    });
   }
 
   async function fetchOnce() {
@@ -217,13 +312,21 @@
   }
 
   // ───── 이벤트 바인딩 ─────
-  if (prevBtn) prevBtn.addEventListener('click', () => setViewDate(addDays(viewDate, -1)));
+  // V47 §1: 과거 이동 삭제 — prev 버튼 자체가 마크업에 없음. nextBtn / todayBtn / dateInput 만.
   if (nextBtn) nextBtn.addEventListener('click', () => setViewDate(addDays(viewDate, 1)));
   if (todayBtn) todayBtn.addEventListener('click', () => setViewDate(todayStr()));
   if (dateInput) {
+    // V47 §1: 캘린더에서도 과거 선택 차단 (min=오늘)
+    dateInput.min = todayStr();
     dateInput.addEventListener('change', (e) => {
       const v = e.target.value;
-      if (v) setViewDate(v);
+      // 혹시 모를 우회 입력 차단 — 과거 날짜면 무시
+      if (v && v >= todayStr()) setViewDate(v);
+      else if (v) {
+        // 과거 날짜 입력 시 오늘로 강제 복귀
+        e.target.value = todayStr();
+        setViewDate(todayStr());
+      }
     });
   }
   // 날짜 라벨 클릭 시 캘린더 picker 열기 (대부분 브라우저에서 showPicker 지원)
