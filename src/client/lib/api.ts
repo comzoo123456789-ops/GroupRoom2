@@ -6,6 +6,8 @@ import type {
   Role,
   Member,
   Attendee,
+  AttendeeStatus,
+  Invitation,
 } from "../../shared/types";
 
 // /api/auth/me 응답의 로그인 사용자
@@ -110,9 +112,17 @@ export const api = {
   attendees: (reservationId: string) =>
     req<{ attendees: Attendee[] }>(`/api/reservations/${reservationId}/attendees`),
   setAttendees: (reservationId: string, userIds: string[]) =>
-    req<{ ok: true; count: number }>(`/api/reservations/${reservationId}/attendees`, {
-      method: "PUT",
-      body: JSON.stringify({ userIds }),
+    req<{ ok: true; count: number; added: number; removed: number }>(
+      `/api/reservations/${reservationId}/attendees`,
+      { method: "PUT", body: JSON.stringify({ userIds }) },
+    ),
+
+  // 내 초대함 / RSVP
+  invitations: () => req<{ invitations: Invitation[] }>("/api/reservations/inbox"),
+  rsvp: (reservationId: string, status: AttendeeStatus) =>
+    req<{ ok: true; status: AttendeeStatus }>(`/api/reservations/${reservationId}/rsvp`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
     }),
 };
 

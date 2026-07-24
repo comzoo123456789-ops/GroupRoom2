@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import type { RoomLive, Reservation, Member } from "../../shared/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  RoomLive,
+  Reservation,
+  Member,
+  AttendeeStatus,
+} from "../../shared/types";
 import { api } from "../lib/api";
 import { timeOptions, hhmmToday, minToHHMM, tsToMin } from "../lib/time";
+import { IconUsers } from "./icons";
 
 const OPTS = timeOptions();
 
@@ -12,9 +18,18 @@ function plusOne(t: string): string {
 
 const initials = (name: string) => name.trim().slice(-2);
 
+type Invited = Member & { status: AttendeeStatus };
+
+const STATUS_LABEL: Record<AttendeeStatus, string> = {
+  pending: "대기",
+  accepted: "수락",
+  declined: "거절",
+};
+
 export default function ReservationEditor({
   rooms,
   editing,
+  meId,
   presetRoomId,
   presetStart,
   presetEnd,
@@ -23,6 +38,7 @@ export default function ReservationEditor({
 }: {
   rooms: RoomLive[];
   editing?: Reservation | null;
+  meId?: string | null;
   presetRoomId?: string;
   presetStart?: string;
   presetEnd?: string;
@@ -46,10 +62,11 @@ export default function ReservationEditor({
   const [err, setErr] = useState<string | null>(null);
 
   // 참석자
-  const [invited, setInvited] = useState<Member[]>([]);
+  const [invited, setInvited] = useState<Invited[]>([]);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Member[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hi, setHi] = useState(0); // 키보드 하이라이트 인덱스
 
   // 수정 모드면 기존 참석자 로드
   useEffect(() => {
@@ -65,6 +82,7 @@ export default function ReservationEditor({
             department: a.department,
             avatarColor: a.avatarColor,
             role: "member",
+            status: a.status,
           })),
         ),
       )
@@ -85,7 +103,10 @@ export default function ReservationEditor({
       api
         .members(term)
         .then((r) => {
-          if (qRef.current.trim() === term) setResults(r.members);
+          if (qRef.current.trim() === term) {
+            setResults(r.members);
+            setHi(0);
+          }
         })
         .catch(() => {})
         .finally(() => setSearching(false));
@@ -93,15 +114,44 @@ export default function ReservationEditor({
     return () => clearTimeout(t);
   }, [q]);
 
-  const invitedIds = new Set(invited.map((m) => m.id));
-  const shown = results.filter((m) => !invitedIds.has(m.id));
+  const invitedIds = useMemo(() => new Set(invited.map((m) => m.id)), [invited]);
+  // 이미 초대된 사람 + 본인(주최자)은 검색 결과에서 제외
+  const shown = results.filter((m) => !invitedIds.has(m.id) && m.id !== meId);
+
+  const room = rooms.find((r) => r.id === roomId);
+  const cap = room?.capacity ?? null;
+  const headcount = invited.length + 1; // 주최자 포함
+  const overCap = cap != null && headcount > cap;
 
   const add = (m: Member) => {
-    setInvited((cur) => (cur.some((x) => x.id === m.id) ? cur : [...cur, m]));
+    setInvited((cur) =>
+      cur.some((x) => x.id === m.id) ? cur : [...cur, { ...m, status: "pending" }],
+    );
     setQ("");
     setResults([]);
+    setHi(0);
   };
   const remove = (id: string) => setInvited((cur) => cur.filter((m) => m.id !== id));
+
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!shown.length) {
+      if (e.key === "Escape") setQ("");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi((i) => Math.min(shown.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi((i) => Math.max(0, i - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const m = shown[hi];
+      if (m) add(m);
+    } else if (e.key === "Escape") {
+      setQ("");
+    }
+  };
 
   const save = async () => {
     if (!title.trim()) return setErr("회의 제목을 입력하세요.");
@@ -193,25 +243,43 @@ export default function ReservationEditor({
 
         {/* 참석자 초대 */}
         <div className="field">
-          <label>참석자 초대 {invited.length > 0 && `· ${invited.length}명`}</label>
+          <label className="att-label">
+            <span>참석자 초대</span>
+            {cap != null && (
+              <span className={"att-count" + (overCap ? " over" : "")}>
+                <IconUsers size={12} />
+                {headcount} / {cap}
+              </span>
+            )}
+          </label>
+
+          {overCap && (
+            <div className="att-warn">
+              회의실 정원({cap}명)을 초과했어요. 인원을 줄이거나 더 큰 회의실을 선택하세요.
+            </div>
+          )}
+
           {invited.length > 0 && (
             <div className="att-chips">
               {invited.map((m) => (
-                <span key={m.id} className="att-chip">
+                <span key={m.id} className="att-chip" title={m.email}>
                   <span className="att-ava" style={{ background: m.avatarColor }}>
                     {initials(m.name)}
                   </span>
                   {m.name}
                   {m.department && <span className="att-dept">{m.department}</span>}
+                  <span className={"att-st " + m.status}>{STATUS_LABEL[m.status]}</span>
                   <button className="att-x" onClick={() => remove(m.id)} aria-label="제외">✕</button>
                 </span>
               ))}
             </div>
           )}
+
           <div className="att-search">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={onSearchKey}
               placeholder="이름·부서로 임직원 검색"
             />
             {q.trim() && (
@@ -220,8 +288,13 @@ export default function ReservationEditor({
                 {!searching && shown.length === 0 && (
                   <div className="att-empty">일치하는 임직원이 없어요</div>
                 )}
-                {shown.map((m) => (
-                  <button key={m.id} className="att-opt" onClick={() => add(m)}>
+                {shown.map((m, i) => (
+                  <button
+                    key={m.id}
+                    className={"att-opt" + (i === hi ? " hi" : "")}
+                    onMouseEnter={() => setHi(i)}
+                    onClick={() => add(m)}
+                  >
                     <span className="att-ava" style={{ background: m.avatarColor }}>
                       {initials(m.name)}
                     </span>

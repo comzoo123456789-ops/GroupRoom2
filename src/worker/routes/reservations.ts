@@ -14,7 +14,10 @@ reservations.get("/", async (c) => {
   const from = Number(c.req.query("from") ?? now - 12 * 3600_000);
   const to = Number(c.req.query("to") ?? now + 24 * 3600_000);
   const rs = await c.env.DB.prepare(
-    `SELECT * FROM reservations
+    `SELECT reservations.*,
+            (SELECT COUNT(*) FROM reservation_attendees a WHERE a.reservation_id = reservations.id) AS attendee_count,
+            (SELECT COUNT(*) FROM reservation_attendees a WHERE a.reservation_id = reservations.id AND a.status = 'accepted') AS accepted_count
+       FROM reservations
       WHERE org_id = ? AND status IN ('confirmed','checked_in')
         AND ends_at > ? AND starts_at < ?
       ORDER BY starts_at`,
@@ -203,7 +206,10 @@ reservations.put("/:id/attendees", async (c) => {
   const body = await c.req
     .json<{ userIds?: string[] }>()
     .catch(() => ({}) as { userIds?: string[] });
-  const wanted = Array.from(new Set(body.userIds ?? [])).slice(0, 100);
+  // 주최자는 참석자 목록에서 제외(항상 host로 취급)
+  const wanted = Array.from(new Set(body.userIds ?? []))
+    .filter((uid) => uid !== res.user_id)
+    .slice(0, 100);
 
   // 같은 조직 활성 사용자만 허용
   let valid: string[] = [];
@@ -217,11 +223,27 @@ reservations.put("/:id/attendees", async (c) => {
     valid = rows.results.map((r) => r.id);
   }
 
-  // 전체 교체: 기존 삭제 후 재삽입
-  await c.env.DB.prepare(`DELETE FROM reservation_attendees WHERE reservation_id = ?`)
+  // 상태 보존 diff: 빠진 사람만 삭제, 새 사람만 pending으로 추가.
+  // (이미 수락/거절한 참석자를 재저장 때 pending으로 되돌리지 않음)
+  const existingRows = await c.env.DB.prepare(
+    `SELECT user_id FROM reservation_attendees WHERE reservation_id = ?`,
+  )
     .bind(id)
-    .run();
-  for (const uid of valid) {
+    .all<{ user_id: string }>();
+  const existing = new Set(existingRows.results.map((r) => r.user_id));
+  const wantedSet = new Set(valid);
+
+  const toRemove = [...existing].filter((u) => !wantedSet.has(u));
+  const toAdd = valid.filter((u) => !existing.has(u));
+
+  for (const uid of toRemove) {
+    await c.env.DB.prepare(
+      `DELETE FROM reservation_attendees WHERE reservation_id = ? AND user_id = ?`,
+    )
+      .bind(id, uid)
+      .run();
+  }
+  for (const uid of toAdd) {
     await c.env.DB.prepare(
       `INSERT INTO reservation_attendees (reservation_id, user_id, status) VALUES (?, ?, 'pending')`,
     )
@@ -234,7 +256,63 @@ reservations.put("/:id/attendees", async (c) => {
     roomId: res.room_id,
     at: Date.now(),
   });
-  return c.json({ ok: true, count: valid.length });
+  return c.json({ ok: true, count: valid.length, added: toAdd.length, removed: toRemove.length });
+});
+
+// 내 초대함: 내가 참석자로 등록된 다가오는 예약들 + 내 응답상태
+reservations.get("/inbox", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "로그인이 필요합니다." }, 401);
+  const now = Date.now();
+  const rows = await c.env.DB.prepare(
+    `SELECT r.id AS reservationId, r.title AS title, r.starts_at AS startsAt, r.ends_at AS endsAt,
+            rm.name AS roomName, rm.color AS roomColor,
+            host.name AS organizerName, a.status AS myStatus
+       FROM reservation_attendees a
+       JOIN reservations r ON r.id = a.reservation_id
+       JOIN rooms rm ON rm.id = r.room_id
+       JOIN users host ON host.id = r.user_id
+      WHERE a.user_id = ? AND r.org_id = ?
+        AND r.status IN ('confirmed','checked_in')
+        AND r.ends_at > ?
+      ORDER BY r.starts_at`,
+  )
+    .bind(user.userId, user.orgId, now - 60 * 60_000)
+    .all();
+  return c.json({ invitations: rows.results });
+});
+
+// RSVP: 초대받은 본인이 수락/거절
+reservations.post("/:id/rsvp", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "로그인이 필요합니다." }, 401);
+  const id = c.req.param("id");
+  const body = await c.req
+    .json<{ status?: string }>()
+    .catch(() => ({}) as { status?: string });
+  const status = body.status;
+  if (status !== "accepted" && status !== "declined" && status !== "pending") {
+    return c.json({ error: "잘못된 응답 상태입니다." }, 400);
+  }
+  const r = await c.env.DB.prepare(
+    `UPDATE reservation_attendees SET status = ?
+      WHERE reservation_id = ? AND user_id = ?`,
+  )
+    .bind(status, id, user.userId)
+    .run();
+  if (!r.meta.changes) return c.json({ error: "초대를 찾을 수 없습니다." }, 404);
+
+  const row = await c.env.DB.prepare(`SELECT room_id FROM reservations WHERE id = ?`)
+    .bind(id)
+    .first<{ room_id: string }>();
+  if (row) {
+    await notifyLive(c.env, user.orgId, {
+      type: "reservation.changed",
+      roomId: row.room_id,
+      at: Date.now(),
+    });
+  }
+  return c.json({ ok: true, status });
 });
 
 // 체크인

@@ -136,10 +136,26 @@
   pointer-events: none;
 }
 .tt-block-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+}
+.tt-att {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+.tt-att svg {
+  opacity: 0.75;
+}
+.tt-block.editable {
+  cursor: grab;
 }
 .tt-handle {
   position: absolute;

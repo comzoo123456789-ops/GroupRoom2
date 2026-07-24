@@ -56,6 +56,8 @@ export interface Reservation {
   status: ReservationStatus;
   checkedInAt: number | null;
   createdByAdmin: boolean;
+  attendeeCount?: number; // 초대된 참석자 수(주최자 제외)
+  acceptedCount?: number; // 수락한 참석자 수
 }
 
 // 현황판 응답: 룸 + 현재상태 + 지금/다음 예약
@@ -84,6 +86,18 @@ export interface Attendee {
   department: string | null;
   avatarColor: string;
   status: AttendeeStatus;
+}
+
+// 내 초대함 항목
+export interface Invitation {
+  reservationId: string;
+  title: string;
+  startsAt: number;
+  endsAt: number;
+  roomName: string;
+  roomColor: string;
+  organizerName: string;
+  myStatus: AttendeeStatus;
 }
 
 export interface ApiError {

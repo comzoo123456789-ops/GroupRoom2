@@ -13,7 +13,7 @@ import {
   snapMin,
   clampMin,
 } from "../lib/time";
-import { IconPencil, IconX } from "./icons";
+import { IconPencil, IconX, IconUsers } from "./icons";
 import "./Timetable.css";
 
 const HOURS = Array.from(
@@ -287,7 +287,18 @@ export default function Timetable({
                       )}
                       <div className="tt-block-title">{r.title}</div>
                       <div className="tt-block-time">
-                        {minToHHMM(active.s)}–{minToHHMM(active.e)}
+                        <span>{minToHHMM(active.s)}–{minToHHMM(active.e)}</span>
+                        {!!r.attendeeCount && r.attendeeCount > 0 && (
+                          <span
+                            className="tt-att"
+                            title={`참석자 ${r.attendeeCount}명${
+                              r.acceptedCount ? ` · 수락 ${r.acceptedCount}` : ""
+                            }`}
+                          >
+                            <IconUsers size={11} />
+                            {r.attendeeCount}
+                          </span>
+                        )}
                       </div>
                       {canBook && (
                         <>

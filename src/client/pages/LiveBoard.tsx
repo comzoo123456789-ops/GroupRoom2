@@ -8,6 +8,7 @@ import { IconBolt, IconWifi } from "../components/icons";
 import RoomEditor from "../components/RoomEditor";
 import ReservationEditor from "../components/ReservationEditor";
 import Timetable from "../components/Timetable";
+import InvitationsBell from "../components/InvitationsBell";
 import "./LiveBoard.css";
 
 export default function LiveBoard() {
@@ -18,6 +19,7 @@ export default function LiveBoard() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [connected, setConnected] = useState(false);
+  const [liveVersion, setLiveVersion] = useState(0);
   const [seeding, setSeeding] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -56,6 +58,7 @@ export default function LiveBoard() {
       .catch(() => {});
     const stopWs = connectLive(() => {
       setConnected(true);
+      setLiveVersion((v) => v + 1);
       load();
     });
     const clock = setInterval(() => setNow(Date.now()), 1000);
@@ -89,6 +92,7 @@ export default function LiveBoard() {
             + 회의실 추가
           </button>
         )}
+        {loggedIn && <InvitationsBell liveVersion={liveVersion} />}
         <span className={"conn " + (connected ? "on" : "")}>
           <IconWifi size={15} />
           {connected ? "실시간" : "연결 중…"}
@@ -98,7 +102,7 @@ export default function LiveBoard() {
     );
     return () => setTopbar(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length]);
+  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length, loggedIn, liveVersion]);
 
   const seed = async () => {
     setSeeding(true);
@@ -177,6 +181,7 @@ export default function LiveBoard() {
       {booking && (
         <ReservationEditor
           rooms={rooms}
+          meId={meId}
           presetRoomId={booking.roomId}
           presetStart={booking.start}
           presetEnd={booking.end}
@@ -191,6 +196,7 @@ export default function LiveBoard() {
       {editRes && (
         <ReservationEditor
           rooms={rooms}
+          meId={meId}
           editing={editRes}
           onClose={() => setEditRes(null)}
           onSaved={() => {
