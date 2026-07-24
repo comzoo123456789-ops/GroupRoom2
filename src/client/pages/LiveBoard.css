@@ -237,6 +237,66 @@
   margin-top: var(--s3);
 }
 
+/* ---------- 편집 모드 ---------- */
+.btn.on {
+  background: var(--brand-wash);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+}
+.plan.editing {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--surface-2),
+    var(--surface-2) 12px,
+    var(--surface-sunken) 12px,
+    var(--surface-sunken) 13px
+  );
+}
+.plan.editing .room {
+  cursor: grab;
+  outline: 1.5px dashed color-mix(in srgb, var(--brand) 55%, transparent);
+  outline-offset: 2px;
+  user-select: none;
+  touch-action: none;
+}
+.plan.editing .room:active {
+  cursor: grabbing;
+}
+.resize-handle {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: nwse-resize;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px var(--surface);
+  touch-action: none;
+}
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+}
+.edit-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 @media (max-width: 700px) {
   .plan,
   .plan-skeleton {

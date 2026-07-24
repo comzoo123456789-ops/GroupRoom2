@@ -1,4 +1,13 @@
-import type { Reservation, RoomLive, User, Organization } from "../../shared/types";
+import type { Reservation, RoomLive, User, Organization, RoomKind } from "../../shared/types";
+
+export interface RoomInput {
+  name?: string;
+  kind?: RoomKind;
+  capacity?: number;
+  color?: string;
+  amenities?: string[];
+  plan?: { x?: number; y?: number; w?: number; h?: number };
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -26,6 +35,19 @@ export const api = {
     ),
 
   roomsLive: () => req<{ rooms: RoomLive[]; at: number }>("/api/rooms/live"),
+
+  createRoom: (body: RoomInput) =>
+    req<{ ok: true; id: string }>("/api/rooms", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateRoom: (id: string, body: RoomInput) =>
+    req<{ ok: true }>(`/api/rooms/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteRoom: (id: string) =>
+    req<{ ok: true }>(`/api/rooms/${id}`, { method: "DELETE" }),
 
   reservations: (from?: number, to?: number) => {
     const q = new URLSearchParams();
