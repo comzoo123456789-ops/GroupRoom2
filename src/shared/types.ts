@@ -56,6 +56,7 @@ export interface Reservation {
   status: ReservationStatus;
   checkedInAt: number | null;
   createdByAdmin: boolean;
+  recurringId?: string | null; // 반복 시리즈 id (반복 예약이면)
   attendeeCount?: number; // 초대된 참석자 수(주최자 제외)
   acceptedCount?: number; // 수락한 참석자 수
 }

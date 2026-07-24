@@ -477,6 +477,37 @@ input {
   background: var(--busy-wash);
 }
 
+/* 반복 예약 컨트롤 */
+.rec-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.rec-row .select {
+  flex: 1;
+}
+.rec-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.rec-count input {
+  width: 56px;
+  height: 38px;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.rec-hint {
+  font-size: 11px;
+  margin-top: 6px;
+}
+
 /* 참석자 초대 */
 .att-label {
   display: flex;
@@ -636,8 +667,30 @@ input {
   font-size: 13px;
   color: var(--text-3);
 }
+.inv-list-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 .inv-list {
   overflow-y: auto;
+}
+.inv-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  padding: 11px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  background: var(--surface);
+}
+.inv-export:hover {
+  background: var(--brand-wash);
 }
 .inv-item {
   display: flex;

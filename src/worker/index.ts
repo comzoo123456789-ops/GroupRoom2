@@ -6,6 +6,7 @@ import { dev } from "./routes/dev";
 import { rooms } from "./routes/rooms";
 import { reservations } from "./routes/reservations";
 import { members } from "./routes/members";
+import { calendar } from "./routes/calendar";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -27,6 +28,7 @@ app.route("/api/dev", dev);
 app.route("/api/rooms", rooms);
 app.route("/api/reservations", reservations);
 app.route("/api/members", members);
+app.route("/api/calendar", calendar);
 
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

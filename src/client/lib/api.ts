@@ -86,8 +86,14 @@ export const api = {
     purpose?: string;
     startsAt: number;
     endsAt: number;
+    recurrence?: {
+      freq: "daily" | "weekly" | "monthly";
+      interval?: number;
+      count?: number;
+      until?: number;
+    };
   }) =>
-    req<{ ok: true; id: string }>("/api/reservations", {
+    req<{ ok: true; id: string; created?: number; skipped?: number }>("/api/reservations", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -96,8 +102,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  cancelReservation: (id: string) =>
-    req<{ ok: true }>(`/api/reservations/${id}`, { method: "DELETE" }),
+  cancelReservation: (id: string, scope?: "series") =>
+    req<{ ok: true }>(`/api/reservations/${id}${scope ? `?scope=${scope}` : ""}`, {
+      method: "DELETE",
+    }),
+
+  // 캘린더(.ics) URL — 다운로드/구독용
+  reservationIcsUrl: (id: string) => `/api/reservations/${id}/ics`,
+  myCalendarUrl: () => `/api/calendar/mine.ics`,
 
   // 임직원 디렉터리(참석자 검색)
   members: (q?: string) => {

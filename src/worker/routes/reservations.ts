@@ -3,6 +3,7 @@ import type { Env } from "../types";
 import { currentUser, resolveOrgId } from "../lib/session";
 import { mapReservation, notifyLive } from "../lib/live";
 import { newId } from "../lib/crypto";
+import { buildIcs } from "../lib/ics";
 
 export const reservations = new Hono<{ Bindings: Env }>();
 
@@ -38,6 +39,12 @@ reservations.post("/", async (c) => {
     purpose?: string;
     startsAt?: number;
     endsAt?: number;
+    recurrence?: {
+      freq?: "daily" | "weekly" | "monthly";
+      interval?: number;
+      count?: number;
+      until?: number;
+    };
   }>();
   const { roomId, title, startsAt, endsAt } = body;
   if (!roomId || !title || !startsAt || !endsAt) {
@@ -57,46 +64,111 @@ reservations.post("/", async (c) => {
     return c.json({ error: "회의실을 찾을 수 없습니다." }, 404);
   }
 
-  // 시간 충돌 검증 (INTEGER 비교 → 자정 넘김도 정확)
-  const clash = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS n FROM reservations
-      WHERE room_id = ? AND status IN ('confirmed','checked_in')
-        AND starts_at < ? AND ends_at > ?`,
-  )
-    .bind(roomId, endsAt, startsAt)
-    .first<{ n: number }>();
-  if ((clash?.n ?? 0) > 0) {
-    return c.json({ error: "이미 예약된 시간과 겹칩니다." }, 409);
+  const now = Date.now();
+  const dur = endsAt - startsAt;
+
+  // 반복 규칙 → 발생 시각 목록 생성 (최대 52회)
+  const MAX_OCCUR = 52;
+  const rec = body.recurrence;
+  const freq = rec?.freq;
+  const occ: { s: number; e: number }[] = [];
+  if (freq === "daily" || freq === "weekly" || freq === "monthly") {
+    const interval = Math.min(12, Math.max(1, rec?.interval ?? 1));
+    const count = rec?.count ? Math.min(MAX_OCCUR, Math.max(1, rec.count)) : MAX_OCCUR;
+    let s = startsAt;
+    while (occ.length < count) {
+      if (rec?.until && s > rec.until) break;
+      occ.push({ s, e: s + dur });
+      if (freq === "daily") s = s + interval * 86400_000;
+      else if (freq === "weekly") s = s + interval * 7 * 86400_000;
+      else {
+        const d = new Date(s);
+        d.setMonth(d.getMonth() + interval);
+        s = d.getTime();
+      }
+    }
+  } else {
+    occ.push({ s: startsAt, e: endsAt });
   }
 
-  const id = newId();
-  const now = Date.now();
-  await c.env.DB.prepare(
-    `INSERT INTO reservations
-       (id, org_id, room_id, user_id, title, purpose, starts_at, ends_at, status, created_by_admin, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?, 'confirmed', ?, ?, ?)`,
-  )
-    .bind(
-      id,
-      user.orgId,
-      roomId,
-      user.userId,
-      title,
-      body.purpose ?? null,
-      startsAt,
-      endsAt,
-      user.role === "admin" ? 1 : 0,
-      now,
-      now,
+  const isClash = async (s: number, e: number) => {
+    const clash = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM reservations
+        WHERE room_id = ? AND status IN ('confirmed','checked_in')
+          AND starts_at < ? AND ends_at > ?`,
     )
-    .run();
+      .bind(roomId, e, s)
+      .first<{ n: number }>();
+    return (clash?.n ?? 0) > 0;
+  };
 
-  await notifyLive(c.env, user.orgId, {
-    type: "reservation.changed",
-    roomId,
-    at: now,
-  });
-  return c.json({ ok: true, id }, 201);
+  // 단건이면 기존과 동일하게 충돌 시 409
+  if (occ.length === 1) {
+    if (await isClash(occ[0].s, occ[0].e)) {
+      return c.json({ error: "이미 예약된 시간과 겹칩니다." }, 409);
+    }
+  }
+
+  // 반복이면 규칙 행 생성
+  let recurringId: string | null = null;
+  if (occ.length > 1) {
+    recurringId = newId();
+    await c.env.DB.prepare(
+      `INSERT INTO recurring_rules (id, org_id, freq, interval_n, end_type, end_date, end_count)
+       VALUES (?,?,?,?,?,?,?)`,
+    )
+      .bind(
+        recurringId,
+        user.orgId,
+        freq,
+        Math.min(12, Math.max(1, rec?.interval ?? 1)),
+        rec?.until ? "date" : "count",
+        rec?.until ?? null,
+        rec?.count ?? occ.length,
+      )
+      .run();
+  }
+
+  // 충돌하지 않는 회차만 생성, 겹치는 회차는 건너뜀
+  let firstId: string | null = null;
+  let created = 0;
+  let skipped = 0;
+  for (const o of occ) {
+    if (await isClash(o.s, o.e)) {
+      skipped++;
+      continue;
+    }
+    const rid = newId();
+    if (!firstId) firstId = rid;
+    await c.env.DB.prepare(
+      `INSERT INTO reservations
+         (id, org_id, room_id, user_id, title, purpose, starts_at, ends_at, status, recurring_id, created_by_admin, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?, 'confirmed', ?, ?, ?, ?)`,
+    )
+      .bind(
+        rid,
+        user.orgId,
+        roomId,
+        user.userId,
+        title,
+        body.purpose ?? null,
+        o.s,
+        o.e,
+        recurringId,
+        user.role === "admin" ? 1 : 0,
+        now,
+        now,
+      )
+      .run();
+    created++;
+  }
+
+  if (created === 0) {
+    return c.json({ error: "모든 회차가 기존 예약과 겹쳐 생성되지 않았어요." }, 409);
+  }
+
+  await notifyLive(c.env, user.orgId, { type: "reservation.changed", roomId, at: now });
+  return c.json({ ok: true, id: firstId, created, skipped }, 201);
 });
 
 // 예약 수정 (시간 드래그 리사이즈/이동, 제목 변경) — 본인 또는 관리자
@@ -166,6 +238,48 @@ reservations.patch("/:id", async (c) => {
     await notifyLive(c.env, user.orgId, { type: "reservation.changed", roomId: targetRoomId, at: Date.now() });
   }
   return c.json({ ok: true });
+});
+
+// 단일 예약 iCalendar(.ics) 다운로드 — 캘린더에 추가
+reservations.get("/:id/ics", async (c) => {
+  const orgId = await resolveOrgId(c);
+  if (!orgId) return c.json({ error: "조직을 찾을 수 없습니다." }, 404);
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare(
+    `SELECT r.id AS id, r.title AS title, r.starts_at AS startsAt, r.ends_at AS endsAt,
+            rm.name AS roomName, host.name AS organizerName
+       FROM reservations r
+       JOIN rooms rm ON rm.id = r.room_id
+       JOIN users host ON host.id = r.user_id
+      WHERE r.id = ? AND r.org_id = ?`,
+  )
+    .bind(id, orgId)
+    .first<{
+      id: string;
+      title: string;
+      startsAt: number;
+      endsAt: number;
+      roomName: string;
+      organizerName: string;
+    }>();
+  if (!row) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
+
+  const body = buildIcs([
+    {
+      uid: `${row.id}@grouproom`,
+      title: row.title,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      location: row.roomName,
+      description: `주최: ${row.organizerName}`,
+    },
+  ]);
+  return new Response(body, {
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": `attachment; filename="grouproom-${row.id}.ics"`,
+    },
+  });
 });
 
 // 참석자 목록
@@ -349,16 +463,30 @@ reservations.delete("/:id", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.json({ error: "로그인이 필요합니다." }, 401);
   const id = c.req.param("id");
+  const scope = c.req.query("scope"); // 'series' 이면 반복 전체 취소
   const row = await c.env.DB.prepare(
-    `SELECT room_id, user_id FROM reservations WHERE id = ? AND org_id = ?`,
+    `SELECT room_id, user_id, recurring_id FROM reservations WHERE id = ? AND org_id = ?`,
   )
     .bind(id, user.orgId)
-    .first<{ room_id: string; user_id: string }>();
+    .first<{ room_id: string; user_id: string; recurring_id: string | null }>();
   if (!row) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
   if (row.user_id !== user.userId && user.role !== "admin") {
     return c.json({ error: "취소 권한이 없습니다." }, 403);
   }
   const now = Date.now();
+
+  // 반복 전체 취소: 같은 시리즈의 '앞으로 남은' 예약을 모두 취소
+  if (scope === "series" && row.recurring_id) {
+    const r = await c.env.DB.prepare(
+      `UPDATE reservations SET status='cancelled', updated_at=?
+        WHERE recurring_id=? AND org_id=? AND status IN ('confirmed','checked_in') AND ends_at > ?`,
+    )
+      .bind(now, row.recurring_id, user.orgId, now)
+      .run();
+    await notifyLive(c.env, user.orgId, { type: "reservation.changed", roomId: row.room_id, at: now });
+    return c.json({ ok: true, cancelled: r.meta.changes });
+  }
+
   await c.env.DB.prepare(
     `UPDATE reservations SET status='cancelled', updated_at=? WHERE id=?`,
   )

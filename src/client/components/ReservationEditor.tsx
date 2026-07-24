@@ -61,6 +61,10 @@ export default function ReservationEditor({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // 반복 (생성 모드에서만)
+  const [recur, setRecur] = useState<"none" | "daily" | "weekly" | "monthly">("none");
+  const [count, setCount] = useState(4);
+
   // 참석자
   const [invited, setInvited] = useState<Invited[]>([]);
   const [q, setQ] = useState("");
@@ -133,6 +137,23 @@ export default function ReservationEditor({
   };
   const remove = (id: string) => setInvited((cur) => cur.filter((m) => m.id !== id));
 
+  const cancelOne = async (scope?: "series") => {
+    if (!editing) return;
+    const msg =
+      scope === "series"
+        ? "이 반복의 앞으로 남은 모든 회차를 취소할까요?"
+        : `'${editing.title}' 예약을 취소할까요?`;
+    if (!confirm(msg)) return;
+    setBusy(true);
+    try {
+      await api.cancelReservation(editing.id, scope);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "취소 실패");
+      setBusy(false);
+    }
+  };
+
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!shown.length) {
       if (e.key === "Escape") setQ("");
@@ -171,13 +192,18 @@ export default function ReservationEditor({
         });
         await api.setAttendees(editing.id, ids);
       } else {
-        const { id } = await api.createReservation({
+        const res = await api.createReservation({
           roomId,
           title: title.trim(),
           startsAt,
           endsAt,
+          recurrence:
+            recur !== "none" ? { freq: recur, count: Math.min(52, Math.max(2, count)) } : undefined,
         });
-        if (ids.length) await api.setAttendees(id, ids);
+        if (ids.length) await api.setAttendees(res.id, ids);
+        if (recur !== "none" && res.skipped) {
+          alert(`${res.created}개 회차를 만들었어요. ${res.skipped}개는 시간이 겹쳐 건너뛰었습니다.`);
+        }
       }
       onSaved();
     } catch (e) {
@@ -240,6 +266,41 @@ export default function ReservationEditor({
             </select>
           </div>
         </div>
+
+        {/* 반복 (생성 모드) */}
+        {!isEdit && (
+          <div className="field">
+            <label>반복</label>
+            <div className="rec-row">
+              <select
+                className="select"
+                value={recur}
+                onChange={(e) => setRecur(e.target.value as typeof recur)}
+              >
+                <option value="none">반복 안 함</option>
+                <option value="daily">매일</option>
+                <option value="weekly">매주</option>
+                <option value="monthly">매월</option>
+              </select>
+              {recur !== "none" && (
+                <div className="rec-count">
+                  총
+                  <input
+                    type="number"
+                    min={2}
+                    max={52}
+                    value={count}
+                    onChange={(e) => setCount(Number(e.target.value))}
+                  />
+                  회
+                </div>
+              )}
+            </div>
+            {recur !== "none" && (
+              <div className="rec-hint muted">시간이 겹치는 회차는 자동으로 건너뜁니다.</div>
+            )}
+          </div>
+        )}
 
         {/* 참석자 초대 */}
         <div className="field">
@@ -310,13 +371,43 @@ export default function ReservationEditor({
         {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
 
         <div className="modal-foot">
-          <div style={{ flex: 1 }} />
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-            취소
-          </button>
-          <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? (isEdit ? "저장 중…" : "예약 중…") : isEdit ? "저장" : "예약하기"}
-          </button>
+          {isEdit && editing ? (
+            <>
+              <a
+                className="btn btn-ghost"
+                href={api.reservationIcsUrl(editing.id)}
+                title="이 회의를 내 캘린더(.ics)에 추가"
+              >
+                캘린더에 추가
+              </a>
+              <button className="btn btn-ghost danger" onClick={() => cancelOne()} disabled={busy}>
+                예약 취소
+              </button>
+              {editing.recurringId && (
+                <button
+                  className="btn btn-ghost danger"
+                  onClick={() => cancelOne("series")}
+                  disabled={busy}
+                >
+                  반복 전체
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-primary" onClick={save} disabled={busy}>
+                {busy ? "저장 중…" : "저장"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
+                취소
+              </button>
+              <button className="btn btn-primary" onClick={save} disabled={busy}>
+                {busy ? "예약 중…" : "예약하기"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

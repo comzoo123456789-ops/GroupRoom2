@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import type { Invitation, AttendeeStatus } from "../../shared/types";
 import { api } from "../lib/api";
 import { hhmm } from "../lib/time";
-import { IconBell, IconCheck, IconX } from "./icons";
+import { IconBell, IconCheck, IconX, IconCalendar } from "./icons";
 
 function whenLabel(startsAt: number, endsAt: number): string {
   const s = new Date(startsAt);
@@ -116,7 +116,7 @@ export default function InvitationsBell({ liveVersion }: { liveVersion: number }
               {items.length === 0 ? (
                 <div className="inv-empty">받은 초대가 없어요</div>
               ) : (
-                <div className="inv-list">
+                <div className="inv-list-wrap"><div className="inv-list">
                   {items.map((i) => (
                     <div key={i.reservationId} className="inv-item">
                       <span className="inv-dot" style={{ background: i.roomColor }} />
@@ -153,6 +153,10 @@ export default function InvitationsBell({ liveVersion }: { liveVersion: number }
                       )}
                     </div>
                   ))}
+                </div>
+                  <a className="inv-export" href={api.myCalendarUrl()} title="내 일정을 .ics로 내보내 캘린더에 추가">
+                    <IconCalendar size={14} /> 내 일정 캘린더로 내보내기 (.ics)
+                  </a>
                 </div>
               )}
             </div>

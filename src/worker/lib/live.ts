@@ -60,6 +60,7 @@ interface ResRow {
   status: string;
   checked_in_at: number | null;
   created_by_admin: number;
+  recurring_id?: string | null;
   attendee_count?: number;
   accepted_count?: number;
 }
@@ -77,6 +78,7 @@ export function mapReservation(r: ResRow): Reservation {
     status: r.status as Reservation["status"],
     checkedInAt: r.checked_in_at,
     createdByAdmin: r.created_by_admin === 1,
+    recurringId: r.recurring_id ?? null,
     attendeeCount: r.attendee_count ?? 0,
     acceptedCount: r.accepted_count ?? 0,
   };

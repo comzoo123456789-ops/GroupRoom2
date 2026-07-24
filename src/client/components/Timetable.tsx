@@ -13,7 +13,7 @@ import {
   snapMin,
   clampMin,
 } from "../lib/time";
-import { IconPencil, IconX, IconUsers } from "./icons";
+import { IconPencil, IconX, IconUsers, IconRepeat } from "./icons";
 import "./Timetable.css";
 
 const HOURS = Array.from(
@@ -288,6 +288,11 @@ export default function Timetable({
                       <div className="tt-block-title">{r.title}</div>
                       <div className="tt-block-time">
                         <span>{minToHHMM(active.s)}–{minToHHMM(active.e)}</span>
+                        {r.recurringId && (
+                          <span className="tt-att" title="반복 예약">
+                            <IconRepeat size={11} />
+                          </span>
+                        )}
                         {!!r.attendeeCount && r.attendeeCount > 0 && (
                           <span
                             className="tt-att"

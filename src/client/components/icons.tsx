@@ -109,6 +109,14 @@ export const IconPlus = ({ size }: P) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+export const IconRepeat = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M17 2l4 4-4 4" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <path d="M7 22l-4-4 4-4" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </svg>
+);
 export const IconMenu = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="M3 6h18M3 12h18M3 18h18" />
