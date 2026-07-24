@@ -158,6 +158,17 @@ input {
 .topbar .spacer {
   flex: 1;
 }
+.tb-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.tb-slot .spacer {
+  flex: 1;
+}
 .user-chip {
   display: flex;
   align-items: center;

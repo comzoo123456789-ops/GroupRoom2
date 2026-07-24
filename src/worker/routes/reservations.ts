@@ -96,6 +96,55 @@ reservations.post("/", async (c) => {
   return c.json({ ok: true, id }, 201);
 });
 
+// 예약 수정 (시간 드래그 리사이즈/이동, 제목 변경) — 본인 또는 관리자
+reservations.patch("/:id", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "로그인이 필요합니다." }, 401);
+  const id = c.req.param("id");
+
+  const cur = await c.env.DB.prepare(
+    `SELECT room_id, user_id, starts_at, ends_at FROM reservations
+      WHERE id = ? AND org_id = ? AND status IN ('confirmed','checked_in')`,
+  )
+    .bind(id, user.orgId)
+    .first<{ room_id: string; user_id: string; starts_at: number; ends_at: number }>();
+  if (!cur) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
+  if (cur.user_id !== user.userId && user.role !== "admin") {
+    return c.json({ error: "수정 권한이 없습니다." }, 403);
+  }
+
+  const b = await c.req
+    .json<{ startsAt?: number; endsAt?: number; title?: string }>()
+    .catch(() => ({}) as { startsAt?: number; endsAt?: number; title?: string });
+  const startsAt = b.startsAt ?? cur.starts_at;
+  const endsAt = b.endsAt ?? cur.ends_at;
+  if (endsAt <= startsAt) return c.json({ error: "종료 시간이 시작보다 빨라요." }, 400);
+
+  // 자기 자신 제외 충돌 검증
+  const clash = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM reservations
+      WHERE room_id = ? AND id <> ? AND status IN ('confirmed','checked_in')
+        AND starts_at < ? AND ends_at > ?`,
+  )
+    .bind(cur.room_id, id, endsAt, startsAt)
+    .first<{ n: number }>();
+  if ((clash?.n ?? 0) > 0) return c.json({ error: "다른 예약과 겹칩니다." }, 409);
+
+  const sets: string[] = ["starts_at = ?", "ends_at = ?", "updated_at = ?"];
+  const vals: unknown[] = [startsAt, endsAt, Date.now()];
+  if (typeof b.title === "string" && b.title.trim()) {
+    sets.push("title = ?");
+    vals.push(b.title.trim());
+  }
+  vals.push(id);
+  await c.env.DB.prepare(`UPDATE reservations SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...vals)
+    .run();
+
+  await notifyLive(c.env, user.orgId, { type: "reservation.changed", roomId: cur.room_id, at: Date.now() });
+  return c.json({ ok: true });
+});
+
 // 체크인
 reservations.post("/:id/checkin", async (c) => {
   const user = await currentUser(c);

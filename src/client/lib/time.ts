@@ -53,3 +53,30 @@ export function hhmmToday(hhmmStr: string): number {
   const [h, m] = hhmmStr.split(":").map(Number);
   return todayAt(h, m);
 }
+
+// --- 분(minute) 단위 드래그 계산 헬퍼 ---
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** 08:00 기준 분 → 상단 오프셋(px) */
+export function minToTop(min: number): number {
+  return (min / 60 - DAY_START_HOUR) * HOUR_PX;
+}
+/** 분 → "HH:MM" */
+export function minToHHMM(min: number): string {
+  return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+}
+/** 분 → 오늘 epoch(ms) */
+export function minToday(min: number): number {
+  return todayAt(Math.floor(min / 60), min % 60);
+}
+/** epoch(ms) → 자정 기준 분 */
+export function tsToMin(ts: number): number {
+  const d = new Date(ts);
+  return d.getHours() * 60 + d.getMinutes();
+}
+export function snapMin(min: number): number {
+  return Math.round(min / SNAP_MIN) * SNAP_MIN;
+}
+export function clampMin(min: number): number {
+  return Math.min(DAY_END_HOUR * 60, Math.max(DAY_START_HOUR * 60, min));
+}

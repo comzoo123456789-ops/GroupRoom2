@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+
+// 페이지가 상단바에 컨트롤을 주입할 수 있게 하는 컨텍스트
+export interface ShellContext {
+  setTopbar: (node: ReactNode) => void;
+}
 import type { Organization, User } from "../../shared/types";
 import { api } from "../lib/api";
 import {
@@ -22,6 +27,12 @@ export default function AppShell() {
   const loc = useLocation();
   const [org, setOrg] = useState<Organization | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [topbar, setTopbar] = useState<ReactNode>(null);
+
+  // 라우트 변경 시 주입된 상단바 초기화
+  useEffect(() => {
+    setTopbar(null);
+  }, [loc.pathname]);
 
   useEffect(() => {
     api
@@ -81,7 +92,7 @@ export default function AppShell() {
       <div className="main">
         <header className="topbar">
           <h1>{title}</h1>
-          <div className="spacer" />
+          {topbar ?? <div className="spacer" />}
           {user ? (
             <div className="user-chip">
               <span>{user.name}</span>
@@ -96,7 +107,7 @@ export default function AppShell() {
           )}
         </header>
         <main className="content">
-          <Outlet />
+          <Outlet context={{ setTopbar } satisfies ShellContext} />
         </main>
       </div>
     </div>

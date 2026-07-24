@@ -66,6 +66,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateReservation: (id: string, body: { startsAt?: number; endsAt?: number; title?: string }) =>
+    req<{ ok: true }>(`/api/reservations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   cancelReservation: (id: string) =>
     req<{ ok: true }>(`/api/reservations/${id}`, { method: "DELETE" }),
 };

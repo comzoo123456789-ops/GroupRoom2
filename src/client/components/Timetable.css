@@ -1,6 +1,10 @@
 .tt {
   overflow: hidden;
 }
+.tt.dragging {
+  user-select: none;
+  cursor: ns-resize;
+}
 .tt-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -23,9 +27,9 @@
 .tt-colhead {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 7px;
-  height: 46px;
+  height: 48px;
+  padding: 0 12px;
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
@@ -36,16 +40,42 @@
   top: 0;
   z-index: 2;
   white-space: nowrap;
-  padding: 0 10px;
 }
-.tt-dot {
-  width: 8px;
-  height: 8px;
+.tt-status {
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent);
+}
+.tt-colname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-cap {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+.tt-edit {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.tt-edit:hover {
+  background: var(--surface-sunken);
+  color: var(--brand);
 }
 
-/* 시간 눈금 (좌측) */
+/* 시간 눈금 (좌측) — 첫 라벨(08:00)이 잘리지 않도록 상단 정렬 */
 .tt-gutter {
   position: sticky;
   left: 0;
@@ -56,17 +86,19 @@
 .tt-hour {
   position: absolute;
   right: 8px;
-  transform: translateY(-50%);
+  padding-top: 2px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 /* 룸 컬럼 */
 .tt-col {
   position: relative;
   border-right: 1px solid var(--border);
+  touch-action: none;
   background-image: repeating-linear-gradient(
     var(--border) 0,
     var(--border) 1px,
@@ -74,11 +106,8 @@
     transparent 56px
   );
 }
-.tt-col.bookable {
-  cursor: copy;
-}
-.tt-col.bookable:hover {
-  background-color: color-mix(in srgb, var(--brand-wash) 40%, transparent);
+.tt-col:hover {
+  background-color: color-mix(in srgb, var(--brand-wash) 22%, transparent);
 }
 
 /* 예약 블록 */
@@ -90,14 +119,12 @@
   border-left: 3px solid;
   padding: 5px 8px;
   overflow: hidden;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.1s, box-shadow 0.12s;
+  touch-action: none;
 }
-.tt-block:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-  z-index: 4;
+.tt.dragging .tt-block {
+  cursor: grabbing;
 }
 .tt-block-title {
   font-size: 12px;
@@ -106,10 +133,87 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
 }
 .tt-block-time {
   font-size: 11px;
   color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.tt-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 2;
+}
+.tt-handle.top {
+  top: 0;
+}
+.tt-handle.bottom {
+  bottom: 0;
+}
+.tt-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.tt-handle.top::after {
+  top: 2px;
+}
+.tt-handle.bottom::after {
+  bottom: 2px;
+}
+.tt-block:hover .tt-handle::after {
+  opacity: 1;
+}
+.tt-block-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--text-3);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  z-index: 3;
+  transition: opacity 0.12s, color 0.12s;
+}
+.tt-block:hover .tt-block-x {
+  opacity: 1;
+}
+.tt-block-x:hover {
+  color: var(--busy);
+  background: var(--busy-wash);
+}
+
+/* 드래그 생성 고스트 */
+.tt-ghost {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 16%, #fff);
+  border: 1.5px dashed var(--brand);
+  color: var(--brand-ink);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  z-index: 4;
+  pointer-events: none;
   font-variant-numeric: tabular-nums;
 }
 

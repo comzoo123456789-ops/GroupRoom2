@@ -14,18 +14,20 @@ export default function ReservationEditor({
   rooms,
   presetRoomId,
   presetStart,
+  presetEnd,
   onClose,
   onSaved,
 }: {
   rooms: RoomLive[];
   presetRoomId: string;
   presetStart: string;
+  presetEnd?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [roomId, setRoomId] = useState(presetRoomId);
   const [start, setStart] = useState(presetStart);
-  const [end, setEnd] = useState(plusOne(presetStart));
+  const [end, setEnd] = useState(presetEnd ?? plusOne(presetStart));
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
