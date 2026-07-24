@@ -300,6 +300,8 @@ input {
 .modal {
   width: 100%;
   max-width: 440px;
+  max-height: calc(100vh - 2 * var(--s4));
+  overflow-y: auto;
   padding: var(--s5);
   box-shadow: var(--shadow-lg);
   display: flex;
@@ -545,18 +547,47 @@ input {
   place-items: center;
   box-shadow: 0 0 0 2px var(--surface);
 }
+.inv-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+}
 .inv-panel {
-  position: absolute;
-  top: 44px;
-  right: 0;
+  position: fixed;
   width: 340px;
-  max-height: 440px;
+  max-height: min(440px, calc(100vh - 80px));
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-lg);
-  z-index: 50;
+  z-index: 121;
+  animation: pop 0.16s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+/* 모바일: 하단 시트 */
+.inv-panel.sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: auto;
+  max-height: 72vh;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  animation: sheet-up 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.inv-scrim:has(+ .inv-panel.sheet) {
+  background: rgba(20, 22, 28, 0.32);
+  backdrop-filter: blur(2px);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+.inv-close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
 }
 .inv-head {
   display: flex;
@@ -753,5 +784,52 @@ input {
   }
   .content {
     padding: var(--s4);
+  }
+}
+
+/* ---------- 스마트폰 (≤640px) ---------- */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0 var(--s3);
+    gap: var(--s2);
+  }
+  /* 좁은 화면에선 페이지 제목을 숨겨 컨트롤 공간 확보 */
+  .topbar > h1 {
+    display: none;
+  }
+  .tb-slot {
+    gap: var(--s2);
+  }
+  /* 연결표시는 아이콘만, 시계는 숨김 */
+  .conn {
+    font-size: 0;
+    gap: 0;
+  }
+  .clock {
+    display: none;
+  }
+  /* 헤더 우측 사용자칩: 아바타만 */
+  .user-chip {
+    padding: 4px;
+  }
+  .user-chip > span {
+    display: none;
+  }
+  .content {
+    padding: var(--s3);
+  }
+
+  /* 모달: 화면에 꽉 차게, 여백 축소 */
+  .modal-scrim {
+    padding: var(--s3);
+    place-items: end center;
+  }
+  .modal {
+    max-width: 100%;
+    padding: var(--s4);
+    max-height: calc(100vh - 2 * var(--s3));
+  }
+  .field-row {
+    flex-direction: column;
   }
 }

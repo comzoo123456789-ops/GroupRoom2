@@ -210,7 +210,7 @@ export default function Timetable({
       <div className="tt-scroll">
         <div
           className="tt-grid"
-          style={{ gridTemplateColumns: `56px repeat(${rooms.length}, minmax(140px, 1fr))` }}
+          style={{ "--tt-cols": rooms.length } as React.CSSProperties}
         >
           {/* 헤더 */}
           <div className="tt-corner" />

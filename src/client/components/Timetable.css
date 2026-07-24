@@ -13,6 +13,7 @@
   display: grid;
   grid-auto-rows: min-content;
   min-width: max-content;
+  grid-template-columns: 56px repeat(var(--tt-cols, 1), minmax(140px, 1fr));
 }
 
 /* 헤더 */
@@ -258,4 +259,36 @@
   text-align: center;
   padding: 10px;
   border-top: 1px solid var(--border);
+}
+
+/* 스크롤 관성(터치) */
+.tt-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 스마트폰: 컬럼 폭·눈금 축소로 더 많은 회의실이 보이게 */
+@media (max-width: 640px) {
+  .tt-grid {
+    grid-template-columns: 44px repeat(var(--tt-cols, 1), minmax(112px, 1fr));
+  }
+  .tt-colhead {
+    height: 42px;
+    padding: 0 8px;
+    font-size: 12px;
+    gap: 5px;
+  }
+  .tt-cap {
+    display: none;
+  }
+  .tt-hour {
+    font-size: 10px;
+    right: 6px;
+  }
+  .tt-block {
+    padding: 4px 6px;
+  }
+  .tt-hint {
+    font-size: 11px;
+    padding: 8px;
+  }
 }

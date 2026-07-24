@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Invitation, AttendeeStatus } from "../../shared/types";
 import { api } from "../lib/api";
 import { hhmm } from "../lib/time";
@@ -26,7 +27,9 @@ export default function InvitationsBell({ liveVersion }: { liveVersion: number }
   const [items, setItems] = useState<Invitation[]>([]);
   const [open, setOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  // 데스크톱: 벨 아래 고정 좌표 / 모바일: null → 하단 시트
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(() => {
     api
@@ -39,14 +42,25 @@ export default function InvitationsBell({ liveVersion }: { liveVersion: number }
     load();
   }, [load, liveVersion]);
 
-  // 바깥 클릭 시 닫기
+  const isMobile = () => window.matchMedia("(max-width: 640px)").matches;
+
+  const toggle = () => {
+    if (open) return setOpen(false);
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r && !isMobile()) {
+      setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+    } else {
+      setPos(null);
+    }
+    setOpen(true);
+  };
+
+  // 크기 변경 시 위치가 어긋나지 않도록 닫기
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    const onResize = () => setOpen(false);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
   const pendingCount = items.filter((i) => i.myStatus === "pending").length;
@@ -66,67 +80,85 @@ export default function InvitationsBell({ liveVersion }: { liveVersion: number }
   };
 
   return (
-    <div className="inv-wrap" ref={wrapRef}>
+    <div className="inv-wrap">
       <button
+        ref={btnRef}
         className={"inv-bell" + (pendingCount > 0 ? " has" : "")}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-label={`초대 ${pendingCount}건`}
       >
         <IconBell size={18} />
         {pendingCount > 0 && <span className="inv-badge">{pendingCount}</span>}
       </button>
 
-      {open && (
-        <div className="inv-panel card">
-          <div className="inv-head">
-            <b>내 초대</b>
-            {pendingCount > 0 && <span className="inv-head-n">대기 {pendingCount}</span>}
-          </div>
+      {open &&
+        createPortal(
+          <>
+            <div className="inv-scrim" onClick={() => setOpen(false)} />
+            <div
+              className={"inv-panel card" + (pos ? "" : " sheet")}
+              style={pos ? { top: pos.top, right: pos.right } : undefined}
+              role="dialog"
+              aria-label="내 초대"
+            >
+              <div className="inv-head">
+                <b>내 초대</b>
+                {pendingCount > 0 && <span className="inv-head-n">대기 {pendingCount}</span>}
+                <button
+                  className="icon-btn inv-close"
+                  onClick={() => setOpen(false)}
+                  aria-label="닫기"
+                >
+                  ✕
+                </button>
+              </div>
 
-          {items.length === 0 ? (
-            <div className="inv-empty">받은 초대가 없어요</div>
-          ) : (
-            <div className="inv-list">
-              {items.map((i) => (
-                <div key={i.reservationId} className="inv-item">
-                  <span className="inv-dot" style={{ background: i.roomColor }} />
-                  <div className="inv-body">
-                    <div className="inv-title">{i.title}</div>
-                    <div className="inv-meta">
-                      {i.roomName} · {whenLabel(i.startsAt, i.endsAt)}
+              {items.length === 0 ? (
+                <div className="inv-empty">받은 초대가 없어요</div>
+              ) : (
+                <div className="inv-list">
+                  {items.map((i) => (
+                    <div key={i.reservationId} className="inv-item">
+                      <span className="inv-dot" style={{ background: i.roomColor }} />
+                      <div className="inv-body">
+                        <div className="inv-title">{i.title}</div>
+                        <div className="inv-meta">
+                          {i.roomName} · {whenLabel(i.startsAt, i.endsAt)}
+                        </div>
+                        <div className="inv-org">{i.organizerName} 주최</div>
+                      </div>
+                      {i.myStatus === "pending" ? (
+                        <div className="inv-actions">
+                          <button
+                            className="inv-btn accept"
+                            disabled={pendingId === i.reservationId}
+                            onClick={() => respond(i.reservationId, "accepted")}
+                            aria-label="수락"
+                          >
+                            <IconCheck size={15} />
+                          </button>
+                          <button
+                            className="inv-btn decline"
+                            disabled={pendingId === i.reservationId}
+                            onClick={() => respond(i.reservationId, "declined")}
+                            aria-label="거절"
+                          >
+                            <IconX size={15} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={"inv-status " + i.myStatus}>
+                          {STATUS_LABEL[i.myStatus]}
+                        </span>
+                      )}
                     </div>
-                    <div className="inv-org">{i.organizerName} 주최</div>
-                  </div>
-                  {i.myStatus === "pending" ? (
-                    <div className="inv-actions">
-                      <button
-                        className="inv-btn accept"
-                        disabled={pendingId === i.reservationId}
-                        onClick={() => respond(i.reservationId, "accepted")}
-                        aria-label="수락"
-                      >
-                        <IconCheck size={15} />
-                      </button>
-                      <button
-                        className="inv-btn decline"
-                        disabled={pendingId === i.reservationId}
-                        onClick={() => respond(i.reservationId, "declined")}
-                        aria-label="거절"
-                      >
-                        <IconX size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className={"inv-status " + i.myStatus}>
-                      {STATUS_LABEL[i.myStatus]}
-                    </span>
-                  )}
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

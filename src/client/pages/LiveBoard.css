@@ -234,3 +234,19 @@
 .empty .btn {
   margin-top: var(--s3);
 }
+
+/* 스마트폰: 통계칩 압축 */
+@media (max-width: 640px) {
+  .stat-strip {
+    padding: 4px;
+    gap: 2px;
+  }
+  .stat {
+    padding: 5px 10px;
+    font-size: 12px;
+    gap: 5px;
+  }
+  .stat b {
+    font-size: 14px;
+  }
+}
