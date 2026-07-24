@@ -1,0 +1,246 @@
+.live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+/* 상단 통계 + 실시간 메타 */
+.live-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.stat-strip {
+  display: flex;
+  gap: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 6px;
+  box-shadow: var(--shadow-sm);
+}
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+}
+.stat b {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.stat-dot.s-ok {
+  background: var(--ok);
+}
+.stat-dot.s-soon {
+  background: var(--warn);
+}
+.stat-dot.s-busy {
+  background: var(--busy);
+}
+.live-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.conn.on {
+  color: var(--ok);
+}
+.clock {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* 도면 패널 */
+.plan {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 440px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.plan-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.4;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, #000 60%, transparent 100%);
+}
+.plan-skeleton {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 440px;
+  background: linear-gradient(100deg, var(--surface-2) 40%, var(--surface-sunken) 50%, var(--surface-2) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 룸 타일 (도면 위 절대배치) */
+.room {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  cursor: pointer;
+}
+.room::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+.room:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+.room.s-ok {
+  background: color-mix(in srgb, var(--ok-wash) 55%, var(--surface));
+}
+.room.s-ok::before {
+  background: var(--ok);
+}
+.room.s-soon {
+  background: color-mix(in srgb, var(--warn-wash) 60%, var(--surface));
+}
+.room.s-soon::before {
+  background: var(--warn);
+}
+.room.s-busy {
+  background: color-mix(in srgb, var(--busy-wash) 60%, var(--surface));
+}
+.room.s-busy::before {
+  background: var(--busy);
+}
+
+.room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.room-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.room .badge {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  flex: none;
+}
+.room-info {
+  flex: 1;
+  min-height: 0;
+}
+.room-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.room-time {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.room-free {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.room-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-3);
+}
+.room-foot .cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.room-foot .amen {
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* 좁은 타일(폰부스)에서는 정보 숨김 */
+.room[style*="width: 11%"] .room-info,
+.room[style*="width: 11%"] .badge span {
+  display: none;
+}
+
+/* 빈 상태 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s7) var(--s5);
+  text-align: center;
+  color: var(--brand);
+}
+.empty h3 {
+  font-size: 18px;
+  color: var(--text);
+}
+.empty .btn {
+  margin-top: var(--s3);
+}
+
+@media (max-width: 700px) {
+  .plan,
+  .plan-skeleton {
+    aspect-ratio: auto;
+    min-height: 520px;
+  }
+}

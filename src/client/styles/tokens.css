@@ -1,0 +1,58 @@
+/* GroupRoom 디자인 시스템 토큰 — 라이트 전용, 프리미엄 뉴트럴 + 단일 브랜드 액센트 */
+:root {
+  /* 표면 / 뉴트럴 */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #fbfbfd;
+  --surface-sunken: #f0f2f5;
+  --border: #e7e9ee;
+  --border-strong: #d6dae2;
+
+  /* 텍스트 */
+  --text: #14161c;
+  --text-2: #59606f;
+  --text-3: #8a92a3;
+
+  /* 브랜드 (조직별로 런타임 오버라이드 가능) */
+  --brand: #3b5bdb;
+  --brand-ink: #2c46ad;
+  --brand-wash: #eef1fe;
+
+  /* 상태색: available / soon / busy */
+  --ok: #0ca678;
+  --ok-wash: #e5f7f0;
+  --warn: #f08c00;
+  --warn-wash: #fdf1df;
+  --busy: #e03131;
+  --busy-wash: #fdebeb;
+
+  /* 그림자 (은은하게) */
+  --shadow-sm: 0 1px 2px rgba(20, 22, 28, 0.04), 0 1px 3px rgba(20, 22, 28, 0.06);
+  --shadow-md: 0 4px 14px rgba(20, 22, 28, 0.07), 0 2px 6px rgba(20, 22, 28, 0.04);
+  --shadow-lg: 0 18px 48px rgba(20, 22, 28, 0.12);
+
+  /* 반경 */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* 간격 스텝 */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* 타이포 */
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num: "Pretendard Variable", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 레이아웃 */
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+}

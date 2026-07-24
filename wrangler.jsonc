@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "grouproom",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // React SPA는 정적 에셋으로 서빙. /api/* 만 Worker가 먼저 처리.
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // D1 (SQLite). database_id는 `wrangler d1 create grouproom-db` 후 실제 값으로 교체.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "grouproom-db",
+      "database_id": "REPLACE_AFTER_d1_create",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // 실시간 회의실 현황 (WebSocket 브로드캐스트)
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM_HUB", "class_name": "RoomHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomHub"] }]
+}
