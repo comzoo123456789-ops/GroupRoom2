@@ -4,7 +4,8 @@ import type {
   Organization,
   RoomKind,
   Role,
-  Member,
+  MembersResponse,
+  UserStatus,
   Attendee,
   AttendeeStatus,
   Invitation,
@@ -101,8 +102,40 @@ export const api = {
   // 임직원 디렉터리(참석자 검색)
   members: (q?: string) => {
     const qs = q ? `?q=${encodeURIComponent(q)}` : "";
-    return req<{ members: Member[] }>(`/api/members${qs}`);
+    return req<MembersResponse>(`/api/members${qs}`);
   },
+  // 멤버 관리 목록 (검색·필터·페이지네이션)
+  memberList: (params: {
+    q?: string;
+    dept?: string;
+    role?: Role | "";
+    status?: UserStatus | "";
+    limit?: number;
+    offset?: number;
+  }) => {
+    const p = new URLSearchParams();
+    if (params.q) p.set("q", params.q);
+    if (params.dept) p.set("dept", params.dept);
+    if (params.role) p.set("role", params.role);
+    if (params.status) p.set("status", params.status);
+    if (params.limit != null) p.set("limit", String(params.limit));
+    if (params.offset != null) p.set("offset", String(params.offset));
+    return req<MembersResponse>(`/api/members?${p}`);
+  },
+  createMember: (body: { name: string; email: string; department?: string; role?: Role }) =>
+    req<{ ok: true; id: string; tempPassword: string }>("/api/members", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateMember: (
+    id: string,
+    body: { role?: Role; status?: UserStatus; department?: string; name?: string },
+  ) =>
+    req<{ ok: true }>(`/api/members/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  myRole: () => req<{ userId: string | null; role: Role | null }>("/api/members/me"),
   seedEmployees: () =>
     req<{ ok: true; employeesAdded: number }>("/api/dev/seed-employees", {
       method: "POST",

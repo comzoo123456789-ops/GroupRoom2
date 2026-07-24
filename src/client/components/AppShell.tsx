@@ -22,6 +22,7 @@ const TITLES: Record<string, string> = {
   "/": "실시간 현황",
   "/timeline": "예약 타임라인",
   "/insights": "이용 분석",
+  "/members": "멤버",
 };
 
 export default function AppShell() {
@@ -86,7 +87,7 @@ export default function AppShell() {
           <NavItem to="/timeline" icon={<IconCalendar size={18} />} label="예약 타임라인" />
           <NavItem to="/insights" icon={<IconChart size={18} />} label="이용 분석" />
           <div className="nav-label">관리</div>
-          <NavItem to="/members" icon={<IconUsers size={18} />} label="멤버" disabled />
+          <NavItem to="/members" icon={<IconUsers size={18} />} label="멤버" />
           <NavItem to="/settings" icon={<IconSettings size={18} />} label="설정" disabled />
         </nav>
 

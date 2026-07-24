@@ -18,7 +18,7 @@ function plusOne(t: string): string {
 
 const initials = (name: string) => name.trim().slice(-2);
 
-type Invited = Member & { status: AttendeeStatus };
+type Invited = Omit<Member, "status"> & { status: AttendeeStatus };
 
 const STATUS_LABEL: Record<AttendeeStatus, string> = {
   pending: "대기",

@@ -98,6 +98,17 @@ export const IconX = ({ size }: P) => (
     <path d="M18 6 6 18M6 6l12 12" />
   </svg>
 );
+export const IconSearch = ({ size }: P) => (
+  <svg {...base(size)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
+export const IconPlus = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
 export const IconMenu = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="M3 6h18M3 12h18M3 18h18" />

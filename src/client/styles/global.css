@@ -230,6 +230,8 @@ input {
   border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
+  flex: none;
   transition: transform 0.06s, box-shadow 0.14s, background 0.14s;
   border: 1px solid transparent;
 }

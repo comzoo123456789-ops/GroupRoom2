@@ -67,7 +67,10 @@ export interface RoomLive extends Room {
   next: Reservation | null;
 }
 
-// 임직원 디렉터리(참석자 검색용)
+// 계정 상태
+export type UserStatus = "active" | "invited" | "inactive";
+
+// 임직원 디렉터리(참석자 검색·멤버 관리)
 export interface Member {
   id: string;
   name: string;
@@ -75,6 +78,14 @@ export interface Member {
   department: string | null;
   avatarColor: string;
   role: Role;
+  status: UserStatus;
+}
+
+// 멤버 목록 응답
+export interface MembersResponse {
+  members: Member[];
+  total: number;
+  departments: { name: string; n: number }[];
 }
 
 // 예약 참석자
