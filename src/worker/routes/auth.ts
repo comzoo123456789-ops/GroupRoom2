@@ -56,11 +56,23 @@ auth.post("/logout", async (c) => {
 auth.get("/me", async (c) => {
   const u = await currentUser(c);
   if (!u) return c.json({ user: null, org: null });
+  const profile = await c.env.DB.prepare(
+    `SELECT avatar_color AS avatarColor, department FROM users WHERE id = ?`,
+  )
+    .bind(u.userId)
+    .first<{ avatarColor: string; department: string | null }>();
   const org = await c.env.DB.prepare(
     `SELECT id, name, slug, logo_url AS logoUrl, brand_color AS brandColor, timezone
        FROM organizations WHERE id = ?`,
   )
     .bind(u.orgId)
     .first();
-  return c.json({ user: u, org });
+  return c.json({
+    user: {
+      ...u,
+      avatarColor: profile?.avatarColor ?? "#3B5BDB",
+      department: profile?.department ?? null,
+    },
+    org,
+  });
 });

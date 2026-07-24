@@ -165,6 +165,78 @@ reservations.patch("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// 참석자 목록
+reservations.get("/:id/attendees", async (c) => {
+  const orgId = await resolveOrgId(c);
+  if (!orgId) return c.json({ error: "조직을 찾을 수 없습니다." }, 404);
+  const id = c.req.param("id");
+  const rows = await c.env.DB.prepare(
+    `SELECT u.id AS userId, u.name AS name, u.email AS email,
+            u.department AS department, u.avatar_color AS avatarColor, a.status AS status
+       FROM reservation_attendees a
+       JOIN users u ON u.id = a.user_id
+      WHERE a.reservation_id = ? AND u.org_id = ?
+      ORDER BY u.name`,
+  )
+    .bind(id, orgId)
+    .all();
+  return c.json({ attendees: rows.results });
+});
+
+// 참석자 일괄 설정(초대) — 본인 또는 관리자. body: { userIds: string[] }
+reservations.put("/:id/attendees", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ error: "로그인이 필요합니다." }, 401);
+  const id = c.req.param("id");
+
+  const res = await c.env.DB.prepare(
+    `SELECT room_id, user_id FROM reservations
+      WHERE id = ? AND org_id = ? AND status IN ('confirmed','checked_in')`,
+  )
+    .bind(id, user.orgId)
+    .first<{ room_id: string; user_id: string }>();
+  if (!res) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
+  if (res.user_id !== user.userId && user.role !== "admin") {
+    return c.json({ error: "참석자를 수정할 권한이 없습니다." }, 403);
+  }
+
+  const body = await c.req
+    .json<{ userIds?: string[] }>()
+    .catch(() => ({}) as { userIds?: string[] });
+  const wanted = Array.from(new Set(body.userIds ?? [])).slice(0, 100);
+
+  // 같은 조직 활성 사용자만 허용
+  let valid: string[] = [];
+  if (wanted.length) {
+    const placeholders = wanted.map(() => "?").join(",");
+    const rows = await c.env.DB.prepare(
+      `SELECT id FROM users WHERE org_id = ? AND status = 'active' AND id IN (${placeholders})`,
+    )
+      .bind(user.orgId, ...wanted)
+      .all<{ id: string }>();
+    valid = rows.results.map((r) => r.id);
+  }
+
+  // 전체 교체: 기존 삭제 후 재삽입
+  await c.env.DB.prepare(`DELETE FROM reservation_attendees WHERE reservation_id = ?`)
+    .bind(id)
+    .run();
+  for (const uid of valid) {
+    await c.env.DB.prepare(
+      `INSERT INTO reservation_attendees (reservation_id, user_id, status) VALUES (?, ?, 'pending')`,
+    )
+      .bind(id, uid)
+      .run();
+  }
+
+  await notifyLive(c.env, user.orgId, {
+    type: "reservation.changed",
+    roomId: res.room_id,
+    at: Date.now(),
+  });
+  return c.json({ ok: true, count: valid.length });
+});
+
 // 체크인
 reservations.post("/:id/checkin", async (c) => {
   const user = await currentUser(c);

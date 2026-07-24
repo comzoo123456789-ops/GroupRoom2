@@ -1,8 +1,47 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { hashPassword, newId } from "../lib/crypto";
+import { resolveOrgId } from "../lib/session";
 
 export const dev = new Hono<{ Bindings: Env }>();
+
+// 데모 임직원 디렉터리 — 참석자 검색/초대용. 비밀번호는 모두 demo1234.
+const SEED_EMPLOYEES: { name: string; email: string; dept: string; color: string }[] = [
+  { name: "김민준", email: "minjun.kim@demo.com", dept: "개발팀", color: "#3B5BDB" },
+  { name: "이서연", email: "seoyeon.lee@demo.com", dept: "디자인팀", color: "#0CA678" },
+  { name: "박도윤", email: "doyoon.park@demo.com", dept: "영업팀", color: "#7048E8" },
+  { name: "최지우", email: "jiwoo.choi@demo.com", dept: "마케팅팀", color: "#F76707" },
+  { name: "정하준", email: "hajun.jung@demo.com", dept: "개발팀", color: "#1098AD" },
+  { name: "강서준", email: "seojun.kang@demo.com", dept: "인사팀", color: "#E8590C" },
+  { name: "조은우", email: "eunwoo.cho@demo.com", dept: "재무팀", color: "#D6336C" },
+  { name: "윤지호", email: "jiho.yoon@demo.com", dept: "개발팀", color: "#2F9E44" },
+  { name: "임채원", email: "chaewon.lim@demo.com", dept: "디자인팀", color: "#5C7CFA" },
+  { name: "한예준", email: "yejun.han@demo.com", dept: "영업팀", color: "#F03E3E" },
+  { name: "오유진", email: "yujin.oh@demo.com", dept: "마케팅팀", color: "#9C36B5" },
+  { name: "서지안", email: "jian.seo@demo.com", dept: "경영지원", color: "#0C8599" },
+];
+
+/** 조직에 임직원 시드를 멱등하게 채운다(이메일 기준 중복 방지). 추가된 수 반환. */
+async function ensureEmployees(env: Env, orgId: string, now: number): Promise<number> {
+  const { hash, salt } = await hashPassword("demo1234");
+  let added = 0;
+  for (const e of SEED_EMPLOYEES) {
+    const exists = await env.DB.prepare(
+      `SELECT 1 FROM users WHERE org_id = ? AND email = ?`,
+    )
+      .bind(orgId, e.email)
+      .first();
+    if (exists) continue;
+    await env.DB.prepare(
+      `INSERT INTO users (id, org_id, email, name, password_hash, password_salt, role, department, avatar_color, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'member', ?, ?, 'active', ?)`,
+    )
+      .bind(newId(), orgId, e.email, e.name, hash, salt, e.dept, e.color, now)
+      .run();
+    added++;
+  }
+  return added;
+}
 
 interface SeedRoom {
   name: string;
@@ -31,7 +70,9 @@ dev.post("/bootstrap", async (c) => {
     `SELECT id FROM organizations WHERE slug = 'demo'`,
   ).first<{ id: string }>();
   if (existing) {
-    return c.json({ ok: true, already: true, orgId: existing.id });
+    // 이미 조직이 있으면 임직원 디렉터리만 보강(멱등)
+    const added = await ensureEmployees(c.env, existing.id, Date.now());
+    return c.json({ ok: true, already: true, orgId: existing.id, employeesAdded: added });
   }
 
   const now = Date.now();
@@ -88,9 +129,19 @@ dev.post("/bootstrap", async (c) => {
   await mkRes(roomIds[0], "1:1 미팅", now + 8 * 60_000, now + 38 * 60_000);
   await mkRes(roomIds[3], "고객사 화상 데모", now + 90 * 60_000, now + 150 * 60_000);
 
+  await ensureEmployees(c.env, orgId, now);
+
   return c.json({
     ok: true,
     orgId,
     login: { email: "admin@demo.com", password: "admin1234" },
   });
+});
+
+// 기존 조직에 임직원 디렉터리만 보강 (멱등). 로그인 시 해당 조직, 아니면 데모.
+dev.post("/seed-employees", async (c) => {
+  const orgId = await resolveOrgId(c);
+  if (!orgId) return c.json({ error: "조직을 찾을 수 없습니다." }, 404);
+  const added = await ensureEmployees(c.env, orgId, Date.now());
+  return c.json({ ok: true, orgId, employeesAdded: added });
 });

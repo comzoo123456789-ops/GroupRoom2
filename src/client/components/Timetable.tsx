@@ -39,20 +39,24 @@ export default function Timetable({
   now,
   canBook,
   isAdmin,
+  meId,
   onCreate,
   onResize,
   onCancel,
   onEditRoom,
+  onEditReservation,
 }: {
   rooms: RoomLive[];
   reservations: Reservation[];
   now: number;
   canBook: boolean;
   isAdmin: boolean;
+  meId: string | null;
   onCreate: (roomId: string, startHHMM: string, endHHMM: string) => void;
   onResize: (id: string, startsAt: number, endsAt: number, roomId?: string) => void;
   onCancel: (r: Reservation) => void;
   onEditRoom: (room: RoomLive) => void;
+  onEditReservation: (r: Reservation) => void;
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -71,6 +75,7 @@ export default function Timetable({
     // rAF로 묶어 프레임당 최대 1회 setState → 드래그 렉 제거.
     let raf = 0;
     let last: PointerEvent | null = null;
+    const initial = dragRef.current; // 시작 스냅샷 (setD가 새 객체를 넣으므로 원본 유지)
     const process = () => {
       raf = 0;
       const e = last;
@@ -110,9 +115,16 @@ export default function Timetable({
         if (e - s < SNAP_MIN) e = Math.min(DAY_END_HOUR * 60, s + 60); // 짧은 클릭 = 1시간 기본
         onCreate(d.roomId, minToHHMM(s), minToHHMM(e));
       } else if (d.kind === "resize") {
-        onResize(d.id, minToday(d.startMin), minToday(d.endMin));
+        // 값이 실제로 바뀐 경우에만 저장 (단순 클릭·더블클릭 시 불필요한 PATCH 방지)
+        const i = initial && initial.kind === "resize" ? initial : null;
+        if (!i || i.startMin !== d.startMin || i.endMin !== d.endMin) {
+          onResize(d.id, minToday(d.startMin), minToday(d.endMin));
+        }
       } else {
-        onResize(d.id, minToday(d.startMin), minToday(d.endMin), d.roomId);
+        const i = initial && initial.kind === "move" ? initial : null;
+        const changed =
+          !i || i.roomId !== d.roomId || i.startMin !== d.startMin || i.endMin !== d.endMin;
+        if (changed) onResize(d.id, minToday(d.startMin), minToday(d.endMin), d.roomId);
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -248,17 +260,27 @@ export default function Timetable({
                       : { s: tsToMin(r.startsAt), e: tsToMin(r.endsAt) };
                   const top = minToTop(active.s);
                   const height = Math.max(22, minToTop(active.e) - top);
+                  const canEdit = canBook && (isAdmin || r.userId === meId);
                   return (
                     <div
                       key={r.id}
-                      className="tt-block"
+                      className={"tt-block" + (canEdit ? " editable" : "")}
                       style={{
                         top,
                         height,
                         background: `color-mix(in srgb, ${room.color} 14%, #fff)`,
                         borderLeftColor: room.color,
                       }}
+                      title={canEdit ? "더블클릭해 수정" : undefined}
                       onPointerDown={canBook ? startMove(r) : undefined}
+                      onDoubleClick={
+                        canEdit
+                          ? (e) => {
+                              e.stopPropagation();
+                              onEditReservation(r);
+                            }
+                          : undefined
+                      }
                     >
                       {canBook && (
                         <span className="tt-handle top" onPointerDown={startResize(r, "top")} />

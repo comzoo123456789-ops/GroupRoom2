@@ -65,6 +65,27 @@ export interface RoomLive extends Room {
   next: Reservation | null;
 }
 
+// 임직원 디렉터리(참석자 검색용)
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  department: string | null;
+  avatarColor: string;
+  role: Role;
+}
+
+// 예약 참석자
+export type AttendeeStatus = "pending" | "accepted" | "declined";
+export interface Attendee {
+  userId: string;
+  name: string;
+  email: string;
+  department: string | null;
+  avatarColor: string;
+  status: AttendeeStatus;
+}
+
 export interface ApiError {
   error: string;
 }

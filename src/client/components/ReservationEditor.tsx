@@ -1,7 +1,7 @@
-import { useState } from "react";
-import type { RoomLive } from "../../shared/types";
+import { useEffect, useRef, useState } from "react";
+import type { RoomLive, Reservation, Member } from "../../shared/types";
 import { api } from "../lib/api";
-import { timeOptions, hhmmToday } from "../lib/time";
+import { timeOptions, hhmmToday, minToHHMM, tsToMin } from "../lib/time";
 
 const OPTS = timeOptions();
 
@@ -10,8 +10,11 @@ function plusOne(t: string): string {
   return OPTS[Math.min(OPTS.length - 1, i + 2)] ?? t; // +1시간(30분*2)
 }
 
+const initials = (name: string) => name.trim().slice(-2);
+
 export default function ReservationEditor({
   rooms,
+  editing,
   presetRoomId,
   presetStart,
   presetEnd,
@@ -19,18 +22,86 @@ export default function ReservationEditor({
   onSaved,
 }: {
   rooms: RoomLive[];
-  presetRoomId: string;
-  presetStart: string;
+  editing?: Reservation | null;
+  presetRoomId?: string;
+  presetStart?: string;
   presetEnd?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [roomId, setRoomId] = useState(presetRoomId);
-  const [start, setStart] = useState(presetStart);
-  const [end, setEnd] = useState(presetEnd ?? plusOne(presetStart));
-  const [title, setTitle] = useState("");
+  const isEdit = !!editing;
+  const [roomId, setRoomId] = useState(
+    editing?.roomId ?? presetRoomId ?? rooms[0]?.id ?? "",
+  );
+  const [start, setStart] = useState(
+    editing ? minToHHMM(tsToMin(editing.startsAt)) : presetStart ?? "09:00",
+  );
+  const [end, setEnd] = useState(
+    editing
+      ? minToHHMM(tsToMin(editing.endsAt))
+      : presetEnd ?? plusOne(presetStart ?? "09:00"),
+  );
+  const [title, setTitle] = useState(editing?.title ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // 참석자
+  const [invited, setInvited] = useState<Member[]>([]);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<Member[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  // 수정 모드면 기존 참석자 로드
+  useEffect(() => {
+    if (!editing) return;
+    api
+      .attendees(editing.id)
+      .then((r) =>
+        setInvited(
+          r.attendees.map((a) => ({
+            id: a.userId,
+            name: a.name,
+            email: a.email,
+            department: a.department,
+            avatarColor: a.avatarColor,
+            role: "member",
+          })),
+        ),
+      )
+      .catch(() => {});
+  }, [editing]);
+
+  // 이름 검색 (디바운스)
+  const qRef = useRef(q);
+  qRef.current = q;
+  useEffect(() => {
+    const term = q.trim();
+    if (!term) {
+      setResults([]);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(() => {
+      api
+        .members(term)
+        .then((r) => {
+          if (qRef.current.trim() === term) setResults(r.members);
+        })
+        .catch(() => {})
+        .finally(() => setSearching(false));
+    }, 220);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const invitedIds = new Set(invited.map((m) => m.id));
+  const shown = results.filter((m) => !invitedIds.has(m.id));
+
+  const add = (m: Member) => {
+    setInvited((cur) => (cur.some((x) => x.id === m.id) ? cur : [...cur, m]));
+    setQ("");
+    setResults([]);
+  };
+  const remove = (id: string) => setInvited((cur) => cur.filter((m) => m.id !== id));
 
   const save = async () => {
     if (!title.trim()) return setErr("회의 제목을 입력하세요.");
@@ -40,10 +111,27 @@ export default function ReservationEditor({
     setBusy(true);
     setErr(null);
     try {
-      await api.createReservation({ roomId, title: title.trim(), startsAt, endsAt });
+      const ids = invited.map((m) => m.id);
+      if (isEdit && editing) {
+        await api.updateReservation(editing.id, {
+          title: title.trim(),
+          startsAt,
+          endsAt,
+          roomId,
+        });
+        await api.setAttendees(editing.id, ids);
+      } else {
+        const { id } = await api.createReservation({
+          roomId,
+          title: title.trim(),
+          startsAt,
+          endsAt,
+        });
+        if (ids.length) await api.setAttendees(id, ids);
+      }
       onSaved();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "예약 실패");
+      setErr(e instanceof Error ? e.message : isEdit ? "수정 실패" : "예약 실패");
       setBusy(false);
     }
   };
@@ -52,7 +140,7 @@ export default function ReservationEditor({
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h2>회의실 예약</h2>
+          <h2>{isEdit ? "예약 수정" : "회의실 예약"}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="닫기">✕</button>
         </div>
 
@@ -103,6 +191,49 @@ export default function ReservationEditor({
           </div>
         </div>
 
+        {/* 참석자 초대 */}
+        <div className="field">
+          <label>참석자 초대 {invited.length > 0 && `· ${invited.length}명`}</label>
+          {invited.length > 0 && (
+            <div className="att-chips">
+              {invited.map((m) => (
+                <span key={m.id} className="att-chip">
+                  <span className="att-ava" style={{ background: m.avatarColor }}>
+                    {initials(m.name)}
+                  </span>
+                  {m.name}
+                  {m.department && <span className="att-dept">{m.department}</span>}
+                  <button className="att-x" onClick={() => remove(m.id)} aria-label="제외">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="att-search">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="이름·부서로 임직원 검색"
+            />
+            {q.trim() && (
+              <div className="att-results">
+                {searching && shown.length === 0 && <div className="att-empty">검색 중…</div>}
+                {!searching && shown.length === 0 && (
+                  <div className="att-empty">일치하는 임직원이 없어요</div>
+                )}
+                {shown.map((m) => (
+                  <button key={m.id} className="att-opt" onClick={() => add(m)}>
+                    <span className="att-ava" style={{ background: m.avatarColor }}>
+                      {initials(m.name)}
+                    </span>
+                    <span className="att-opt-name">{m.name}</span>
+                    {m.department && <span className="att-dept">{m.department}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
 
         <div className="modal-foot">
@@ -111,7 +242,7 @@ export default function ReservationEditor({
             취소
           </button>
           <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {busy ? "예약 중…" : "예약하기"}
+            {busy ? (isEdit ? "저장 중…" : "예약 중…") : isEdit ? "저장" : "예약하기"}
           </button>
         </div>
       </div>

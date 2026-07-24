@@ -1,4 +1,22 @@
-import type { Reservation, RoomLive, User, Organization, RoomKind } from "../../shared/types";
+import type {
+  Reservation,
+  RoomLive,
+  Organization,
+  RoomKind,
+  Role,
+  Member,
+  Attendee,
+} from "../../shared/types";
+
+// /api/auth/me 응답의 로그인 사용자
+export interface SessionUser {
+  userId: string;
+  orgId: string;
+  role: Role;
+  name: string;
+  avatarColor: string;
+  department: string | null;
+}
 
 export interface RoomInput {
   name?: string;
@@ -20,7 +38,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  me: () => req<{ user: User | null; org: Organization | null }>("/api/auth/me"),
+  me: () =>
+    req<{
+      user: SessionUser | null;
+      org: Organization | null;
+    }>("/api/auth/me"),
   login: (email: string, password: string) =>
     req<{ ok: true }>("/api/auth/login", {
       method: "POST",
@@ -73,6 +95,25 @@ export const api = {
     }),
   cancelReservation: (id: string) =>
     req<{ ok: true }>(`/api/reservations/${id}`, { method: "DELETE" }),
+
+  // 임직원 디렉터리(참석자 검색)
+  members: (q?: string) => {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+    return req<{ members: Member[] }>(`/api/members${qs}`);
+  },
+  seedEmployees: () =>
+    req<{ ok: true; employeesAdded: number }>("/api/dev/seed-employees", {
+      method: "POST",
+    }),
+
+  // 참석자
+  attendees: (reservationId: string) =>
+    req<{ attendees: Attendee[] }>(`/api/reservations/${reservationId}/attendees`),
+  setAttendees: (reservationId: string, userIds: string[]) =>
+    req<{ ok: true; count: number }>(`/api/reservations/${reservationId}/attendees`, {
+      method: "PUT",
+      body: JSON.stringify({ userIds }),
+    }),
 };
 
 /** 실시간 현황 WebSocket 연결. onEvent는 서버 브로드캐스트마다 호출됨. */

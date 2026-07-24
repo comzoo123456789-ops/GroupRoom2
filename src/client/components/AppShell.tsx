@@ -6,8 +6,8 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 export interface ShellContext {
   setTopbar: (node: ReactNode) => void;
 }
-import type { Organization, User } from "../../shared/types";
-import { api } from "../lib/api";
+import type { Organization } from "../../shared/types";
+import { api, type SessionUser } from "../lib/api";
 import {
   IconGrid,
   IconCalendar,
@@ -26,7 +26,7 @@ const TITLES: Record<string, string> = {
 export default function AppShell() {
   const loc = useLocation();
   const [org, setOrg] = useState<Organization | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [topbar, setTopbar] = useState<ReactNode>(null);
 
   // 라우트 변경 시 주입된 상단바 초기화

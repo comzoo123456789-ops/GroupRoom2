@@ -21,8 +21,10 @@ export default function LiveBoard() {
   const [seeding, setSeeding] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [meId, setMeId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ room: RoomLive | null } | null>(null);
   const [booking, setBooking] = useState<{ roomId: string; start: string; end: string } | null>(null);
+  const [editRes, setEditRes] = useState<Reservation | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,7 @@ export default function LiveBoard() {
       .then((r) => {
         setIsAdmin(r.user?.role === "admin");
         setLoggedIn(!!r.user);
+        setMeId(r.user?.userId ?? null);
       })
       .catch(() => {});
     const stopWs = connectLive(() => {
@@ -151,10 +154,12 @@ export default function LiveBoard() {
           now={now}
           canBook={loggedIn}
           isAdmin={isAdmin}
+          meId={meId}
           onCreate={onCreate}
           onResize={onResize}
           onCancel={onCancel}
           onEditRoom={(room) => setEditing({ room })}
+          onEditReservation={(r) => setEditRes(r)}
         />
       )}
 
@@ -178,6 +183,18 @@ export default function LiveBoard() {
           onClose={() => setBooking(null)}
           onSaved={() => {
             setBooking(null);
+            load();
+          }}
+        />
+      )}
+
+      {editRes && (
+        <ReservationEditor
+          rooms={rooms}
+          editing={editRes}
+          onClose={() => setEditRes(null)}
+          onSaved={() => {
+            setEditRes(null);
             load();
           }}
         />
