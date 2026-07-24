@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as RPE } from "react";
 import type { Reservation, RoomLive, LiveStatus } from "../../shared/types";
 import {
@@ -50,7 +50,7 @@ export default function Timetable({
   canBook: boolean;
   isAdmin: boolean;
   onCreate: (roomId: string, startHHMM: string, endHHMM: string) => void;
-  onResize: (id: string, startsAt: number, endsAt: number) => void;
+  onResize: (id: string, startsAt: number, endsAt: number, roomId?: string) => void;
   onCancel: (r: Reservation) => void;
   onEditRoom: (room: RoomLive) => void;
 }) {
@@ -67,9 +67,15 @@ export default function Timetable({
 
   useEffect(() => {
     if (!dragging) return;
-    const onMove = (e: PointerEvent) => {
+    // 마우스는 초당 수백 번 이벤트를 쏘지만 화면은 프레임당 1번만 갱신하면 충분.
+    // rAF로 묶어 프레임당 최대 1회 setState → 드래그 렉 제거.
+    let raf = 0;
+    let last: PointerEvent | null = null;
+    const process = () => {
+      raf = 0;
+      const e = last;
       const d = dragRef.current;
-      if (!d) return;
+      if (!e || !d) return;
       const min = minFromY(e.clientY, d.colTop);
       if (d.kind === "create") {
         setD({ ...d, curMin: min });
@@ -77,13 +83,24 @@ export default function Timetable({
         if (d.edge === "top") setD({ ...d, startMin: Math.min(min, d.endMin - SNAP_MIN) });
         else setD({ ...d, endMin: Math.max(min, d.startMin + SNAP_MIN) });
       } else {
+        // 이동: 커서 아래 컬럼(회의실)을 감지해 A→B~E 간 이동 허용
+        let roomId = d.roomId;
+        const col = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>(".tt-col");
+        if (col?.dataset.roomId) roomId = col.dataset.roomId;
         const dur = d.endMin - d.startMin;
         let s = clampMin(min - d.grabMin);
         s = Math.min(s, DAY_END_HOUR * 60 - dur);
-        setD({ ...d, startMin: s, endMin: s + dur });
+        setD({ ...d, roomId, startMin: s, endMin: s + dur });
       }
     };
+    const onMove = (e: PointerEvent) => {
+      last = e;
+      if (!raf) raf = requestAnimationFrame(process);
+    };
     const onUp = () => {
+      if (raf) cancelAnimationFrame(raf);
       const d = dragRef.current;
       setD(null);
       if (!d) return;
@@ -92,25 +109,44 @@ export default function Timetable({
         let e = Math.max(d.startMin, d.curMin);
         if (e - s < SNAP_MIN) e = Math.min(DAY_END_HOUR * 60, s + 60); // 짧은 클릭 = 1시간 기본
         onCreate(d.roomId, minToHHMM(s), minToHHMM(e));
-      } else {
+      } else if (d.kind === "resize") {
         onResize(d.id, minToday(d.startMin), minToday(d.endMin));
+      } else {
+        onResize(d.id, minToday(d.startMin), minToday(d.endMin), d.roomId);
       }
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging]);
 
-  const byRoom = new Map<string, Reservation[]>();
-  for (const r of reservations) {
-    const arr = byRoom.get(r.roomId) ?? [];
-    arr.push(r);
-    byRoom.set(r.roomId, arr);
-  }
+  const byRoom = useMemo(() => {
+    const m = new Map<string, Reservation[]>();
+    for (const r of reservations) {
+      const arr = m.get(r.roomId) ?? [];
+      arr.push(r);
+      m.set(r.roomId, arr);
+    }
+    return m;
+  }, [reservations]);
+
+  // 이동 중이고 대상 회의실이 바뀌었으면 원래 컬럼에서 빼고 대상 컬럼에 표시
+  const movingRes =
+    drag?.kind === "move" ? reservations.find((r) => r.id === drag.id) ?? null : null;
+  const movedRoomId = drag?.kind === "move" ? drag.roomId : null;
+  const blocksFor = (roomId: string): Reservation[] => {
+    let list = byRoom.get(roomId) ?? [];
+    if (movingRes && movedRoomId && movingRes.roomId !== movedRoomId) {
+      if (roomId === movingRes.roomId) list = list.filter((r) => r.id !== movingRes.id);
+      else if (roomId === movedRoomId) list = [...list, movingRes];
+    }
+    return list;
+  };
 
   const nowH = new Date(now).getHours();
   const nowInRange = nowH >= DAY_START_HOUR && nowH < DAY_END_HOUR;
@@ -201,10 +237,11 @@ export default function Timetable({
               <div
                 key={room.id}
                 className="tt-col"
+                data-room-id={room.id}
                 style={{ height: BODY_H }}
                 onPointerDown={colDown(room.id)}
               >
-                {(byRoom.get(room.id) ?? []).map((r) => {
+                {blocksFor(room.id).map((r) => {
                   const active =
                     drag && "id" in drag && drag.id === r.id
                       ? { s: drag.startMin, e: drag.endMin }

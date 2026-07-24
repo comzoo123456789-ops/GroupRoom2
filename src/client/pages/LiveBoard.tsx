@@ -111,10 +111,10 @@ export default function LiveBoard() {
     if (!loggedIn) return nav("/login");
     setBooking({ roomId, start, end });
   };
-  const onResize = (id: string, startsAt: number, endsAt: number) => {
+  const onResize = (id: string, startsAt: number, endsAt: number, roomId?: string) => {
     if (!loggedIn) return nav("/login");
     api
-      .updateReservation(id, { startsAt, endsAt })
+      .updateReservation(id, { startsAt, endsAt, roomId })
       .then(load)
       .catch((e) => {
         alert(e instanceof Error ? e.message : "수정 실패");
