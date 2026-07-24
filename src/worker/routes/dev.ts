@@ -14,13 +14,12 @@ interface SeedRoom {
 }
 
 const SEED_ROOMS: SeedRoom[] = [
-  { name: "포커스룸 A", kind: "meeting", capacity: 4, color: "#3B5BDB", amenities: ["tv", "whiteboard"], plan: { x: 5, y: 8, w: 20, h: 24 } },
-  { name: "포커스룸 B", kind: "meeting", capacity: 4, color: "#0CA678", amenities: ["whiteboard"], plan: { x: 5, y: 36, w: 20, h: 24 } },
-  { name: "대회의실", kind: "meeting", capacity: 12, color: "#7048E8", amenities: ["tv", "whiteboard", "cam"], plan: { x: 30, y: 8, w: 35, h: 30 } },
-  { name: "화상회의실", kind: "meeting", capacity: 6, color: "#F76707", amenities: ["cam", "tv"], plan: { x: 30, y: 44, w: 35, h: 24 } },
-  { name: "라운지", kind: "common", capacity: 20, color: "#1098AD", amenities: [], plan: { x: 70, y: 8, w: 25, h: 30 } },
-  { name: "폰부스 1", kind: "meeting", capacity: 1, color: "#E8590C", amenities: [], plan: { x: 70, y: 44, w: 11, h: 12 } },
-  { name: "폰부스 2", kind: "meeting", capacity: 1, color: "#E8590C", amenities: [], plan: { x: 84, y: 44, w: 11, h: 12 } },
+  { name: "회의실 A", kind: "meeting", capacity: 4, color: "#3B5BDB", amenities: ["tv", "whiteboard"], plan: { x: 6, y: 8, w: 22, h: 26 } },
+  { name: "회의실 B", kind: "meeting", capacity: 4, color: "#0CA678", amenities: ["whiteboard"], plan: { x: 6, y: 40, w: 22, h: 26 } },
+  { name: "회의실 C", kind: "meeting", capacity: 12, color: "#7048E8", amenities: ["tv", "whiteboard", "cam"], plan: { x: 34, y: 8, w: 30, h: 30 } },
+  { name: "회의실 D", kind: "meeting", capacity: 6, color: "#F76707", amenities: ["cam", "tv"], plan: { x: 34, y: 44, w: 30, h: 24 } },
+  { name: "회의실 E", kind: "meeting", capacity: 8, color: "#1098AD", amenities: ["tv"], plan: { x: 70, y: 8, w: 24, h: 26 } },
+  { name: "라운지", kind: "common", capacity: 20, color: "#E8590C", amenities: [], plan: { x: 70, y: 40, w: 24, h: 26 } },
 ];
 
 /**

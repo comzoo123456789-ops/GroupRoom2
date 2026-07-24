@@ -1,0 +1,141 @@
+.tt {
+  overflow: hidden;
+}
+.tt-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tt-grid {
+  display: grid;
+  grid-auto-rows: min-content;
+  min-width: max-content;
+}
+
+/* 헤더 */
+.tt-corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.tt-colhead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+  padding: 0 10px;
+}
+.tt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* 시간 눈금 (좌측) */
+.tt-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.tt-hour {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 룸 컬럼 */
+.tt-col {
+  position: relative;
+  border-right: 1px solid var(--border);
+  background-image: repeating-linear-gradient(
+    var(--border) 0,
+    var(--border) 1px,
+    transparent 1px,
+    transparent 56px
+  );
+}
+.tt-col.bookable {
+  cursor: copy;
+}
+.tt-col.bookable:hover {
+  background-color: color-mix(in srgb, var(--brand-wash) 40%, transparent);
+}
+
+/* 예약 블록 */
+.tt-block {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: 8px;
+  border-left: 3px solid;
+  padding: 5px 8px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s, box-shadow 0.12s;
+}
+.tt-block:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  z-index: 4;
+}
+.tt-block-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-block-time {
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 현재 시각 라인 */
+.tt-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--busy);
+  z-index: 3;
+  pointer-events: none;
+}
+.tt-now-dot {
+  position: absolute;
+  left: -1px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--busy);
+}
+
+.tt-hint {
+  font-size: 12px;
+  text-align: center;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}

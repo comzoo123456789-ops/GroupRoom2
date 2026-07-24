@@ -71,55 +71,35 @@
   letter-spacing: 0.02em;
 }
 
-/* 도면 패널 */
-.plan {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 440px;
-  overflow: hidden;
-  background: var(--surface-2);
-}
-.plan-grid {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.4;
-  pointer-events: none;
-  mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, #000 60%, transparent 100%);
-}
-.plan-skeleton {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 440px;
-  background: linear-gradient(100deg, var(--surface-2) 40%, var(--surface-sunken) 50%, var(--surface-2) 60%);
-  background-size: 200% 100%;
-  animation: shimmer 1.3s infinite linear;
-}
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
+.section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: -0.01em;
+  margin-bottom: calc(-1 * var(--s2));
 }
 
-/* 룸 타일 (도면 위 절대배치) */
-.room {
-  position: absolute;
+/* ---------- 회의실 카드 그리드 ---------- */
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: var(--s4);
+}
+.rcard {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: var(--r);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  gap: 10px;
+  min-height: 128px;
   overflow: hidden;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-  cursor: pointer;
+  transition: transform 0.14s, box-shadow 0.14s;
 }
-.room::before {
+.rcard::before {
   content: "";
   position: absolute;
   left: 0;
@@ -127,96 +107,106 @@
   bottom: 0;
   width: 4px;
 }
-.room:hover {
+.rcard:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  z-index: 5;
 }
-.room.s-ok {
-  background: color-mix(in srgb, var(--ok-wash) 55%, var(--surface));
-}
-.room.s-ok::before {
+.rcard.s-ok::before {
   background: var(--ok);
 }
-.room.s-soon {
-  background: color-mix(in srgb, var(--warn-wash) 60%, var(--surface));
-}
-.room.s-soon::before {
+.rcard.s-soon::before {
   background: var(--warn);
 }
-.room.s-busy {
-  background: color-mix(in srgb, var(--busy-wash) 60%, var(--surface));
-}
-.room.s-busy::before {
+.rcard.s-busy::before {
   background: var(--busy);
 }
-
-.room-head {
+.rcard-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.room-name {
-  font-size: 15px;
+.rcard-name {
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.room .badge {
-  height: 22px;
-  padding: 0 8px;
-  font-size: 11px;
-  flex: none;
-}
-.room-info {
+.rcard-body {
   flex: 1;
-  min-height: 0;
 }
-.room-title {
+.rcard-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.room-time {
+.rcard-time {
   font-size: 12px;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
-.room-free {
+.rcard-free {
   font-size: 13px;
   color: var(--text-2);
   font-weight: 500;
 }
-.room-foot {
+.rcard-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--text-3);
 }
-.room-foot .cap {
+.rcard-foot .cap {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.room-foot .amen {
+.rcard-foot .amen {
   display: inline-flex;
-  gap: 6px;
+  gap: 7px;
+}
+.rcard-edit {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 0.14s, color 0.14s;
+}
+.rcard:hover .rcard-edit {
+  opacity: 1;
+}
+.rcard-edit:hover {
+  color: var(--brand);
+  border-color: var(--brand);
 }
 
-/* 좁은 타일(폰부스)에서는 정보 숨김 */
-.room[style*="width: 11%"] .room-info,
-.room[style*="width: 11%"] .badge span {
-  display: none;
+/* 스켈레톤 */
+.rcard.skeleton {
+  min-height: 128px;
+  background: linear-gradient(100deg, var(--surface-2) 40%, var(--surface-sunken) 50%, var(--surface-2) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+  border-color: transparent;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
 }
 
 /* 빈 상태 */
@@ -235,72 +225,4 @@
 }
 .empty .btn {
   margin-top: var(--s3);
-}
-
-/* ---------- 편집 모드 ---------- */
-.btn.on {
-  background: var(--brand-wash);
-  border-color: var(--brand);
-  color: var(--brand-ink);
-}
-.plan.editing {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--surface-2),
-    var(--surface-2) 12px,
-    var(--surface-sunken) 12px,
-    var(--surface-sunken) 13px
-  );
-}
-.plan.editing .room {
-  cursor: grab;
-  outline: 1.5px dashed color-mix(in srgb, var(--brand) 55%, transparent);
-  outline-offset: 2px;
-  user-select: none;
-  touch-action: none;
-}
-.plan.editing .room:active {
-  cursor: grabbing;
-}
-.resize-handle {
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  cursor: nwse-resize;
-  background: var(--brand);
-  box-shadow: 0 0 0 2px var(--surface);
-  touch-action: none;
-}
-.resize-handle::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-right: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-}
-.edit-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  background: var(--text);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 7px 14px;
-  border-radius: var(--r-pill);
-  box-shadow: var(--shadow-md);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-@media (max-width: 700px) {
-  .plan,
-  .plan-skeleton {
-    aspect-ratio: auto;
-    min-height: 520px;
-  }
 }

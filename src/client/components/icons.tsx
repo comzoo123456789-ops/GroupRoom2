@@ -82,6 +82,23 @@ export const IconWifi = ({ size }: P) => (
   </svg>
 );
 
+export const IconPencil = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+  </svg>
+);
+export const IconClock = ({ size }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+export const IconX = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </svg>
+);
+
 export const amenityIcon: Record<string, FC<P>> = {
   tv: IconTv,
   whiteboard: IconWhiteboard,

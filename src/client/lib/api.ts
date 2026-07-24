@@ -66,6 +66,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  cancelReservation: (id: string) =>
+    req<{ ok: true }>(`/api/reservations/${id}`, { method: "DELETE" }),
 };
 
 /** 실시간 현황 WebSocket 연결. onEvent는 서버 브로드캐스트마다 호출됨. */
