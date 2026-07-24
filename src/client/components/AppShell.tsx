@@ -15,6 +15,7 @@ import {
   IconUsers,
   IconSettings,
   IconMap,
+  IconMenu,
 } from "./icons";
 
 const TITLES: Record<string, string> = {
@@ -28,10 +29,12 @@ export default function AppShell() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [topbar, setTopbar] = useState<ReactNode>(null);
+  const [navOpen, setNavOpen] = useState(false); // 모바일 드로어
 
-  // 라우트 변경 시 주입된 상단바 초기화
+  // 라우트 변경 시 주입된 상단바 초기화 + 모바일 드로어 닫기
   useEffect(() => {
     setTopbar(null);
+    setNavOpen(false);
   }, [loc.pathname]);
 
   useEffect(() => {
@@ -44,6 +47,16 @@ export default function AppShell() {
       .catch(() => {});
   }, []);
 
+  // 데스크톱 폭으로 넓어지면 드로어 상태 해제(스크림 잔상 방지)
+  useEffect(() => {
+    if (!navOpen) return;
+    const onResize = () => {
+      if (window.innerWidth > 900) setNavOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [navOpen]);
+
   // 조직 브랜드색을 CSS 변수로 주입 (화이트라벨)
   useEffect(() => {
     if (org?.brandColor) {
@@ -55,7 +68,8 @@ export default function AppShell() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
+      <aside className={"sidebar" + (navOpen ? " open" : "")}>
         <div className="brand">
           <div className="brand-mark">
             <IconMap size={18} />
@@ -91,6 +105,13 @@ export default function AppShell() {
 
       <div className="main">
         <header className="topbar">
+          <button
+            className="hamburger"
+            onClick={() => setNavOpen(true)}
+            aria-label="메뉴 열기"
+          >
+            <IconMenu size={20} />
+          </button>
           <h1>{title}</h1>
           {topbar ?? <div className="spacer" />}
           {user ? (
