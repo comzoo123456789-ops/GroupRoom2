@@ -389,6 +389,24 @@ input {
   box-shadow: 0 0 0 3px var(--brand-wash);
   background: var(--surface);
 }
+.ta {
+  padding: 10px 13px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  outline: none;
+  font: inherit;
+  color: var(--text);
+  resize: vertical;
+  min-height: 44px;
+  line-height: 1.5;
+  transition: border 0.14s, box-shadow 0.14s;
+}
+.ta:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-wash);
+  background: var(--surface);
+}
 .select {
   height: 42px;
   padding: 0 12px;
@@ -565,6 +583,97 @@ input {
 }
 .att-opt.hi {
   background: var(--brand-wash);
+}
+
+/* 시작 전 리마인더 토스트 */
+.toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: calc(100vw - 40px);
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 340px;
+  max-width: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px);
+  box-shadow: var(--shadow-lg);
+  animation: sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.toast-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: var(--brand-wash);
+  flex: none;
+}
+.toast-body {
+  flex: 1;
+  min-width: 0;
+}
+.toast-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toast-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 1px;
+}
+.toast-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  background: var(--brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.toast-join:hover {
+  background: var(--brand-ink);
+}
+.toast-x {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.toast-x:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .toast-stack {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+  }
+  .toast {
+    width: auto;
+  }
 }
 
 /* 내 초대함 (벨 + 패널) */

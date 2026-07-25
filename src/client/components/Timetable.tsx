@@ -13,7 +13,7 @@ import {
   snapMin,
   clampMin,
 } from "../lib/time";
-import { IconPencil, IconX, IconUsers, IconRepeat } from "./icons";
+import { IconPencil, IconX, IconUsers, IconRepeat, IconCam } from "./icons";
 import "./Timetable.css";
 
 const HOURS = Array.from(
@@ -291,6 +291,11 @@ export default function Timetable({
                         {r.recurringId && (
                           <span className="tt-att" title="반복 예약">
                             <IconRepeat size={11} />
+                          </span>
+                        )}
+                        {r.videoUrl && (
+                          <span className="tt-att" title="화상회의 링크 있음">
+                            <IconCam size={11} />
                           </span>
                         )}
                         {!!r.attendeeCount && r.attendeeCount > 0 && (

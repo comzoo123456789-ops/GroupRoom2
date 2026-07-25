@@ -39,6 +39,9 @@ reservations.post("/", async (c) => {
     purpose?: string;
     startsAt?: number;
     endsAt?: number;
+    agenda?: string;
+    videoUrl?: string;
+    notes?: string;
     recurrence?: {
       freq?: "daily" | "weekly" | "monthly";
       interval?: number;
@@ -142,8 +145,8 @@ reservations.post("/", async (c) => {
     if (!firstId) firstId = rid;
     await c.env.DB.prepare(
       `INSERT INTO reservations
-         (id, org_id, room_id, user_id, title, purpose, starts_at, ends_at, status, recurring_id, created_by_admin, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?, 'confirmed', ?, ?, ?, ?)`,
+         (id, org_id, room_id, user_id, title, purpose, starts_at, ends_at, status, recurring_id, agenda, video_url, notes, created_by_admin, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?, 'confirmed', ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         rid,
@@ -155,6 +158,9 @@ reservations.post("/", async (c) => {
         o.s,
         o.e,
         recurringId,
+        body.agenda?.trim() || null,
+        body.videoUrl?.trim() || null,
+        body.notes?.trim() || null,
         user.role === "admin" ? 1 : 0,
         now,
         now,
@@ -189,8 +195,16 @@ reservations.patch("/:id", async (c) => {
   }
 
   const b = await c.req
-    .json<{ startsAt?: number; endsAt?: number; title?: string; roomId?: string }>()
-    .catch(() => ({}) as { startsAt?: number; endsAt?: number; title?: string; roomId?: string });
+    .json<{
+      startsAt?: number;
+      endsAt?: number;
+      title?: string;
+      roomId?: string;
+      agenda?: string;
+      videoUrl?: string;
+      notes?: string;
+    }>()
+    .catch(() => ({}) as Record<string, never>);
   const startsAt = b.startsAt ?? cur.starts_at;
   const endsAt = b.endsAt ?? cur.ends_at;
   if (endsAt <= startsAt) return c.json({ error: "종료 시간이 시작보다 빨라요." }, 400);
@@ -228,6 +242,19 @@ reservations.patch("/:id", async (c) => {
     sets.push("title = ?");
     vals.push(b.title.trim());
   }
+  // 회의 상세: 빈 문자열이면 NULL로 지움
+  if (typeof b.agenda === "string") {
+    sets.push("agenda = ?");
+    vals.push(b.agenda.trim() || null);
+  }
+  if (typeof b.videoUrl === "string") {
+    sets.push("video_url = ?");
+    vals.push(b.videoUrl.trim() || null);
+  }
+  if (typeof b.notes === "string") {
+    sets.push("notes = ?");
+    vals.push(b.notes.trim() || null);
+  }
   vals.push(id);
   await c.env.DB.prepare(`UPDATE reservations SET ${sets.join(", ")} WHERE id = ?`)
     .bind(...vals)
@@ -240,6 +267,42 @@ reservations.patch("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// 회의 상세(안건·화상링크·메모) 조회
+reservations.get("/:id/detail", async (c) => {
+  const orgId = await resolveOrgId(c);
+  if (!orgId) return c.json({ error: "조직을 찾을 수 없습니다." }, 404);
+  const id = c.req.param("id");
+  const r = await c.env.DB.prepare(
+    `SELECT agenda, video_url AS videoUrl, notes FROM reservations WHERE id = ? AND org_id = ?`,
+  )
+    .bind(id, orgId)
+    .first<{ agenda: string | null; videoUrl: string | null; notes: string | null }>();
+  if (!r) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
+  return c.json({ detail: r });
+});
+
+// 내가 관여한(주최 or 참석) 다가오는 회의 — 시작 전 리마인더용
+reservations.get("/mine/upcoming", async (c) => {
+  const user = await currentUser(c);
+  if (!user) return c.json({ upcoming: [] });
+  const now = Date.now();
+  const rows = await c.env.DB.prepare(
+    `SELECT r.id AS id, r.title AS title, r.starts_at AS startsAt, r.ends_at AS endsAt,
+            r.video_url AS videoUrl, rm.name AS roomName
+       FROM reservations r
+       JOIN rooms rm ON rm.id = r.room_id
+      WHERE r.org_id = ? AND r.status IN ('confirmed','checked_in')
+        AND r.starts_at > ? AND r.starts_at < ?
+        AND (r.user_id = ?
+             OR EXISTS (SELECT 1 FROM reservation_attendees a
+                         WHERE a.reservation_id = r.id AND a.user_id = ? AND a.status <> 'declined'))
+      ORDER BY r.starts_at`,
+  )
+    .bind(user.orgId, now - 60_000, now + 2 * 3600_000, user.userId, user.userId)
+    .all();
+  return c.json({ upcoming: rows.results });
+});
+
 // 단일 예약 iCalendar(.ics) 다운로드 — 캘린더에 추가
 reservations.get("/:id/ics", async (c) => {
   const orgId = await resolveOrgId(c);
@@ -247,6 +310,7 @@ reservations.get("/:id/ics", async (c) => {
   const id = c.req.param("id");
   const row = await c.env.DB.prepare(
     `SELECT r.id AS id, r.title AS title, r.starts_at AS startsAt, r.ends_at AS endsAt,
+            r.video_url AS videoUrl, r.agenda AS agenda,
             rm.name AS roomName, host.name AS organizerName
        FROM reservations r
        JOIN rooms rm ON rm.id = r.room_id
@@ -259,19 +323,28 @@ reservations.get("/:id/ics", async (c) => {
       title: string;
       startsAt: number;
       endsAt: number;
+      videoUrl: string | null;
+      agenda: string | null;
       roomName: string;
       organizerName: string;
     }>();
   if (!row) return c.json({ error: "예약을 찾을 수 없습니다." }, 404);
 
+  const desc = [
+    `주최: ${row.organizerName}`,
+    row.videoUrl ? `화상회의: ${row.videoUrl}` : "",
+    row.agenda ? `안건:\n${row.agenda}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const body = buildIcs([
     {
       uid: `${row.id}@grouproom`,
       title: row.title,
       startsAt: row.startsAt,
       endsAt: row.endsAt,
-      location: row.roomName,
-      description: `주최: ${row.organizerName}`,
+      location: row.videoUrl || row.roomName,
+      description: desc,
     },
   ]);
   return new Response(body, {

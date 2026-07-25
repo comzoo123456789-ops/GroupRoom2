@@ -9,6 +9,8 @@ import type {
   Attendee,
   AttendeeStatus,
   Invitation,
+  ReservationDetail,
+  UpcomingMeeting,
 } from "../../shared/types";
 
 // /api/auth/me 응답의 로그인 사용자
@@ -86,6 +88,9 @@ export const api = {
     purpose?: string;
     startsAt: number;
     endsAt: number;
+    agenda?: string;
+    videoUrl?: string;
+    notes?: string;
     recurrence?: {
       freq: "daily" | "weekly" | "monthly";
       interval?: number;
@@ -97,11 +102,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updateReservation: (id: string, body: { startsAt?: number; endsAt?: number; title?: string; roomId?: string }) =>
+  updateReservation: (
+    id: string,
+    body: {
+      startsAt?: number;
+      endsAt?: number;
+      title?: string;
+      roomId?: string;
+      agenda?: string;
+      videoUrl?: string;
+      notes?: string;
+    },
+  ) =>
     req<{ ok: true }>(`/api/reservations/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  reservationDetail: (id: string) =>
+    req<{ detail: ReservationDetail }>(`/api/reservations/${id}/detail`),
+  upcomingMine: () => req<{ upcoming: UpcomingMeeting[] }>("/api/reservations/mine/upcoming"),
   cancelReservation: (id: string, scope?: "series") =>
     req<{ ok: true }>(`/api/reservations/${id}${scope ? `?scope=${scope}` : ""}`, {
       method: "DELETE",

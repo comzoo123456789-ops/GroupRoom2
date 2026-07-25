@@ -8,6 +8,7 @@ export interface ShellContext {
 }
 import type { Organization } from "../../shared/types";
 import { api, type SessionUser } from "../lib/api";
+import ReminderWatcher from "./ReminderWatcher";
 import {
   IconGrid,
   IconCalendar,
@@ -132,6 +133,8 @@ export default function AppShell() {
           <Outlet context={{ setTopbar } satisfies ShellContext} />
         </main>
       </div>
+
+      {user && <ReminderWatcher liveVersion={0} />}
     </div>
   );
 }

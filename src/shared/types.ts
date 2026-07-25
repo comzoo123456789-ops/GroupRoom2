@@ -57,8 +57,26 @@ export interface Reservation {
   checkedInAt: number | null;
   createdByAdmin: boolean;
   recurringId?: string | null; // 반복 시리즈 id (반복 예약이면)
+  videoUrl?: string | null; // 화상회의 링크(있으면 블록에 표시)
   attendeeCount?: number; // 초대된 참석자 수(주최자 제외)
   acceptedCount?: number; // 수락한 참석자 수
+}
+
+// 회의 상세(에디터에서 조회)
+export interface ReservationDetail {
+  agenda: string | null;
+  videoUrl: string | null;
+  notes: string | null;
+}
+
+// 시작 전 리마인더용 다가오는 회의
+export interface UpcomingMeeting {
+  id: string;
+  title: string;
+  startsAt: number;
+  endsAt: number;
+  videoUrl: string | null;
+  roomName: string;
 }
 
 // 현황판 응답: 룸 + 현재상태 + 지금/다음 예약

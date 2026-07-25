@@ -65,6 +65,11 @@ export default function ReservationEditor({
   const [recur, setRecur] = useState<"none" | "daily" | "weekly" | "monthly">("none");
   const [count, setCount] = useState(4);
 
+  // 회의 상세
+  const [agenda, setAgenda] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [notes, setNotes] = useState("");
+
   // 참석자
   const [invited, setInvited] = useState<Invited[]>([]);
   const [q, setQ] = useState("");
@@ -72,7 +77,7 @@ export default function ReservationEditor({
   const [searching, setSearching] = useState(false);
   const [hi, setHi] = useState(0); // 키보드 하이라이트 인덱스
 
-  // 수정 모드면 기존 참석자 로드
+  // 수정 모드면 기존 참석자 + 회의 상세 로드
   useEffect(() => {
     if (!editing) return;
     api
@@ -90,6 +95,14 @@ export default function ReservationEditor({
           })),
         ),
       )
+      .catch(() => {});
+    api
+      .reservationDetail(editing.id)
+      .then((r) => {
+        setAgenda(r.detail.agenda ?? "");
+        setVideoUrl(r.detail.videoUrl ?? "");
+        setNotes(r.detail.notes ?? "");
+      })
       .catch(() => {});
   }, [editing]);
 
@@ -189,6 +202,9 @@ export default function ReservationEditor({
           startsAt,
           endsAt,
           roomId,
+          agenda,
+          videoUrl,
+          notes,
         });
         await api.setAttendees(editing.id, ids);
       } else {
@@ -197,6 +213,9 @@ export default function ReservationEditor({
           title: title.trim(),
           startsAt,
           endsAt,
+          agenda: agenda.trim() || undefined,
+          videoUrl: videoUrl.trim() || undefined,
+          notes: notes.trim() || undefined,
           recurrence:
             recur !== "none" ? { freq: recur, count: Math.min(52, Math.max(2, count)) } : undefined,
         });
@@ -366,6 +385,37 @@ export default function ReservationEditor({
               </div>
             )}
           </div>
+        </div>
+
+        {/* 회의 상세 */}
+        <div className="field">
+          <label>화상회의 링크</label>
+          <input
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            placeholder="https://zoom.us/j/… 또는 Teams/Meet 링크"
+            inputMode="url"
+          />
+        </div>
+        <div className="field">
+          <label>안건</label>
+          <textarea
+            className="ta"
+            value={agenda}
+            onChange={(e) => setAgenda(e.target.value)}
+            placeholder={"논의할 안건을 줄바꿈으로 적어주세요\n예: 1. 지난주 리뷰\n2. 이번주 목표"}
+            rows={3}
+          />
+        </div>
+        <div className="field">
+          <label>자료·메모</label>
+          <textarea
+            className="ta"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="참고 자료 링크나 메모"
+            rows={2}
+          />
         </div>
 
         {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
