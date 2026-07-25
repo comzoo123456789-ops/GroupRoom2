@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 // 페이지가 상단바에 컨트롤을 주입할 수 있게 하는 컨텍스트
 export interface ShellContext {
@@ -17,6 +17,7 @@ import {
   IconSettings,
   IconMap,
   IconMenu,
+  IconLogout,
 } from "./icons";
 
 const TITLES: Record<string, string> = {
@@ -28,6 +29,7 @@ const TITLES: Record<string, string> = {
 
 export default function AppShell() {
   const loc = useLocation();
+  const nav = useNavigate();
   const [org, setOrg] = useState<Organization | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [topbar, setTopbar] = useState<ReactNode>(null);
@@ -68,6 +70,12 @@ export default function AppShell() {
 
   const title = TITLES[loc.pathname] ?? "GroupRoom";
 
+  const logout = async () => {
+    await api.logout().catch(() => {});
+    setUser(null);
+    nav("/login");
+  };
+
   return (
     <div className="app">
       {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
@@ -102,6 +110,17 @@ export default function AppShell() {
             </div>
             <span style={{ fontSize: 13 }}>{user?.name ?? "게스트"}</span>
           </div>
+          {user ? (
+            <button className="nav-item logout-btn" onClick={logout}>
+              <IconLogout size={18} />
+              로그아웃
+            </button>
+          ) : (
+            <NavLink to="/login" className="nav-item">
+              <IconLogout size={18} />
+              로그인
+            </NavLink>
+          )}
         </div>
       </aside>
 

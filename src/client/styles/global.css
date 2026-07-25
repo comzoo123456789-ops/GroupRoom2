@@ -135,6 +135,14 @@ input {
   padding-top: var(--s4);
   border-top: 1px solid var(--border);
 }
+.logout-btn {
+  width: 100%;
+  text-align: left;
+}
+.logout-btn:hover {
+  background: var(--busy-wash);
+  color: var(--busy);
+}
 
 /* ---------- 탑바 ---------- */
 .topbar {

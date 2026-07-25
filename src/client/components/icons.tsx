@@ -117,6 +117,13 @@ export const IconRepeat = ({ size }: P) => (
     <path d="M21 13v2a4 4 0 0 1-4 4H3" />
   </svg>
 );
+export const IconLogout = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="M16 17l5-5-5-5" />
+    <path d="M21 12H9" />
+  </svg>
+);
 export const IconMenu = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="M3 6h18M3 12h18M3 18h18" />
