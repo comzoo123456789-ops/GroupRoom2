@@ -11,6 +11,7 @@ import type {
   Invitation,
   ReservationDetail,
   UpcomingMeeting,
+  Analytics,
 } from "../../shared/types";
 
 // /api/auth/me 응답의 로그인 사용자
@@ -167,6 +168,9 @@ export const api = {
       body: JSON.stringify(body),
     }),
   myRole: () => req<{ userId: string | null; role: Role | null }>("/api/members/me"),
+
+  // 이용 분석
+  analytics: (days: number) => req<Analytics>(`/api/analytics?days=${days}`),
   seedEmployees: () =>
     req<{ ok: true; employeesAdded: number }>("/api/dev/seed-employees", {
       method: "POST",

@@ -130,6 +130,23 @@ export interface Invitation {
   myStatus: AttendeeStatus;
 }
 
+// 이용 분석
+export interface Analytics {
+  days: number;
+  totals: {
+    reservations: number;
+    hours: number;
+    avgDurationMin: number;
+    cancelRate: number;
+    utilizationPct: number;
+  };
+  rooms: { id: string; name: string; color: string; hours: number; count: number; utilizationPct: number }[];
+  heatmap: number[][]; // [weekday 0=일..6=토][hourIndex]
+  hourStart: number;
+  departments: { dept: string; count: number; hours: number }[];
+  daily: { date: string; count: number; hours: number }[];
+}
+
 export interface ApiError {
   error: string;
 }

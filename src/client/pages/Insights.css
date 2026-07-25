@@ -1,0 +1,240 @@
+.ins {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.ins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+.ins-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+.ins-title h2 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+/* KPI 타일 */
+.ins-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--s3);
+}
+.kpi {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 90px;
+  justify-content: center;
+}
+.kpi.accent {
+  background: linear-gradient(135deg, var(--brand), var(--brand-ink));
+  border-color: transparent;
+}
+.kpi.accent .kpi-label,
+.kpi.accent .kpi-value {
+  color: #fff;
+}
+.kpi.accent .kpi-value em {
+  color: rgba(255, 255, 255, 0.8);
+}
+.kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.kpi-value {
+  font-family: var(--font-num);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.kpi-value em {
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin-left: 3px;
+}
+.sk-block {
+  min-height: 90px;
+  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-2) 37%, var(--surface-sunken) 63%);
+  background-size: 400% 100%;
+  animation: sk 1.2s ease infinite;
+}
+
+/* 패널 */
+.ins-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s3);
+}
+.panel {
+  padding: 18px 20px;
+}
+.panel h3 {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.panel-sub {
+  font-size: 12px;
+  margin: 2px 0 14px;
+}
+
+/* 막대 차트 */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 52px;
+  align-items: center;
+  gap: 10px;
+}
+.bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.bar-label.has-dot::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot, transparent);
+  flex: none;
+}
+.bar-track {
+  height: 12px;
+  background: var(--surface-sunken);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  background: var(--brand);
+  border-radius: 6px;
+  min-width: 4px;
+  transition: width 0.4s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.bar-fill.alt {
+  background: color-mix(in srgb, var(--brand) 62%, var(--ok));
+}
+.bar-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 히트맵 */
+.heat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-x: auto;
+}
+.heat-hours,
+.heat-row {
+  display: grid;
+  grid-template-columns: 28px repeat(14, minmax(18px, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+.heat-hh {
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.heat-corner {
+  width: 28px;
+}
+.heat-wd {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-align: center;
+}
+.heat-wd.we {
+  color: var(--busy);
+}
+.heat-cell {
+  height: 22px;
+  border-radius: 4px;
+}
+
+/* 일별 추이 */
+.trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 120px;
+  padding-top: 8px;
+}
+.trend-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.trend-bar {
+  width: 100%;
+  background: color-mix(in srgb, var(--brand) 78%, transparent);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease;
+}
+.trend-col:hover .trend-bar {
+  background: var(--brand);
+}
+.trend-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px;
+  color: var(--text-3);
+}
+
+@media (max-width: 900px) {
+  .ins-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ins-2col {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .kpi-value {
+    font-size: 24px;
+  }
+}

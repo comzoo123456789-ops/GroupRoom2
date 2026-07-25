@@ -7,6 +7,7 @@ import { rooms } from "./routes/rooms";
 import { reservations } from "./routes/reservations";
 import { members } from "./routes/members";
 import { calendar } from "./routes/calendar";
+import { analytics } from "./routes/analytics";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -29,6 +30,7 @@ app.route("/api/rooms", rooms);
 app.route("/api/reservations", reservations);
 app.route("/api/members", members);
 app.route("/api/calendar", calendar);
+app.route("/api/analytics", analytics);
 
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 
