@@ -9,6 +9,7 @@ export interface ShellContext {
 import type { Organization } from "../../shared/types";
 import { api, type SessionUser } from "../lib/api";
 import ReminderWatcher from "./ReminderWatcher";
+import ChangePasswordModal from "./ChangePasswordModal";
 import {
   IconGrid,
   IconCalendar,
@@ -154,6 +155,13 @@ export default function AppShell() {
       </div>
 
       {user && <ReminderWatcher liveVersion={0} />}
+
+      {user?.mustResetPw && (
+        <ChangePasswordModal
+          forced
+          onDone={() => api.me().then((r) => setUser(r.user)).catch(() => {})}
+        />
+      )}
     </div>
   );
 }

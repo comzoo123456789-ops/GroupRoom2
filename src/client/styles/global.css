@@ -554,6 +554,15 @@ a.file-name:hover {
   gap: var(--s2);
   margin-top: var(--s2);
 }
+.rule-sep {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--border);
+  margin-top: var(--s2);
+}
 .btn.danger {
   color: var(--busy);
   border-color: var(--busy-wash);

@@ -38,6 +38,12 @@ interface RoomInput {
   color?: string;
   amenities?: string[];
   plan?: { x?: number; y?: number; w?: number; h?: number };
+  policy?: {
+    openMin?: number;
+    closeMin?: number;
+    maxDurationMin?: number;
+    maxAdvanceDays?: number;
+  };
 }
 
 function clamp(n: number, min: number, max: number, fallback: number): number {
@@ -61,6 +67,11 @@ rooms.post("/", async (c) => {
   const capacity = clamp(Number(b.capacity), 1, 500, 4);
   const color = /^#[0-9a-fA-F]{6}$/.test(b.color ?? "") ? b.color! : "#3B5BDB";
   const p = b.plan ?? {};
+  const pol = b.policy ?? {};
+  const openMin = clamp(Number(pol.openMin), 0, 1439, 480);
+  const closeMin = clamp(Number(pol.closeMin), openMin + 30, 1440, 1320);
+  const maxDur = clamp(Number(pol.maxDurationMin), 0, 1440, 0);
+  const maxAdv = clamp(Number(pol.maxAdvanceDays), 0, 3650, 0);
   const id = newId();
 
   // 다음 정렬 순서
@@ -71,8 +82,8 @@ rooms.post("/", async (c) => {
     .first<{ m: number }>();
 
   await c.env.DB.prepare(
-    `INSERT INTO rooms (id, org_id, floor_id, name, kind, capacity, color, amenities, plan_x, plan_y, plan_w, plan_h, sort, active)
-     VALUES (?,?, (SELECT id FROM floors WHERE org_id = ? ORDER BY sort LIMIT 1), ?,?,?,?,?,?,?,?,?,?,1)`,
+    `INSERT INTO rooms (id, org_id, floor_id, name, kind, capacity, color, amenities, plan_x, plan_y, plan_w, plan_h, open_min, close_min, max_duration_min, max_advance_days, sort, active)
+     VALUES (?,?, (SELECT id FROM floors WHERE org_id = ? ORDER BY sort LIMIT 1), ?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
   )
     .bind(
       id,
@@ -87,6 +98,10 @@ rooms.post("/", async (c) => {
       clamp(Number(p.y), 0, 88, 8),
       clamp(Number(p.w), 6, 60, 20),
       clamp(Number(p.h), 6, 60, 18),
+      openMin,
+      closeMin,
+      maxDur,
+      maxAdv,
       (maxSort?.m ?? -1) + 1,
     )
     .run();
@@ -137,6 +152,12 @@ rooms.patch("/:id", async (c) => {
     if (b.plan.y !== undefined) { sets.push("plan_y = ?"); vals.push(clamp(Number(b.plan.y), 0, 92, 8)); }
     if (b.plan.w !== undefined) { sets.push("plan_w = ?"); vals.push(clamp(Number(b.plan.w), 6, 70, 20)); }
     if (b.plan.h !== undefined) { sets.push("plan_h = ?"); vals.push(clamp(Number(b.plan.h), 6, 70, 18)); }
+  }
+  if (b.policy) {
+    if (b.policy.openMin !== undefined) { sets.push("open_min = ?"); vals.push(clamp(Number(b.policy.openMin), 0, 1439, 480)); }
+    if (b.policy.closeMin !== undefined) { sets.push("close_min = ?"); vals.push(clamp(Number(b.policy.closeMin), 1, 1440, 1320)); }
+    if (b.policy.maxDurationMin !== undefined) { sets.push("max_duration_min = ?"); vals.push(clamp(Number(b.policy.maxDurationMin), 0, 1440, 0)); }
+    if (b.policy.maxAdvanceDays !== undefined) { sets.push("max_advance_days = ?"); vals.push(clamp(Number(b.policy.maxAdvanceDays), 0, 3650, 0)); }
   }
   if (!sets.length) return c.json({ error: "변경할 내용이 없습니다." }, 400);
 

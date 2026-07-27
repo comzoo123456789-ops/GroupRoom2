@@ -22,6 +22,10 @@ interface RoomRow {
   plan_y: number;
   plan_w: number;
   plan_h: number;
+  open_min: number;
+  close_min: number;
+  max_duration_min: number;
+  max_advance_days: number;
   sort: number;
   active: number;
 }
@@ -43,6 +47,12 @@ export function mapRoom(r: RoomRow): Room {
     color: r.color,
     amenities,
     plan: { x: r.plan_x, y: r.plan_y, w: r.plan_w, h: r.plan_h },
+    policy: {
+      openMin: r.open_min,
+      closeMin: r.close_min,
+      maxDurationMin: r.max_duration_min,
+      maxAdvanceDays: r.max_advance_days,
+    },
     sort: r.sort,
     active: r.active === 1,
   };

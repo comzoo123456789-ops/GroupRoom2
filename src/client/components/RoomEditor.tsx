@@ -1,6 +1,12 @@
 import { useState } from "react";
 import type { RoomKind, RoomLive } from "../../shared/types";
 import { api } from "../lib/api";
+import { minToHHMM } from "../lib/time";
+
+const toMin = (t: string): number => {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
 
 const COLORS = [
   "#3B5BDB", "#0CA678", "#7048E8", "#F76707",
@@ -27,6 +33,11 @@ export default function RoomEditor({
   const [capacity, setCapacity] = useState(room?.capacity ?? 4);
   const [color, setColor] = useState(room?.color ?? COLORS[0]);
   const [amenities, setAmenities] = useState<string[]>(room?.amenities ?? []);
+  // 예약 규칙
+  const [openT, setOpenT] = useState(minToHHMM(room?.policy?.openMin ?? 480));
+  const [closeT, setCloseT] = useState(minToHHMM(room?.policy?.closeMin ?? 1320));
+  const [maxDur, setMaxDur] = useState(room?.policy?.maxDurationMin ?? 0);
+  const [maxAdv, setMaxAdv] = useState(room?.policy?.maxAdvanceDays ?? 0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -41,12 +52,22 @@ export default function RoomEditor({
     setBusy(true);
     setErr(null);
     try {
+      if (toMin(closeT) <= toMin(openT)) {
+        setBusy(false);
+        return setErr("운영 종료 시간이 시작보다 빨라요.");
+      }
       const body = {
         name: name.trim(),
         kind,
         capacity,
         color,
         amenities,
+        policy: {
+          openMin: toMin(openT),
+          closeMin: toMin(closeT),
+          maxDurationMin: maxDur,
+          maxAdvanceDays: maxAdv,
+        },
         ...(isNew ? { plan: { x: 38, y: 40, w: 22, h: 18 } } : {}),
       };
       if (isNew) await api.createRoom(body);
@@ -141,6 +162,43 @@ export default function RoomEditor({
                 {a.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="rule-sep">예약 규칙</div>
+        <div className="field-row">
+          <div className="field">
+            <label>운영 시작</label>
+            <input type="time" step={1800} className="select" value={openT} onChange={(e) => setOpenT(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>운영 종료</label>
+            <input type="time" step={1800} className="select" value={closeT} onChange={(e) => setCloseT(e.target.value)} />
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>최대 이용시간</label>
+            <select className="select" value={maxDur} onChange={(e) => setMaxDur(Number(e.target.value))}>
+              <option value={0}>무제한</option>
+              <option value={30}>30분</option>
+              <option value={60}>1시간</option>
+              <option value={90}>1시간 30분</option>
+              <option value={120}>2시간</option>
+              <option value={180}>3시간</option>
+              <option value={240}>4시간</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>사전예약 최대 (일)</label>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={maxAdv}
+              onChange={(e) => setMaxAdv(Number(e.target.value))}
+              placeholder="0 = 무제한"
+            />
           </div>
         </div>
 

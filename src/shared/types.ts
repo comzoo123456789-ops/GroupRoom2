@@ -50,6 +50,13 @@ export interface Room {
   color: string;
   amenities: string[];
   plan: { x: number; y: number; w: number; h: number };
+  // 예약 규칙(회의실별)
+  policy: {
+    openMin: number; // 운영 시작(자정 기준 분)
+    closeMin: number; // 운영 종료
+    maxDurationMin: number; // 최대 이용시간(분, 0=무제한)
+    maxAdvanceDays: number; // 사전예약 최대일수(0=무제한)
+  };
   sort: number;
   active: boolean;
 }

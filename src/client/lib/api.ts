@@ -26,6 +26,7 @@ export interface SessionUser {
   name: string;
   avatarColor: string;
   department: string | null;
+  mustResetPw?: boolean;
 }
 
 export interface RoomInput {
@@ -35,6 +36,12 @@ export interface RoomInput {
   color?: string;
   amenities?: string[];
   plan?: { x?: number; y?: number; w?: number; h?: number };
+  policy?: {
+    openMin?: number;
+    closeMin?: number;
+    maxDurationMin?: number;
+    maxAdvanceDays?: number;
+  };
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -59,6 +66,11 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   logout: () => req<{ ok: true }>("/api/auth/logout", { method: "POST" }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req<{ ok: true }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 
   bootstrap: () =>
     req<{ ok: true; orgId: string; login?: { email: string; password: string } }>(

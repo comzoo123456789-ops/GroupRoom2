@@ -27,6 +27,10 @@
     { "binding": "ATTACH_KV", "id": "86a29a8825a1433fadbf83c33987e8d6" }
   ],
 
+  // 이메일 알림 (Cloudflare Email Sending). 발송 도메인 온보딩 필요:
+  //   npx wrangler email sending enable <도메인>  후 EMAIL_FROM 설정
+  "send_email": [{ "name": "EMAIL" }],
+
   // 실시간 회의실 현황 (WebSocket 브로드캐스트)
   "durable_objects": {
     "bindings": [{ "name": "ROOM_HUB", "class_name": "RoomHub" }]

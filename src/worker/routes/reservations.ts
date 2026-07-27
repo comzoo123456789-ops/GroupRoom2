@@ -4,8 +4,46 @@ import { currentUser, resolveOrgId } from "../lib/session";
 import { mapReservation, notifyLive } from "../lib/live";
 import { newId } from "../lib/crypto";
 import { buildIcs } from "../lib/ics";
+import { sendMail, whenLabel, template } from "../lib/email";
 
 export const reservations = new Hono<{ Bindings: Env }>();
+
+// ── 회의실별 예약 규칙 검증 ──────────────────────────────
+const KST_OFFSET_MIN = 9 * 60; // 조직 표준시 Asia/Seoul (+9, DST 없음)
+function kstMinOfDay(ts: number): number {
+  return ((Math.floor(ts / 60000) % 1440) + KST_OFFSET_MIN + 1440) % 1440;
+}
+function fmtMin(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+interface Policy {
+  open_min: number;
+  close_min: number;
+  max_duration_min: number;
+  max_advance_days: number;
+}
+/** 규칙 위반 시 사용자 메시지, 없으면 null */
+function policyError(
+  p: Policy,
+  startsAt: number,
+  endsAt: number,
+  now: number,
+  isNew: boolean,
+): string | null {
+  if (isNew && startsAt < now - 60_000) return "지난 시간에는 예약할 수 없어요.";
+  const sMin = kstMinOfDay(startsAt);
+  const eRaw = kstMinOfDay(endsAt);
+  const eMin = eRaw === 0 ? 1440 : eRaw; // 자정 종료 보정
+  if (sMin < p.open_min) return `이 회의실은 ${fmtMin(p.open_min)}부터 예약할 수 있어요.`;
+  if (eMin > p.close_min) return `이 회의실은 ${fmtMin(p.close_min)}까지만 예약할 수 있어요.`;
+  if (p.max_duration_min > 0 && endsAt - startsAt > p.max_duration_min * 60_000) {
+    return `이 회의실 최대 이용시간(${Math.round((p.max_duration_min / 60) * 10) / 10}시간)을 초과했어요.`;
+  }
+  if (p.max_advance_days > 0 && startsAt > now + p.max_advance_days * 86_400_000) {
+    return `이 회의실은 ${p.max_advance_days}일 이내 날짜만 예약할 수 있어요.`;
+  }
+  return null;
+}
 
 // 기간 내 예약 목록
 reservations.get("/", async (c) => {
@@ -57,15 +95,18 @@ reservations.post("/", async (c) => {
     return c.json({ error: "종료 시간이 시작 시간보다 빨라요." }, 400);
   }
 
-  // 룸 소속 조직 확인
+  // 룸 소속 조직 확인 + 예약 규칙 검증
   const room = await c.env.DB.prepare(
-    `SELECT org_id FROM rooms WHERE id = ? AND active = 1`,
+    `SELECT org_id, name, open_min, close_min, max_duration_min, max_advance_days
+       FROM rooms WHERE id = ? AND active = 1`,
   )
     .bind(roomId)
-    .first<{ org_id: string }>();
+    .first<{ org_id: string; name: string } & Policy>();
   if (!room || room.org_id !== user.orgId) {
     return c.json({ error: "회의실을 찾을 수 없습니다." }, 404);
   }
+  const perr = policyError(room, startsAt, endsAt, Date.now(), true);
+  if (perr) return c.json({ error: perr }, 400);
 
   const now = Date.now();
   const dur = endsAt - startsAt;
@@ -174,6 +215,25 @@ reservations.post("/", async (c) => {
   }
 
   await notifyLive(c.env, user.orgId, { type: "reservation.changed", roomId, at: now });
+
+  // 예약 확정 메일 (주최자) — 실패해도 예약엔 영향 없음
+  const organizer = await c.env.DB.prepare(`SELECT email FROM users WHERE id = ?`)
+    .bind(user.userId)
+    .first<{ email: string }>();
+  if (organizer?.email) {
+    const { html, text } = template(
+      "회의실 예약이 확정되었습니다",
+      [
+        { label: "제목", value: title },
+        { label: "회의실", value: room.name },
+        { label: "일시", value: whenLabel(startsAt, endsAt) },
+      ],
+      occ.length > 1 ? `반복 예약 ${created}건이 생성되었습니다.` : undefined,
+    );
+    c.executionCtx.waitUntil(
+      sendMail(c.env, { to: organizer.email, subject: `[예약 확정] ${title}`, html, text }),
+    );
+  }
   return c.json({ ok: true, id: firstId, created, skipped }, 201);
 });
 
@@ -209,18 +269,19 @@ reservations.patch("/:id", async (c) => {
   const endsAt = b.endsAt ?? cur.ends_at;
   if (endsAt <= startsAt) return c.json({ error: "종료 시간이 시작보다 빨라요." }, 400);
 
-  // 회의실 이동(A→B 등): 대상 룸이 같은 조직 소속인지 확인
+  // 회의실 이동(A→B 등): 대상 룸이 같은 조직 소속인지 확인 + 규칙 검증
   const targetRoomId = b.roomId ?? cur.room_id;
-  if (targetRoomId !== cur.room_id) {
-    const room = await c.env.DB.prepare(
-      `SELECT org_id FROM rooms WHERE id = ? AND active = 1`,
-    )
-      .bind(targetRoomId)
-      .first<{ org_id: string }>();
-    if (!room || room.org_id !== user.orgId) {
-      return c.json({ error: "옮길 회의실을 찾을 수 없습니다." }, 404);
-    }
+  const targetRoom = await c.env.DB.prepare(
+    `SELECT org_id, open_min, close_min, max_duration_min, max_advance_days
+       FROM rooms WHERE id = ? AND active = 1`,
+  )
+    .bind(targetRoomId)
+    .first<{ org_id: string } & Policy>();
+  if (!targetRoom || targetRoom.org_id !== user.orgId) {
+    return c.json({ error: "옮길 회의실을 찾을 수 없습니다." }, 404);
   }
+  const perr = policyError(targetRoom, startsAt, endsAt, Date.now(), false);
+  if (perr) return c.json({ error: perr }, 400);
 
   // 자기 자신 제외 충돌 검증 (대상 룸 기준)
   const clash = await c.env.DB.prepare(
@@ -443,6 +504,40 @@ reservations.put("/:id/attendees", async (c) => {
     roomId: res.room_id,
     at: Date.now(),
   });
+
+  // 새로 초대된 참석자에게 초대 메일
+  if (toAdd.length) {
+    const info = await c.env.DB.prepare(
+      `SELECT r.title AS title, r.starts_at AS s, r.ends_at AS e, rm.name AS roomName, host.name AS hostName
+         FROM reservations r JOIN rooms rm ON rm.id = r.room_id JOIN users host ON host.id = r.user_id
+        WHERE r.id = ?`,
+    )
+      .bind(id)
+      .first<{ title: string; s: number; e: number; roomName: string; hostName: string }>();
+    if (info) {
+      const ph = toAdd.map(() => "?").join(",");
+      const emails = await c.env.DB.prepare(`SELECT email FROM users WHERE id IN (${ph})`)
+        .bind(...toAdd)
+        .all<{ email: string }>();
+      const { html, text } = template(
+        "회의에 초대되었습니다",
+        [
+          { label: "제목", value: info.title },
+          { label: "회의실", value: info.roomName },
+          { label: "일시", value: whenLabel(info.s, info.e) },
+          { label: "주최자", value: info.hostName },
+        ],
+        "앱에서 참석 여부(수락/거절)를 응답할 수 있어요.",
+      );
+      for (const row of emails.results) {
+        if (row.email) {
+          c.executionCtx.waitUntil(
+            sendMail(c.env, { to: row.email, subject: `[회의 초대] ${info.title}`, html, text }),
+          );
+        }
+      }
+    }
+  }
   return c.json({ ok: true, count: valid.length, added: toAdd.length, removed: toRemove.length });
 });
 
