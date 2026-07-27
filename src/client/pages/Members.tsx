@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Member, Role, UserStatus } from "../../shared/types";
+import type { Member, Role, UserStatus, OrgMaster } from "../../shared/types";
 import { api } from "../lib/api";
+import type { MasterKind } from "../lib/api";
 import { IconUsers, IconSearch, IconPlus } from "../components/icons";
 import "./Members.css";
 
@@ -29,6 +30,8 @@ export default function Members() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showMasters, setShowMasters] = useState(false);
+  const [editMember, setEditMember] = useState<Member | null>(null);
 
   useEffect(() => {
     api
@@ -122,9 +125,14 @@ export default function Members() {
           />
         </div>
         {isAdmin && (
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
-            <IconPlus size={16} /> 멤버 추가
-          </button>
+          <>
+            <button className="btn btn-ghost" onClick={() => setShowMasters(true)}>
+              부서·직급 관리
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+              <IconPlus size={16} /> 멤버 추가
+            </button>
+          </>
         )}
       </div>
 
@@ -174,7 +182,7 @@ export default function Members() {
       <div className="mbr-list card">
         <div className="mbr-row mbr-rowhead">
           <span>이름</span>
-          <span className="col-dept">부서</span>
+          <span className="col-dept">부서·직급</span>
           <span className="col-email">이메일</span>
           <span className="col-role">역할</span>
           <span className="col-status">상태</span>
@@ -205,7 +213,10 @@ export default function Members() {
                   {m.id === meId && <em className="mbr-me">나</em>}
                 </span>
               </span>
-              <span className="col-dept">{m.department ?? "—"}</span>
+              <span className="col-dept">
+                {m.department ?? "—"}
+                {m.position && <span className="mbr-pos">{m.position}</span>}
+              </span>
               <span className="col-email">{m.email}</span>
               <span className="col-role">
                 <span className={"rolebadge " + m.role}>{ROLE_LABEL[m.role]}</span>
@@ -215,6 +226,9 @@ export default function Members() {
               </span>
               {isAdmin && (
                 <span className="col-act">
+                  <button className="mini" onClick={() => setEditMember(m)}>
+                    편집
+                  </button>
                   {m.role === "admin" ? (
                     <button className="mini" onClick={() => changeRole(m, "member")}>
                       멤버로
@@ -257,14 +271,47 @@ export default function Members() {
           }}
         />
       )}
+
+      {showMasters && (
+        <MastersModal onClose={() => setShowMasters(false)} onChanged={reload} />
+      )}
+
+      {editMember && (
+        <EditMemberModal
+          member={editMember}
+          onClose={() => setEditMember(null)}
+          onSaved={() => {
+            setEditMember(null);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }
 
+// 부서/직급 선택 옵션을 불러오는 훅
+function useMasters() {
+  const [departments, setDepartments] = useState<OrgMaster[]>([]);
+  const [positions, setPositions] = useState<OrgMaster[]>([]);
+  useEffect(() => {
+    api
+      .orgMasters()
+      .then((r) => {
+        setDepartments(r.departments);
+        setPositions(r.positions);
+      })
+      .catch(() => {});
+  }, []);
+  return { departments, positions };
+}
+
 function AddMemberModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { departments, positions } = useMasters();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
+  const [position, setPosition] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -275,7 +322,13 @@ function AddMemberModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     setBusy(true);
     setErr(null);
     try {
-      const r = await api.createMember({ name: name.trim(), email: email.trim(), department, role });
+      const r = await api.createMember({
+        name: name.trim(),
+        email: email.trim(),
+        department,
+        position,
+        role,
+      });
       setDone({ email: email.trim(), pw: r.tempPassword });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "추가 실패");
@@ -321,15 +374,29 @@ function AddMemberModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
             <div className="field-row">
               <div className="field">
                 <label>부서</label>
-                <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="개발팀" />
-              </div>
-              <div className="field">
-                <label>역할</label>
-                <select className="select" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                  <option value="member">멤버</option>
-                  <option value="admin">관리자</option>
+                <select className="select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+                  <option value="">— 없음 —</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
                 </select>
               </div>
+              <div className="field">
+                <label>직급</label>
+                <select className="select" value={position} onChange={(e) => setPosition(e.target.value)}>
+                  <option value="">— 없음 —</option>
+                  {positions.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label>역할</label>
+              <select className="select" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                <option value="member">멤버</option>
+                <option value="admin">관리자</option>
+              </select>
             </div>
             {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
             <div className="modal-foot">
@@ -342,6 +409,242 @@ function AddMemberModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── 멤버 수정 (이름·부서·직급) ─────────────────────────────
+function EditMemberModal({
+  member,
+  onClose,
+  onSaved,
+}: {
+  member: Member;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { departments, positions } = useMasters();
+  const [name, setName] = useState(member.name);
+  const [department, setDepartment] = useState(member.department ?? "");
+  const [position, setPosition] = useState(member.position ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!name.trim()) return setErr("이름을 입력하세요.");
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.updateMember(member.id, { name: name.trim(), department, position });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "수정 실패");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>멤버 수정</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="닫기">✕</button>
+        </div>
+        <div className="field">
+          <label>이름</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>부서</label>
+            <select className="select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="">— 없음 —</option>
+              {department && !departments.some((d) => d.name === department) && (
+                <option value={department}>{department}</option>
+              )}
+              {departments.map((d) => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>직급</label>
+            <select className="select" value={position} onChange={(e) => setPosition(e.target.value)}>
+              <option value="">— 없음 —</option>
+              {position && !positions.some((p) => p.name === position) && (
+                <option value={position}>{position}</option>
+              )}
+              {positions.map((p) => (
+                <option key={p.id} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
+        <div className="modal-foot">
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>취소</button>
+          <button className="btn btn-primary" onClick={save} disabled={busy}>
+            {busy ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 부서·직급 마스터 관리 ─────────────────────────────
+function MastersModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [departments, setDepartments] = useState<OrgMaster[]>([]);
+  const [positions, setPositions] = useState<OrgMaster[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = () =>
+    api
+      .orgMasters()
+      .then((r) => {
+        setDepartments(r.departments);
+        setPositions(r.positions);
+      })
+      .catch(() => {});
+  useEffect(() => {
+    load();
+  }, []);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setErr(null);
+    try {
+      await fn();
+      await load();
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "처리 실패");
+    }
+  };
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal card wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>부서·직급 관리</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="닫기">✕</button>
+        </div>
+        {err && <div className="auth-err" style={{ marginBottom: 4 }}>{err}</div>}
+        <div className="masters-grid">
+          <MasterColumn title="부서" kind="departments" items={departments} run={run} />
+          <MasterColumn title="직급" kind="positions" items={positions} run={run} />
+        </div>
+        <div className="modal-foot">
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-primary" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MasterColumn({
+  title,
+  kind,
+  items,
+  run,
+}: {
+  title: string;
+  kind: MasterKind;
+  items: OrgMaster[];
+  run: (fn: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const add = () => {
+    const v = name.trim();
+    if (!v) return;
+    setName("");
+    run(() => api.addMaster(kind, v));
+  };
+  return (
+    <div className="master-col">
+      <div className="master-col-h">
+        {title} <span className="master-n">{items.length}</span>
+      </div>
+      <div className="master-add">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder={`${title}명 추가`}
+        />
+        <button className="btn btn-primary" onClick={add}>추가</button>
+      </div>
+      <div className="master-list">
+        {items.length === 0 && <div className="muted master-empty">아직 없어요</div>}
+        {items.map((it) => (
+          <MasterItem key={it.id} kind={kind} item={it} title={title} run={run} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MasterItem({
+  kind,
+  item,
+  title,
+  run,
+}: {
+  kind: MasterKind;
+  item: OrgMaster;
+  title: string;
+  run: (fn: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(item.name);
+  if (editing) {
+    return (
+      <div className="master-item">
+        <input
+          className="master-edit"
+          value={val}
+          autoFocus
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && val.trim()) {
+              run(() => api.renameMaster(kind, item.id, val.trim()));
+              setEditing(false);
+            } else if (e.key === "Escape") {
+              setVal(item.name);
+              setEditing(false);
+            }
+          }}
+        />
+        <button
+          className="mini"
+          onClick={() => {
+            if (val.trim()) run(() => api.renameMaster(kind, item.id, val.trim()));
+            setEditing(false);
+          }}
+        >
+          저장
+        </button>
+        <button className="mini" onClick={() => { setVal(item.name); setEditing(false); }}>
+          취소
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="master-item">
+      <span className="master-name">{item.name}</span>
+      <button className="mini" onClick={() => setEditing(true)}>수정</button>
+      <button
+        className="mini danger"
+        onClick={() => {
+          if (confirm(`'${item.name}' ${title}을(를) 삭제할까요? 이 값을 쓰던 멤버는 비워집니다.`)) {
+            run(() => api.deleteMaster(kind, item.id));
+          }
+        }}
+      >
+        삭제
+      </button>
     </div>
   );
 }

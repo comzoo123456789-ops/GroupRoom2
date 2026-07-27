@@ -328,3 +328,114 @@
     flex-basis: 100%;
   }
 }
+
+/* 직급 배지 (목록 부서 셀) */
+.mbr-pos {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+}
+
+/* 부서·직급 관리 모달 */
+.modal.wide {
+  max-width: 640px;
+}
+.masters-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.master-col {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  padding: 14px;
+}
+.master-col-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.master-n {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-sunken);
+  border-radius: var(--r-pill);
+  padding: 1px 8px;
+}
+.master-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.master-add input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  outline: none;
+}
+.master-add input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-wash);
+}
+.master-add .btn {
+  height: 36px;
+  padding: 0 14px;
+  flex: none;
+}
+.master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.master-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.master-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.master-edit {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--brand);
+  border-radius: 6px;
+  outline: none;
+}
+.master-empty {
+  font-size: 12px;
+  text-align: center;
+  padding: 10px;
+}
+@media (max-width: 560px) {
+  .masters-grid {
+    grid-template-columns: 1fr;
+  }
+}

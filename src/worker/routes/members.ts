@@ -11,6 +11,7 @@ interface MemberRow {
   name: string;
   email: string;
   department: string | null;
+  position: string | null;
   avatar_color: string;
   role: string;
   status: string;
@@ -21,6 +22,7 @@ const mapMember = (r: MemberRow): Member => ({
   name: r.name,
   email: r.email,
   department: r.department,
+  position: r.position,
   avatarColor: r.avatar_color,
   role: r.role === "admin" ? "admin" : "member",
   status: r.status === "invited" ? "invited" : r.status === "inactive" ? "inactive" : "active",
@@ -71,7 +73,7 @@ members.get("/", async (c) => {
   const whereSql = where.join(" AND ");
 
   const rows = await c.env.DB.prepare(
-    `SELECT id, name, email, department, avatar_color, role, status
+    `SELECT id, name, email, department, position, avatar_color, role, status
        FROM users WHERE ${whereSql}
       ORDER BY (role = 'admin') DESC, name
       LIMIT ? OFFSET ?`,
@@ -115,7 +117,7 @@ members.post("/", async (c) => {
   if (me.role !== "admin") return c.json({ error: "관리자만 멤버를 추가할 수 있습니다." }, 403);
 
   const b = await c.req
-    .json<{ name?: string; email?: string; department?: string; role?: string; password?: string }>()
+    .json<{ name?: string; email?: string; department?: string; position?: string; role?: string; password?: string }>()
     .catch(() => ({}) as Record<string, string>);
   const name = b.name?.trim();
   const email = b.email?.trim().toLowerCase();
@@ -135,10 +137,10 @@ members.post("/", async (c) => {
   const { hash, salt } = await hashPassword(b.password?.trim() || "welcome1234");
   const id = newId();
   await c.env.DB.prepare(
-    `INSERT INTO users (id, org_id, email, name, password_hash, password_salt, role, department, avatar_color, status, must_reset_pw, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?)`,
+    `INSERT INTO users (id, org_id, email, name, password_hash, password_salt, role, department, position, avatar_color, status, must_reset_pw, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?)`,
   )
-    .bind(id, me.orgId, email, name, hash, salt, role, b.department?.trim() || null, pickColor(), Date.now())
+    .bind(id, me.orgId, email, name, hash, salt, role, b.department?.trim() || null, b.position?.trim() || null, pickColor(), Date.now())
     .run();
 
   return c.json({ ok: true, id, tempPassword: b.password?.trim() || "welcome1234" }, 201);
@@ -159,7 +161,7 @@ members.patch("/:id", async (c) => {
   if (!target) return c.json({ error: "멤버를 찾을 수 없습니다." }, 404);
 
   const b = await c.req
-    .json<{ role?: string; status?: string; department?: string; name?: string }>()
+    .json<{ role?: string; status?: string; department?: string; position?: string; name?: string }>()
     .catch(() => ({}) as Record<string, string>);
 
   // 안전장치: 마지막 관리자를 강등/비활성화하면 잠금 발생 → 차단
@@ -194,6 +196,10 @@ members.patch("/:id", async (c) => {
   if (typeof b.department === "string") {
     sets.push("department = ?");
     vals.push(b.department.trim() || null);
+  }
+  if (typeof b.position === "string") {
+    sets.push("position = ?");
+    vals.push(b.position.trim() || null);
   }
   if (typeof b.name === "string" && b.name.trim()) {
     sets.push("name = ?");

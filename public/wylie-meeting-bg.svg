@@ -6,16 +6,16 @@
       <stop offset="1" stop-color="#703b96"/>
     </linearGradient>
     <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#b892d6" stop-opacity="0.55"/>
+      <stop offset="0" stop-color="#b892d6" stop-opacity="0.5"/>
       <stop offset="1" stop-color="#b892d6" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#8a4fb3" stop-opacity="0.6"/>
+      <stop offset="0" stop-color="#8a4fb3" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#8a4fb3" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="vignette" cx="0.5" cy="0.42" r="0.75">
-      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="1" stop-color="#160a24" stop-opacity="0.55"/>
+    <radialGradient id="vignette" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#160a24" stop-opacity="0.5"/>
     </radialGradient>
     <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
       <circle cx="2" cy="2" r="1.4" fill="#ffffff" fill-opacity="0.05"/>
@@ -28,41 +28,39 @@
     </g>
   </defs>
 
-  <!-- 배경 그라디언트 + 도트 -->
   <rect width="1600" height="1000" fill="url(#bg)"/>
   <rect width="1600" height="1000" fill="url(#dots)"/>
 
-  <!-- 소프트 글로우 -->
-  <circle cx="250" cy="170" r="360" fill="url(#glowA)"/>
-  <circle cx="1400" cy="880" r="420" fill="url(#glowB)"/>
+  <!-- 코너 글로우 -->
+  <circle cx="180" cy="140" r="340" fill="url(#glowA)"/>
+  <circle cx="1440" cy="900" r="420" fill="url(#glowB)"/>
 
-  <!-- 회의실 라인아트 (탑다운): 벽면 스크린 + 회의 테이블 + 의자 -->
-  <g transform="translate(0,20)">
-    <!-- 벽면 스크린 -->
-    <rect x="688" y="150" width="224" height="132" rx="12" fill="#ffffff" fill-opacity="0.03"
+  <!-- 상단: 벽면 스크린 (로그인 카드 위쪽에 보임) -->
+  <g>
+    <rect x="690" y="92" width="220" height="128" rx="12" fill="#ffffff" fill-opacity="0.03"
           stroke="#e3d5f2" stroke-opacity="0.5" stroke-width="2"/>
-    <path d="M786 190 l40 26 l-40 26 z" fill="#e3d5f2" fill-opacity="0.35"/>
-    <path d="M800 282 v20 M772 302 h56" stroke="#e3d5f2" stroke-opacity="0.4" stroke-width="2" fill="none" stroke-linecap="round"/>
-
-    <!-- 회의 테이블 -->
-    <rect x="600" y="430" width="400" height="150" rx="66" fill="#ffffff" fill-opacity="0.04"
-          stroke="#efe3fb" stroke-opacity="0.55" stroke-width="2.5"/>
-
-    <!-- 상단 의자 4 -->
-    <use href="#chair-h" x="636" y="386"/>
-    <use href="#chair-h" x="716" y="386"/>
-    <use href="#chair-h" x="796" y="386"/>
-    <use href="#chair-h" x="876" y="386"/>
-    <!-- 하단 의자 4 -->
-    <use href="#chair-h" x="636" y="596"/>
-    <use href="#chair-h" x="716" y="596"/>
-    <use href="#chair-h" x="796" y="596"/>
-    <use href="#chair-h" x="876" y="596"/>
-    <!-- 양끝 의자 -->
-    <use href="#chair-v" x="548" y="482"/>
-    <use href="#chair-v" x="1026" y="482"/>
+    <path d="M786 130 l40 26 l-40 26 z" fill="#e3d5f2" fill-opacity="0.35"/>
+    <path d="M800 220 v18 M774 238 h52" stroke="#e3d5f2" stroke-opacity="0.4" stroke-width="2" fill="none" stroke-linecap="round"/>
   </g>
 
-  <!-- 비네트 -->
+  <!-- 하단: 회의 테이블 + 의자 (로그인 카드 아래쪽에 보임) -->
+  <g transform="translate(0,0)">
+    <rect x="560" y="712" width="480" height="168" rx="80" fill="#ffffff" fill-opacity="0.04"
+          stroke="#efe3fb" stroke-opacity="0.55" stroke-width="2.5"/>
+    <!-- 상단 의자 4 -->
+    <use href="#chair-h" x="612" y="668"/>
+    <use href="#chair-h" x="700" y="668"/>
+    <use href="#chair-h" x="854" y="668"/>
+    <use href="#chair-h" x="942" y="668"/>
+    <!-- 하단 의자 4 -->
+    <use href="#chair-h" x="612" y="898"/>
+    <use href="#chair-h" x="700" y="898"/>
+    <use href="#chair-h" x="854" y="898"/>
+    <use href="#chair-h" x="942" y="898"/>
+    <!-- 양끝 의자 -->
+    <use href="#chair-v" x="506" y="773"/>
+    <use href="#chair-v" x="1068" y="773"/>
+  </g>
+
   <rect width="1600" height="1000" fill="url(#vignette)"/>
 </svg>

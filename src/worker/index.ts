@@ -7,6 +7,7 @@ import { rooms } from "./routes/rooms";
 import { reservations } from "./routes/reservations";
 import { attachments } from "./routes/attachments";
 import { members } from "./routes/members";
+import { org } from "./routes/org";
 import { calendar } from "./routes/calendar";
 import { analytics } from "./routes/analytics";
 
@@ -31,6 +32,7 @@ app.route("/api/rooms", rooms);
 app.route("/api/reservations", reservations);
 app.route("/api/reservations", attachments); // 예약 첨부파일 (중첩 경로)
 app.route("/api/members", members);
+app.route("/api/org", org);
 app.route("/api/calendar", calendar);
 app.route("/api/analytics", analytics);
 

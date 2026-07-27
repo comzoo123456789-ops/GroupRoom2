@@ -65,6 +65,24 @@ const SEED_ROOMS: SeedRoom[] = [
  * 데모 데이터 부트스트랩. demo 조직이 없을 때만 생성 (멱등).
  * 관리자 계정은 워커의 실제 해싱으로 생성 → 로그인 즉시 가능.
  */
+const SEED_DEPTS = ["개발팀", "디자인팀", "기획팀", "마케팅팀", "경영지원"];
+const SEED_POSITIONS = ["사원", "주임", "대리", "과장", "차장", "팀장", "이사"];
+
+// 부서/직급 마스터 기본값 (멱등)
+async function ensureMasters(env: Env, orgId: string, now: number): Promise<void> {
+  const seed = async (table: "departments" | "positions", names: string[]) => {
+    for (let i = 0; i < names.length; i++) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO ${table} (id, org_id, name, sort, created_at) VALUES (?,?,?,?,?)`,
+      )
+        .bind(newId(), orgId, names[i], i, now)
+        .run();
+    }
+  };
+  await seed("departments", SEED_DEPTS);
+  await seed("positions", SEED_POSITIONS);
+}
+
 dev.post("/bootstrap", async (c) => {
   const existing = await c.env.DB.prepare(
     `SELECT id FROM organizations WHERE slug = 'demo'`,
@@ -129,6 +147,7 @@ dev.post("/bootstrap", async (c) => {
   await mkRes(roomIds[0], "1:1 미팅", now + 8 * 60_000, now + 38 * 60_000);
   await mkRes(roomIds[3], "고객사 화상 데모", now + 90 * 60_000, now + 150 * 60_000);
 
+  await ensureMasters(c.env, orgId, now);
   await ensureEmployees(c.env, orgId, now);
 
   return c.json({
@@ -142,6 +161,8 @@ dev.post("/bootstrap", async (c) => {
 dev.post("/seed-employees", async (c) => {
   const orgId = await resolveOrgId(c);
   if (!orgId) return c.json({ error: "조직을 찾을 수 없습니다." }, 404);
-  const added = await ensureEmployees(c.env, orgId, Date.now());
+  const now = Date.now();
+  await ensureMasters(c.env, orgId, now);
+  const added = await ensureEmployees(c.env, orgId, now);
   return c.json({ ok: true, orgId, employeesAdded: added });
 });

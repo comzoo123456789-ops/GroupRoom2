@@ -13,7 +13,10 @@ import type {
   UpcomingMeeting,
   Analytics,
   Attachment,
+  OrgMaster,
 } from "../../shared/types";
+
+export type MasterKind = "departments" | "positions";
 
 // /api/auth/me 응답의 로그인 사용자
 export interface SessionUser {
@@ -155,19 +158,41 @@ export const api = {
     if (params.offset != null) p.set("offset", String(params.offset));
     return req<MembersResponse>(`/api/members?${p}`);
   },
-  createMember: (body: { name: string; email: string; department?: string; role?: Role }) =>
+  createMember: (body: {
+    name: string;
+    email: string;
+    department?: string;
+    position?: string;
+    role?: Role;
+  }) =>
     req<{ ok: true; id: string; tempPassword: string }>("/api/members", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   updateMember: (
     id: string,
-    body: { role?: Role; status?: UserStatus; department?: string; name?: string },
+    body: { role?: Role; status?: UserStatus; department?: string; position?: string; name?: string },
   ) =>
     req<{ ok: true }>(`/api/members/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+
+  // 조직 마스터 (부서명/직급명 관리)
+  orgMasters: () =>
+    req<{ departments: OrgMaster[]; positions: OrgMaster[] }>("/api/org/masters"),
+  addMaster: (kind: MasterKind, name: string) =>
+    req<{ ok: true; id: string; name: string }>(`/api/org/${kind}`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  renameMaster: (kind: MasterKind, id: string, name: string) =>
+    req<{ ok: true }>(`/api/org/${kind}/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteMaster: (kind: MasterKind, id: string) =>
+    req<{ ok: true }>(`/api/org/${kind}/${id}`, { method: "DELETE" }),
   myRole: () => req<{ userId: string | null; role: Role | null }>("/api/members/me"),
 
   // 이용 분석

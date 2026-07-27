@@ -105,9 +105,16 @@ export interface Member {
   name: string;
   email: string;
   department: string | null;
+  position: string | null;
   avatarColor: string;
   role: Role;
   status: UserStatus;
+}
+
+// 조직 마스터(부서명/직급명)
+export interface OrgMaster {
+  id: string;
+  name: string;
 }
 
 // 멤버 목록 응답
