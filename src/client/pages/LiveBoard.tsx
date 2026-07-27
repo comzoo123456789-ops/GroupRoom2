@@ -101,6 +101,28 @@ export default function LiveBoard() {
           <Stat n={counts.soon} label="곧 시작" cls="s-soon" />
           <Stat n={counts.busy} label="사용중" cls="s-busy" />
         </div>
+        {rooms.length > 0 && (
+          <div className="day-nav">
+            <button className="day-btn" onClick={() => setDayStart((d) => startOfDay(d - 86_400_000))} aria-label="이전 날">
+              ‹
+            </button>
+            <input
+              type="date"
+              className="day-input"
+              value={dateInputValue(dayStart)}
+              onChange={(e) => e.target.value && setDayStart(dateFromInput(e.target.value))}
+            />
+            <span className="day-label">{dayLabel(dayStart)}</span>
+            <button className="day-btn" onClick={() => setDayStart((d) => startOfDay(d + 86_400_000))} aria-label="다음 날">
+              ›
+            </button>
+            {!isSameDay(dayStart, now) && (
+              <button className="btn btn-ghost day-today" onClick={() => setDayStart(startOfDay(Date.now()))}>
+                오늘
+              </button>
+            )}
+          </div>
+        )}
         <div className="spacer" />
         {isAdmin && rooms.length > 0 && (
           <button className="btn btn-primary" style={{ height: 36 }} onClick={() => setEditing({ room: null })}>
@@ -117,7 +139,7 @@ export default function LiveBoard() {
     );
     return () => setTopbar(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length, loggedIn, liveVersion]);
+  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length, loggedIn, liveVersion, dayStart]);
 
   const seed = async () => {
     setSeeding(true);
@@ -167,50 +189,20 @@ export default function LiveBoard() {
           </button>
         </div>
       ) : (
-        <>
-          <div className="day-nav">
-            <button
-              className="day-btn"
-              onClick={() => setDayStart((d) => startOfDay(d - 86_400_000))}
-              aria-label="이전 날"
-            >
-              ‹
-            </button>
-            <input
-              type="date"
-              className="day-input"
-              value={dateInputValue(dayStart)}
-              onChange={(e) => e.target.value && setDayStart(dateFromInput(e.target.value))}
-            />
-            <span className="day-label">{dayLabel(dayStart)}</span>
-            <button
-              className="day-btn"
-              onClick={() => setDayStart((d) => startOfDay(d + 86_400_000))}
-              aria-label="다음 날"
-            >
-              ›
-            </button>
-            {!isSameDay(dayStart, now) && (
-              <button className="btn btn-ghost day-today" onClick={() => setDayStart(startOfDay(Date.now()))}>
-                오늘
-              </button>
-            )}
-          </div>
-          <Timetable
-            rooms={rooms}
-            reservations={reservations}
-            now={now}
-            dayStart={dayStart}
-            canBook={loggedIn}
-            isAdmin={isAdmin}
-            meId={meId}
-            onCreate={onCreate}
-            onResize={onResize}
-            onCancel={onCancel}
-            onEditRoom={(room) => setEditing({ room })}
-            onEditReservation={(r) => setEditRes(r)}
-          />
-        </>
+        <Timetable
+          rooms={rooms}
+          reservations={reservations}
+          now={now}
+          dayStart={dayStart}
+          canBook={loggedIn}
+          isAdmin={isAdmin}
+          meId={meId}
+          onCreate={onCreate}
+          onResize={onResize}
+          onCancel={onCancel}
+          onEditRoom={(room) => setEditing({ room })}
+          onEditReservation={(r) => setEditRes(r)}
+        />
       )}
 
       {editing && (
