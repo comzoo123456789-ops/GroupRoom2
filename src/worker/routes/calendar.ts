@@ -42,7 +42,7 @@ calendar.get("/mine.ics", async (c) => {
     description: `주최: ${r.organizerName}`,
   }));
 
-  return new Response(buildIcs(events, "GroupRoom · 내 일정"), {
+  return new Response(buildIcs(events, "Wylie Meeting · 내 일정"), {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": `attachment; filename="grouproom-my-schedule.ics"`,

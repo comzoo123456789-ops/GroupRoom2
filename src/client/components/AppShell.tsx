@@ -68,7 +68,7 @@ export default function AppShell() {
     }
   }, [org]);
 
-  const title = TITLES[loc.pathname] ?? "GroupRoom";
+  const title = TITLES[loc.pathname] ?? "Wylie Meeting";
 
   const logout = async () => {
     await api.logout().catch(() => {});
@@ -85,7 +85,7 @@ export default function AppShell() {
             <IconMap size={18} />
           </div>
           <div>
-            <div className="brand-name">GroupRoom</div>
+            <div className="brand-name">Wylie Meeting</div>
             <div className="brand-sub">{org?.name ?? "회의실 예약"}</div>
           </div>
         </div>

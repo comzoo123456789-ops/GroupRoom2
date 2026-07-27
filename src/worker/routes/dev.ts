@@ -79,9 +79,9 @@ dev.post("/bootstrap", async (c) => {
   const orgId = newId();
   await c.env.DB.prepare(
     `INSERT INTO organizations (id, name, slug, brand_color, timezone, created_at)
-     VALUES (?, ?, 'demo', '#3B5BDB', 'Asia/Seoul', ?)`,
+     VALUES (?, ?, 'demo', '#703B96', 'Asia/Seoul', ?)`,
   )
-    .bind(orgId, "GroupRoom 데모", now)
+    .bind(orgId, "와일리", now)
     .run();
 
   const { hash, salt } = await hashPassword("admin1234");

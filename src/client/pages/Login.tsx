@@ -31,7 +31,7 @@ export default function Login() {
         <div className="brand-mark" style={{ width: 44, height: 44 }}>
           <IconMap size={24} />
         </div>
-        <h1>GroupRoom 로그인</h1>
+        <h1>Wylie Meeting</h1>
         <p className="muted">사내 회의실을 한눈에 보고 즉시 예약하세요.</p>
 
         <label>이메일</label>
@@ -65,9 +65,10 @@ export default function Login() {
 
       <style>{`
         .auth { min-height: 100vh; display: grid; place-items: center; padding: 24px;
-          background: radial-gradient(1200px 600px at 50% -10%, var(--brand-wash), var(--bg)); }
+          background: #241238 url(/wylie-meeting-bg.svg) center / cover no-repeat; }
         .auth-card { width: 100%; max-width: 380px; padding: 36px 32px;
-          display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-lg); }
+          display: flex; flex-direction: column; gap: 10px;
+          box-shadow: 0 24px 70px rgba(20,8,40,0.45); }
         .auth-card h1 { font-size: 22px; margin-top: 8px; letter-spacing: -0.02em; }
         .auth-card label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top: 10px; }
         .auth-card input { height: 44px; padding: 0 14px; border-radius: var(--r-sm);

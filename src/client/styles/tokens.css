@@ -13,10 +13,11 @@
   --text-2: #59606f;
   --text-3: #8a92a3;
 
-  /* 브랜드 (조직별로 런타임 오버라이드 가능) */
-  --brand: #3b5bdb;
-  --brand-ink: #2c46ad;
-  --brand-wash: #eef1fe;
+  /* 브랜드 — Wylie 고유 퍼플 #703B96. 조직별 런타임 오버라이드 가능 */
+  --brand: #703b96;
+  --brand-ink: #582e77;
+  --brand-wash: #f2ecf7;
+  --brand-2: #a77fc9; /* 와일리 보조 라이트 퍼플 */
 
   /* 상태색: available / soon / busy */
   --ok: #0ca678;

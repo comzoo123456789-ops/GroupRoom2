@@ -26,7 +26,7 @@ export interface IcsEvent {
   description?: string | null;
 }
 
-export function buildIcs(events: IcsEvent[], calName = "GroupRoom"): string {
+export function buildIcs(events: IcsEvent[], calName = "Wylie Meeting"): string {
   const now = icsDate(Date.now());
   const lines = [
     "BEGIN:VCALENDAR",
