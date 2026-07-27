@@ -19,6 +19,7 @@ import {
   IconMap,
   IconMenu,
   IconLogout,
+  IconX,
 } from "./icons";
 
 const TITLES: Record<string, string> = {
@@ -81,6 +82,13 @@ export default function AppShell() {
     <div className="app">
       {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
       <aside className={"sidebar" + (navOpen ? " open" : "")}>
+        <button
+          className="sidebar-close"
+          onClick={() => setNavOpen(false)}
+          aria-label="메뉴 닫기"
+        >
+          <IconX size={18} />
+        </button>
         <div className="brand">
           <div className="brand-mark">
             <IconMap size={18} />
@@ -93,11 +101,11 @@ export default function AppShell() {
 
         <nav className="nav">
           <div className="nav-label">워크스페이스</div>
-          <NavItem to="/" icon={<IconGrid size={18} />} label="실시간 현황" />
-          <NavItem to="/timeline" icon={<IconCalendar size={18} />} label="예약 타임라인" />
-          <NavItem to="/insights" icon={<IconChart size={18} />} label="이용 분석" />
+          <NavItem to="/" icon={<IconGrid size={18} />} label="실시간 현황" onNavigate={() => setNavOpen(false)} />
+          <NavItem to="/timeline" icon={<IconCalendar size={18} />} label="예약 타임라인" onNavigate={() => setNavOpen(false)} />
+          <NavItem to="/insights" icon={<IconChart size={18} />} label="이용 분석" onNavigate={() => setNavOpen(false)} />
           <div className="nav-label">관리</div>
-          <NavItem to="/members" icon={<IconUsers size={18} />} label="멤버" />
+          <NavItem to="/members" icon={<IconUsers size={18} />} label="멤버" onNavigate={() => setNavOpen(false)} />
           <NavItem to="/settings" icon={<IconSettings size={18} />} label="설정" disabled />
         </nav>
 
@@ -171,11 +179,13 @@ function NavItem({
   icon,
   label,
   disabled,
+  onNavigate,
 }: {
   to: string;
   icon: ReactNode;
   label: string;
   disabled?: boolean;
+  onNavigate?: () => void;
 }) {
   if (disabled) {
     return (
@@ -190,6 +200,7 @@ function NavItem({
     <NavLink
       to={to}
       end
+      onClick={onNavigate}
       className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}
     >
       {icon}

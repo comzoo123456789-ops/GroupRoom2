@@ -186,6 +186,23 @@ input {
   z-index: 90;
   animation: fade 0.14s ease;
 }
+/* 드로어 닫기 버튼 (기본 숨김, ≤900px 노출) */
+.sidebar-close {
+  display: none;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  place-items: center;
+  z-index: 2;
+}
+.sidebar-close:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
 .topbar .spacer {
   flex: 1;
 }
@@ -1056,6 +1073,9 @@ a.file-name:hover {
   }
   .sidebar.open {
     transform: translateX(0);
+  }
+  .sidebar-close {
+    display: grid;
   }
   .hamburger {
     display: grid;
