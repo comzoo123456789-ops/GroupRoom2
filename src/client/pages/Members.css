@@ -346,10 +346,11 @@
 }
 .masters-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 .master-col {
+  min-width: 0; /* 그리드 트랙이 내용보다 커지지 않도록 */
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--surface-2);
@@ -434,7 +435,7 @@
   text-align: center;
   padding: 10px;
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .masters-grid {
     grid-template-columns: 1fr;
   }
