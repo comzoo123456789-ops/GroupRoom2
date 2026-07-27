@@ -5,6 +5,7 @@ import { auth } from "./routes/auth";
 import { dev } from "./routes/dev";
 import { rooms } from "./routes/rooms";
 import { reservations } from "./routes/reservations";
+import { attachments } from "./routes/attachments";
 import { members } from "./routes/members";
 import { calendar } from "./routes/calendar";
 import { analytics } from "./routes/analytics";
@@ -28,6 +29,7 @@ app.route("/api/auth", auth);
 app.route("/api/dev", dev);
 app.route("/api/rooms", rooms);
 app.route("/api/reservations", reservations);
+app.route("/api/reservations", attachments); // 예약 첨부파일 (중첩 경로)
 app.route("/api/members", members);
 app.route("/api/calendar", calendar);
 app.route("/api/analytics", analytics);

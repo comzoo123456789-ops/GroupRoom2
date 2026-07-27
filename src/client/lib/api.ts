@@ -12,6 +12,7 @@ import type {
   ReservationDetail,
   UpcomingMeeting,
   Analytics,
+  Attachment,
 } from "../../shared/types";
 
 // /api/auth/me 응답의 로그인 사용자
@@ -192,6 +193,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status }),
     }),
+
+  // 첨부파일 (업로드 24시간 후 자동 삭제)
+  attachments: (reservationId: string) =>
+    req<{ attachments: Attachment[] }>(`/api/reservations/${reservationId}/attachments`),
+  uploadAttachment: async (reservationId: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    // FormData 전송 시 Content-Type을 브라우저가 boundary와 함께 자동 설정하도록 헤더 생략
+    const res = await fetch(`/api/reservations/${reservationId}/attachments`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = (await res.json().catch(() => ({}))) as { attachment?: Attachment; error?: string };
+    if (!res.ok) throw new Error(data.error ?? `업로드 실패 (${res.status})`);
+    return data.attachment as Attachment;
+  },
+  deleteAttachment: (reservationId: string, attachmentId: string) =>
+    req<{ ok: true }>(`/api/reservations/${reservationId}/attachments/${attachmentId}`, {
+      method: "DELETE",
+    }),
+  attachmentUrl: (reservationId: string, attachmentId: string) =>
+    `/api/reservations/${reservationId}/attachments/${attachmentId}/download`,
 };
 
 /** 실시간 현황 WebSocket 연결. onEvent는 서버 브로드캐스트마다 호출됨. */

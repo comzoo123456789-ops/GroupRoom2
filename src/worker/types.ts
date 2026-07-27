@@ -2,4 +2,5 @@
 export interface Env {
   DB: D1Database;
   ROOM_HUB: DurableObjectNamespace;
+  ATTACH_KV: KVNamespace;
 }

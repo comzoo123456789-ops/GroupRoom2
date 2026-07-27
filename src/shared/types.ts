@@ -11,6 +11,16 @@ export type ReservationStatus =
 // 실시간 현황판에서 계산하는 룸의 현재 상태
 export type LiveStatus = "available" | "busy" | "soon";
 
+// 예약 첨부파일 (KV 저장, 업로드 24시간 후 자동 삭제)
+export interface Attachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface Organization {
   id: string;
   name: string;

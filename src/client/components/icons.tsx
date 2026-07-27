@@ -23,6 +23,17 @@ export const IconGrid = ({ size }: P) => (
     <rect x="14" y="14" width="7" height="7" rx="1.5" />
   </svg>
 );
+export const IconPaperclip = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M21 8.5 12.6 17a4 4 0 0 1-5.7-5.7l8.5-8.4a2.7 2.7 0 0 1 3.8 3.8l-8.5 8.4a1.3 1.3 0 0 1-1.9-1.9L16.5 6" />
+  </svg>
+);
+export const IconFile = ({ size }: P) => (
+  <svg {...base(size)}>
+    <path d="M14 2.5H7A2 2 0 0 0 5 4.5v15a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5l-5-5z" />
+    <path d="M14 2.5v5h5" />
+  </svg>
+);
 export const IconCalendar = ({ size }: P) => (
   <svg {...base(size)}>
     <rect x="3" y="4.5" width="18" height="16" rx="2.5" />

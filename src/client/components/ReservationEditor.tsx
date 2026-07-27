@@ -4,12 +4,21 @@ import type {
   Reservation,
   Member,
   AttendeeStatus,
+  Attachment,
 } from "../../shared/types";
 import { api } from "../lib/api";
 import { timeOptions, hhmmToday, minToHHMM, tsToMin } from "../lib/time";
-import { IconUsers } from "./icons";
+import { IconUsers, IconPaperclip, IconFile } from "./icons";
 
 const OPTS = timeOptions();
+
+const fmtSize = (n: number): string =>
+  n < 1024
+    ? `${n}B`
+    : n < 1024 * 1024
+      ? `${Math.round(n / 1024)}KB`
+      : `${(n / 1024 / 1024).toFixed(1)}MB`;
+const MAX_FILE = 10 * 1024 * 1024;
 
 function plusOne(t: string): string {
   const i = OPTS.indexOf(t);
@@ -70,6 +79,12 @@ export default function ReservationEditor({
   const [videoUrl, setVideoUrl] = useState("");
   const [notes, setNotes] = useState("");
 
+  // 첨부파일 (업로드 24시간 후 자동 삭제)
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   // 참석자
   const [invited, setInvited] = useState<Invited[]>([]);
   const [q, setQ] = useState("");
@@ -104,7 +119,30 @@ export default function ReservationEditor({
         setNotes(r.detail.notes ?? "");
       })
       .catch(() => {});
+    api
+      .attachments(editing.id)
+      .then((r) => setAttachments(r.attachments))
+      .catch(() => {});
   }, [editing]);
+
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const tooBig = files.find((f) => f.size > MAX_FILE);
+    if (tooBig) setErr(`${tooBig.name}은(는) 10MB를 초과해 제외했어요.`);
+    setPendingFiles((prev) => [...prev, ...files.filter((f) => f.size <= MAX_FILE)]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+  const removePending = (i: number) =>
+    setPendingFiles((prev) => prev.filter((_, idx) => idx !== i));
+  const removeUploaded = async (aid: string) => {
+    if (!editing) return;
+    try {
+      await api.deleteAttachment(editing.id, aid);
+      setAttachments((a) => a.filter((x) => x.id !== aid));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "삭제 실패");
+    }
+  };
 
   // 이름 검색 (디바운스)
   const qRef = useRef(q);
@@ -196,6 +234,7 @@ export default function ReservationEditor({
     setErr(null);
     try {
       const ids = invited.map((m) => m.id);
+      let rid: string;
       if (isEdit && editing) {
         await api.updateReservation(editing.id, {
           title: title.trim(),
@@ -207,6 +246,7 @@ export default function ReservationEditor({
           notes,
         });
         await api.setAttendees(editing.id, ids);
+        rid = editing.id;
       } else {
         const res = await api.createReservation({
           roomId,
@@ -219,10 +259,19 @@ export default function ReservationEditor({
           recurrence:
             recur !== "none" ? { freq: recur, count: Math.min(52, Math.max(2, count)) } : undefined,
         });
+        rid = res.id;
         if (ids.length) await api.setAttendees(res.id, ids);
         if (recur !== "none" && res.skipped) {
           alert(`${res.created}개 회차를 만들었어요. ${res.skipped}개는 시간이 겹쳐 건너뛰었습니다.`);
         }
+      }
+      // 첨부파일 업로드 (예약 생성/수정 후, id 확보 뒤)
+      if (pendingFiles.length) {
+        setUploading(true);
+        for (const f of pendingFiles) {
+          await api.uploadAttachment(rid, f);
+        }
+        setUploading(false);
       }
       onSaved();
     } catch (e) {
@@ -418,6 +467,62 @@ export default function ReservationEditor({
           />
         </div>
 
+        {/* 첨부파일 */}
+        <div className="field">
+          <label className="att-label">
+            <span>첨부파일</span>
+            <span className="file-note">업로드 후 24시간 뒤 자동 삭제</span>
+          </label>
+
+          {(attachments.length > 0 || pendingFiles.length > 0) && (
+            <div className="file-list">
+              {attachments.map((a) => (
+                <div key={a.id} className="file-item">
+                  <IconFile size={16} />
+                  <a
+                    className="file-name"
+                    href={api.attachmentUrl(editing!.id, a.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {a.filename}
+                  </a>
+                  <span className="file-size">{fmtSize(a.size)}</span>
+                  <button className="att-x" onClick={() => removeUploaded(a.id)} aria-label="삭제">
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {pendingFiles.map((f, i) => (
+                <div key={i} className="file-item pending">
+                  <IconFile size={16} />
+                  <span className="file-name">{f.name}</span>
+                  <span className="file-size">{fmtSize(f.size)}</span>
+                  <span className="file-badge">대기</span>
+                  <button className="att-x" onClick={() => removePending(i)} aria-label="제외">
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            onChange={onPickFiles}
+            style={{ display: "none" }}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost file-add"
+            onClick={() => fileRef.current?.click()}
+          >
+            <IconPaperclip size={16} /> 파일 첨부
+          </button>
+        </div>
+
         {err && <div className="auth-err" style={{ marginTop: 4 }}>{err}</div>}
 
         <div className="modal-foot">
@@ -444,7 +549,7 @@ export default function ReservationEditor({
               )}
               <div style={{ flex: 1 }} />
               <button className="btn btn-primary" onClick={save} disabled={busy}>
-                {busy ? "저장 중…" : "저장"}
+                {uploading ? "업로드 중…" : busy ? "저장 중…" : "저장"}
               </button>
             </>
           ) : (
@@ -454,7 +559,7 @@ export default function ReservationEditor({
                 취소
               </button>
               <button className="btn btn-primary" onClick={save} disabled={busy}>
-                {busy ? "예약 중…" : "예약하기"}
+                {uploading ? "업로드 중…" : busy ? "예약 중…" : "예약하기"}
               </button>
             </>
           )}

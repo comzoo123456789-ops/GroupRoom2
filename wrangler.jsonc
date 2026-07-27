@@ -22,6 +22,11 @@
     }
   ],
 
+  // 예약 첨부파일 저장 (KV, 24시간 후 자동 만료 삭제)
+  "kv_namespaces": [
+    { "binding": "ATTACH_KV", "id": "86a29a8825a1433fadbf83c33987e8d6" }
+  ],
+
   // 실시간 회의실 현황 (WebSocket 브로드캐스트)
   "durable_objects": {
     "bindings": [{ "name": "ROOM_HUB", "class_name": "RoomHub" }]
