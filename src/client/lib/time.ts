@@ -80,3 +80,47 @@ export function snapMin(min: number): number {
 export function clampMin(min: number): number {
   return Math.min(DAY_END_HOUR * 60, Math.max(DAY_START_HOUR * 60, min));
 }
+
+// --- 임의 날짜 지원 (미리 예약) ---
+/** 해당 시각이 속한 날의 00:00 epoch(ms) */
+export function startOfDay(ms: number): number {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+/** 특정 날짜의 [00:00, 다음날 00:00] 범위 */
+export function dayRange(ms: number): [number, number] {
+  const s = startOfDay(ms);
+  return [s, s + 86_400_000];
+}
+/** 특정 날짜 00:00 기준 분 → epoch(ms) */
+export function minToTs(dayStart: number, min: number): number {
+  return dayStart + min * 60_000;
+}
+/** "HH:MM"을 특정 날짜의 epoch(ms)로 */
+export function hhmmToTs(dayStart: number, t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return dayStart + (h * 60 + m) * 60_000;
+}
+export function isSameDay(a: number, b: number): boolean {
+  return startOfDay(a) === startOfDay(b);
+}
+/** <input type="date"> 값 (YYYY-MM-DD) */
+export function dateInputValue(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+/** YYYY-MM-DD → 그 날 00:00 epoch(ms) */
+export function dateFromInput(v: string): number {
+  const [y, m, dd] = v.split("-").map(Number);
+  const d = new Date();
+  d.setFullYear(y, m - 1, dd);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+/** "M월 D일 (요일)" */
+export function dayLabel(ms: number): string {
+  const d = new Date(ms);
+  const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`;
+}

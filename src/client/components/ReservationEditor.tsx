@@ -7,7 +7,16 @@ import type {
   Attachment,
 } from "../../shared/types";
 import { api } from "../lib/api";
-import { timeOptions, hhmmToday, minToHHMM, tsToMin } from "../lib/time";
+import {
+  timeOptions,
+  hhmmToday,
+  hhmmToTs,
+  minToHHMM,
+  tsToMin,
+  startOfDay,
+  dateInputValue,
+  dateFromInput,
+} from "../lib/time";
 import { IconUsers, IconPaperclip, IconFile } from "./icons";
 
 const OPTS = timeOptions();
@@ -42,6 +51,7 @@ export default function ReservationEditor({
   presetRoomId,
   presetStart,
   presetEnd,
+  dayStart,
   onClose,
   onSaved,
 }: {
@@ -51,10 +61,13 @@ export default function ReservationEditor({
   presetRoomId?: string;
   presetStart?: string;
   presetEnd?: string;
+  dayStart?: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const isEdit = !!editing;
+  const baseDay = editing ? startOfDay(editing.startsAt) : dayStart ?? startOfDay(Date.now());
+  const [dateVal, setDateVal] = useState(dateInputValue(baseDay));
   const [roomId, setRoomId] = useState(
     editing?.roomId ?? presetRoomId ?? rooms[0]?.id ?? "",
   );
@@ -228,8 +241,9 @@ export default function ReservationEditor({
 
   const save = async () => {
     if (!title.trim()) return setErr("회의 제목을 입력하세요.");
-    const startsAt = hhmmToday(start);
-    const endsAt = hhmmToday(end);
+    const day = dateFromInput(dateVal);
+    const startsAt = hhmmToTs(day, start);
+    const endsAt = hhmmToTs(day, end);
     if (endsAt <= startsAt) return setErr("종료 시간이 시작보다 빨라요.");
     setBusy(true);
     setErr(null);
@@ -308,6 +322,16 @@ export default function ReservationEditor({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="field">
+          <label>날짜</label>
+          <input
+            type="date"
+            className="select"
+            value={dateVal}
+            onChange={(e) => setDateVal(e.target.value)}
+          />
         </div>
 
         <div className="field-row">

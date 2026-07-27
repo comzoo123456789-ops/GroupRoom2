@@ -8,10 +8,11 @@ import {
   SNAP_MIN,
   minToTop,
   minToHHMM,
-  minToday,
+  minToTs,
   tsToMin,
   snapMin,
   clampMin,
+  isSameDay,
 } from "../lib/time";
 import { IconPencil, IconX, IconUsers, IconRepeat, IconCam } from "./icons";
 import "./Timetable.css";
@@ -37,6 +38,7 @@ export default function Timetable({
   rooms,
   reservations,
   now,
+  dayStart,
   canBook,
   isAdmin,
   meId,
@@ -49,6 +51,7 @@ export default function Timetable({
   rooms: RoomLive[];
   reservations: Reservation[];
   now: number;
+  dayStart: number;
   canBook: boolean;
   isAdmin: boolean;
   meId: string | null;
@@ -118,13 +121,13 @@ export default function Timetable({
         // 값이 실제로 바뀐 경우에만 저장 (단순 클릭·더블클릭 시 불필요한 PATCH 방지)
         const i = initial && initial.kind === "resize" ? initial : null;
         if (!i || i.startMin !== d.startMin || i.endMin !== d.endMin) {
-          onResize(d.id, minToday(d.startMin), minToday(d.endMin));
+          onResize(d.id, minToTs(dayStart, d.startMin), minToTs(dayStart, d.endMin));
         }
       } else {
         const i = initial && initial.kind === "move" ? initial : null;
         const changed =
           !i || i.roomId !== d.roomId || i.startMin !== d.startMin || i.endMin !== d.endMin;
-        if (changed) onResize(d.id, minToday(d.startMin), minToday(d.endMin), d.roomId);
+        if (changed) onResize(d.id, minToTs(dayStart, d.startMin), minToTs(dayStart, d.endMin), d.roomId);
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -161,7 +164,8 @@ export default function Timetable({
   };
 
   const nowH = new Date(now).getHours();
-  const nowInRange = nowH >= DAY_START_HOUR && nowH < DAY_END_HOUR;
+  const nowInRange =
+    isSameDay(now, dayStart) && nowH >= DAY_START_HOUR && nowH < DAY_END_HOUR;
 
   const colDown = (roomId: string) => (e: RPE<HTMLDivElement>) => {
     if (!canBook) return;

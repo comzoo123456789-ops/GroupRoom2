@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { Reservation, RoomLive } from "../../shared/types";
 import type { ShellContext } from "../components/AppShell";
 import { api, connectLive } from "../lib/api";
-import { todayRange, hhmm } from "../lib/time";
+import {
+  dayRange,
+  hhmm,
+  startOfDay,
+  isSameDay,
+  dateInputValue,
+  dateFromInput,
+  dayLabel,
+} from "../lib/time";
 import { IconBolt, IconWifi } from "../components/icons";
 import RoomEditor from "../components/RoomEditor";
 import ReservationEditor from "../components/ReservationEditor";
@@ -27,15 +35,15 @@ export default function LiveBoard() {
   const [editing, setEditing] = useState<{ room: RoomLive | null } | null>(null);
   const [booking, setBooking] = useState<{ roomId: string; start: string; end: string } | null>(null);
   const [editRes, setEditRes] = useState<Reservation | null>(null);
+  // 조회·예약 대상 날짜(00:00 epoch). 기본 오늘. 날짜 이동으로 미리 예약 가능.
+  const [dayStart, setDayStart] = useState(startOfDay(Date.now()));
 
   const load = useCallback(async () => {
     try {
+      const [from, to] = dayRange(dayStart);
       const [live, res] = await Promise.all([
         api.roomsLive(),
-        (() => {
-          const [from, to] = todayRange();
-          return api.reservations(from, to);
-        })(),
+        api.reservations(from, to),
       ]);
       setRooms(live.rooms);
       setReservations(res.reservations);
@@ -44,10 +52,17 @@ export default function LiveBoard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dayStart]);
 
+  // 날짜 변경 시 재조회
+  const loadRef = useRef(load);
+  loadRef.current = load;
   useEffect(() => {
     load();
+  }, [load]);
+
+  // 마운트 1회: 로그인 정보 + 실시간 연결 + 시계/폴링
+  useEffect(() => {
     api
       .me()
       .then((r) => {
@@ -59,16 +74,16 @@ export default function LiveBoard() {
     const stopWs = connectLive(() => {
       setConnected(true);
       setLiveVersion((v) => v + 1);
-      load();
+      loadRef.current();
     });
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    const poll = setInterval(load, 30_000);
+    const poll = setInterval(() => loadRef.current(), 30_000);
     return () => {
       stopWs();
       clearInterval(clock);
       clearInterval(poll);
     };
-  }, [load]);
+  }, []);
 
   const counts = {
     available: rooms.filter((r) => r.status === "available").length,
@@ -152,19 +167,50 @@ export default function LiveBoard() {
           </button>
         </div>
       ) : (
-        <Timetable
-          rooms={rooms}
-          reservations={reservations}
-          now={now}
-          canBook={loggedIn}
-          isAdmin={isAdmin}
-          meId={meId}
-          onCreate={onCreate}
-          onResize={onResize}
-          onCancel={onCancel}
-          onEditRoom={(room) => setEditing({ room })}
-          onEditReservation={(r) => setEditRes(r)}
-        />
+        <>
+          <div className="day-nav">
+            <button
+              className="day-btn"
+              onClick={() => setDayStart((d) => startOfDay(d - 86_400_000))}
+              aria-label="이전 날"
+            >
+              ‹
+            </button>
+            <input
+              type="date"
+              className="day-input"
+              value={dateInputValue(dayStart)}
+              onChange={(e) => e.target.value && setDayStart(dateFromInput(e.target.value))}
+            />
+            <span className="day-label">{dayLabel(dayStart)}</span>
+            <button
+              className="day-btn"
+              onClick={() => setDayStart((d) => startOfDay(d + 86_400_000))}
+              aria-label="다음 날"
+            >
+              ›
+            </button>
+            {!isSameDay(dayStart, now) && (
+              <button className="btn btn-ghost day-today" onClick={() => setDayStart(startOfDay(Date.now()))}>
+                오늘
+              </button>
+            )}
+          </div>
+          <Timetable
+            rooms={rooms}
+            reservations={reservations}
+            now={now}
+            dayStart={dayStart}
+            canBook={loggedIn}
+            isAdmin={isAdmin}
+            meId={meId}
+            onCreate={onCreate}
+            onResize={onResize}
+            onCancel={onCancel}
+            onEditRoom={(room) => setEditing({ room })}
+            onEditReservation={(r) => setEditRes(r)}
+          />
+        </>
       )}
 
       {editing && (
@@ -185,6 +231,7 @@ export default function LiveBoard() {
           presetRoomId={booking.roomId}
           presetStart={booking.start}
           presetEnd={booking.end}
+          dayStart={dayStart}
           onClose={() => setBooking(null)}
           onSaved={() => {
             setBooking(null);
