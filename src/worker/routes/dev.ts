@@ -6,19 +6,20 @@ import { resolveOrgId } from "../lib/session";
 export const dev = new Hono<{ Bindings: Env }>();
 
 // 데모 임직원 디렉터리 — 참석자 검색/초대용. 비밀번호는 모두 demo1234.
-const SEED_EMPLOYEES: { name: string; email: string; dept: string; color: string }[] = [
-  { name: "김민준", email: "minjun.kim@demo.com", dept: "개발팀", color: "#3B5BDB" },
-  { name: "이서연", email: "seoyeon.lee@demo.com", dept: "디자인팀", color: "#0CA678" },
-  { name: "박도윤", email: "doyoon.park@demo.com", dept: "영업팀", color: "#7048E8" },
-  { name: "최지우", email: "jiwoo.choi@demo.com", dept: "마케팅팀", color: "#F76707" },
-  { name: "정하준", email: "hajun.jung@demo.com", dept: "개발팀", color: "#1098AD" },
-  { name: "강서준", email: "seojun.kang@demo.com", dept: "인사팀", color: "#E8590C" },
-  { name: "조은우", email: "eunwoo.cho@demo.com", dept: "재무팀", color: "#D6336C" },
-  { name: "윤지호", email: "jiho.yoon@demo.com", dept: "개발팀", color: "#2F9E44" },
-  { name: "임채원", email: "chaewon.lim@demo.com", dept: "디자인팀", color: "#5C7CFA" },
-  { name: "한예준", email: "yejun.han@demo.com", dept: "영업팀", color: "#F03E3E" },
-  { name: "오유진", email: "yujin.oh@demo.com", dept: "마케팅팀", color: "#9C36B5" },
-  { name: "서지안", email: "jian.seo@demo.com", dept: "경영지원", color: "#0C8599" },
+// 부서는 비워둔다(사용자가 직접 부서/직급을 만들고 배정).
+const SEED_EMPLOYEES: { name: string; email: string; color: string }[] = [
+  { name: "김민준", email: "minjun.kim@demo.com", color: "#3B5BDB" },
+  { name: "이서연", email: "seoyeon.lee@demo.com", color: "#0CA678" },
+  { name: "박도윤", email: "doyoon.park@demo.com", color: "#7048E8" },
+  { name: "최지우", email: "jiwoo.choi@demo.com", color: "#F76707" },
+  { name: "정하준", email: "hajun.jung@demo.com", color: "#1098AD" },
+  { name: "강서준", email: "seojun.kang@demo.com", color: "#E8590C" },
+  { name: "조은우", email: "eunwoo.cho@demo.com", color: "#D6336C" },
+  { name: "윤지호", email: "jiho.yoon@demo.com", color: "#2F9E44" },
+  { name: "임채원", email: "chaewon.lim@demo.com", color: "#5C7CFA" },
+  { name: "한예준", email: "yejun.han@demo.com", color: "#F03E3E" },
+  { name: "오유진", email: "yujin.oh@demo.com", color: "#9C36B5" },
+  { name: "서지안", email: "jian.seo@demo.com", color: "#0C8599" },
 ];
 
 /** 조직에 임직원 시드를 멱등하게 채운다(이메일 기준 중복 방지). 추가된 수 반환. */
@@ -34,9 +35,9 @@ async function ensureEmployees(env: Env, orgId: string, now: number): Promise<nu
     if (exists) continue;
     await env.DB.prepare(
       `INSERT INTO users (id, org_id, email, name, password_hash, password_salt, role, department, avatar_color, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'member', ?, ?, 'active', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, 'member', NULL, ?, 'active', ?)`,
     )
-      .bind(newId(), orgId, e.email, e.name, hash, salt, e.dept, e.color, now)
+      .bind(newId(), orgId, e.email, e.name, hash, salt, e.color, now)
       .run();
     added++;
   }
@@ -65,10 +66,11 @@ const SEED_ROOMS: SeedRoom[] = [
  * 데모 데이터 부트스트랩. demo 조직이 없을 때만 생성 (멱등).
  * 관리자 계정은 워커의 실제 해싱으로 생성 → 로그인 즉시 가능.
  */
-const SEED_DEPTS = ["개발팀", "디자인팀", "기획팀", "마케팅팀", "경영지원"];
-const SEED_POSITIONS = ["사원", "주임", "대리", "과장", "차장", "팀장", "이사"];
+// 부서/직급 기본값은 두지 않음 — 사용자가 멤버 탭에서 직접 생성한다.
+const SEED_DEPTS: string[] = [];
+const SEED_POSITIONS: string[] = [];
 
-// 부서/직급 마스터 기본값 (멱등)
+// 부서/직급 마스터 기본값 (멱등). 기본 배열이 비어 있으면 아무것도 넣지 않음.
 async function ensureMasters(env: Env, orgId: string, now: number): Promise<void> {
   const seed = async (table: "departments" | "positions", names: string[]) => {
     for (let i = 0; i < names.length; i++) {
@@ -106,7 +108,7 @@ dev.post("/bootstrap", async (c) => {
   const adminId = newId();
   await c.env.DB.prepare(
     `INSERT INTO users (id, org_id, email, name, password_hash, password_salt, role, department, avatar_color, status, created_at)
-     VALUES (?, ?, 'admin@demo.com', '관리자', ?, ?, 'admin', '운영', '#3B5BDB', 'active', ?)`,
+     VALUES (?, ?, 'admin@demo.com', '관리자', ?, ?, 'admin', NULL, '#3B5BDB', 'active', ?)`,
   )
     .bind(adminId, orgId, hash, salt, now)
     .run();
