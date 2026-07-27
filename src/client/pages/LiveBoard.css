@@ -80,6 +80,37 @@
   align-items: center;
   gap: 10px;
 }
+.day-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-sunken);
+  padding: 3px;
+  border-radius: var(--r-sm);
+}
+.day-toggle button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.day-toggle button.on {
+  background: var(--surface);
+  color: var(--brand-ink);
+  box-shadow: var(--shadow-sm);
+}
+.wk-roombar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.wk-roombar .select {
+  height: 36px;
+  max-width: 220px;
+}
 .day-btn {
   width: 34px;
   height: 34px;

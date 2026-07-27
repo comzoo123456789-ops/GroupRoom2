@@ -1,0 +1,23 @@
+.wk-head {
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  line-height: 1.1;
+}
+.wk-wd {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.wk-date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wk-head.today .wk-wd,
+.wk-head.today .wk-date {
+  color: var(--brand);
+}
+.wk-head.today {
+  background: var(--brand-wash);
+}

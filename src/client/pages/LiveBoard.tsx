@@ -11,11 +11,17 @@ import {
   dateInputValue,
   dateFromInput,
   dayLabel,
+  weekRange,
+  weekDays,
+  weekLabel,
+  minToHHMM,
+  DAY_END_HOUR,
 } from "../lib/time";
 import { IconBolt, IconWifi } from "../components/icons";
 import RoomEditor from "../components/RoomEditor";
 import ReservationEditor from "../components/ReservationEditor";
 import Timetable from "../components/Timetable";
+import WeekView from "../components/WeekView";
 import InvitationsBell from "../components/InvitationsBell";
 import "./LiveBoard.css";
 
@@ -33,14 +39,16 @@ export default function LiveBoard() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ room: RoomLive | null } | null>(null);
-  const [booking, setBooking] = useState<{ roomId: string; start: string; end: string } | null>(null);
+  const [booking, setBooking] = useState<{ roomId: string; start: string; end: string; day: number } | null>(null);
   const [editRes, setEditRes] = useState<Reservation | null>(null);
   // 조회·예약 대상 날짜(00:00 epoch). 기본 오늘. 날짜 이동으로 미리 예약 가능.
   const [dayStart, setDayStart] = useState(startOfDay(Date.now()));
+  const [view, setView] = useState<"day" | "week">("day");
+  const [weekRoomId, setWeekRoomId] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [from, to] = dayRange(dayStart);
+      const [from, to] = view === "week" ? weekRange(dayStart) : dayRange(dayStart);
       const [live, res] = await Promise.all([
         api.roomsLive(),
         api.reservations(from, to),
@@ -52,7 +60,7 @@ export default function LiveBoard() {
     } finally {
       setLoading(false);
     }
-  }, [dayStart]);
+  }, [dayStart, view]);
 
   // 날짜 변경 시 재조회
   const loadRef = useRef(load);
@@ -103,7 +111,15 @@ export default function LiveBoard() {
         </div>
         {rooms.length > 0 && (
           <div className="day-nav">
-            <button className="day-btn" onClick={() => setDayStart((d) => startOfDay(d - 86_400_000))} aria-label="이전 날">
+            <div className="day-toggle">
+              <button className={view === "day" ? "on" : ""} onClick={() => setView("day")}>일</button>
+              <button className={view === "week" ? "on" : ""} onClick={() => setView("week")}>주</button>
+            </div>
+            <button
+              className="day-btn"
+              onClick={() => setDayStart((d) => startOfDay(d - (view === "week" ? 7 : 1) * 86_400_000))}
+              aria-label="이전"
+            >
               ‹
             </button>
             <input
@@ -112,8 +128,12 @@ export default function LiveBoard() {
               value={dateInputValue(dayStart)}
               onChange={(e) => e.target.value && setDayStart(dateFromInput(e.target.value))}
             />
-            <span className="day-label">{dayLabel(dayStart)}</span>
-            <button className="day-btn" onClick={() => setDayStart((d) => startOfDay(d + 86_400_000))} aria-label="다음 날">
+            <span className="day-label">{view === "week" ? weekLabel(dayStart) : dayLabel(dayStart)}</span>
+            <button
+              className="day-btn"
+              onClick={() => setDayStart((d) => startOfDay(d + (view === "week" ? 7 : 1) * 86_400_000))}
+              aria-label="다음"
+            >
               ›
             </button>
             {!isSameDay(dayStart, now) && (
@@ -139,7 +159,7 @@ export default function LiveBoard() {
     );
     return () => setTopbar(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length, loggedIn, liveVersion, dayStart]);
+  }, [counts.available, counts.soon, counts.busy, connected, isAdmin, clockLabel, rooms.length, loggedIn, liveVersion, dayStart, view]);
 
   const seed = async () => {
     setSeeding(true);
@@ -151,9 +171,21 @@ export default function LiveBoard() {
     }
   };
 
+  const weekRoom = rooms.find((r) => r.id === weekRoomId) ?? rooms[0] ?? null;
+  const endPlus1 = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return minToHHMM(Math.min(DAY_END_HOUR * 60, h * 60 + m + 60));
+  };
+
   const onCreate = (roomId: string, start: string, end: string) => {
     if (!loggedIn) return nav("/login");
-    setBooking({ roomId, start, end });
+    setBooking({ roomId, start, end, day: dayStart });
+  };
+  const onWeekSlot = (dayMs: number, t: string) => {
+    if (!loggedIn) return nav("/login");
+    const rid = weekRoom?.id;
+    if (!rid) return;
+    setBooking({ roomId: rid, start: t, end: endPlus1(t), day: dayMs });
   };
   const onResize = (id: string, startsAt: number, endsAt: number, roomId?: string) => {
     if (!loggedIn) return nav("/login");
@@ -188,6 +220,30 @@ export default function LiveBoard() {
             {seeding ? "생성 중…" : "데모 데이터 생성"}
           </button>
         </div>
+      ) : view === "week" ? (
+        <>
+          <div className="wk-roombar">
+            <span className="muted">회의실</span>
+            <select
+              className="select"
+              value={weekRoom?.id ?? ""}
+              onChange={(e) => setWeekRoomId(e.target.value)}
+            >
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+          <WeekView
+            room={weekRoom}
+            reservations={reservations}
+            now={now}
+            days={weekDays(dayStart)}
+            canBook={loggedIn}
+            onSlot={onWeekSlot}
+            onBlock={(r) => setEditRes(r)}
+          />
+        </>
       ) : (
         <Timetable
           rooms={rooms}
@@ -223,7 +279,7 @@ export default function LiveBoard() {
           presetRoomId={booking.roomId}
           presetStart={booking.start}
           presetEnd={booking.end}
-          dayStart={dayStart}
+          dayStart={booking.day}
           onClose={() => setBooking(null)}
           onSaved={() => {
             setBooking(null);

@@ -124,3 +124,32 @@ export function dayLabel(ms: number): string {
   const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${wd})`;
 }
+
+// --- 주간 뷰 ---
+/** ms가 속한 주의 월요일 00:00 */
+export function startOfWeek(ms: number): number {
+  const d = new Date(startOfDay(ms));
+  const day = d.getDay(); // 0=일..6=토
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day)); // 월요일로 이동
+  return d.getTime();
+}
+/** 주 범위 [월 00:00, 다음주 월 00:00] */
+export function weekRange(ms: number): [number, number] {
+  const s = startOfWeek(ms);
+  return [s, s + 7 * 86_400_000];
+}
+/** 그 주의 7개 날짜(각 00:00) */
+export function weekDays(ms: number): number[] {
+  const s = startOfWeek(ms);
+  return Array.from({ length: 7 }, (_, i) => s + i * 86_400_000);
+}
+/** "7.28 ~ 8.3" */
+export function weekLabel(ms: number): string {
+  const s = startOfWeek(ms);
+  const e = s + 6 * 86_400_000;
+  const f = (x: number) => {
+    const d = new Date(x);
+    return `${d.getMonth() + 1}.${d.getDate()}`;
+  };
+  return `${f(s)} ~ ${f(e)}`;
+}
